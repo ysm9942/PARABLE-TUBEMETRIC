@@ -10,7 +10,7 @@ const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
 
 /**
- * 특정 영상의 좋아요가 가장 많이 달린 댓글 5개를 가져옵니다.
+ * 특정 영상의 좋아요가 가장 많이 달린 댓글 6개를 가져옵니다.
  */
 const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
   if (!API_KEY) return [];
@@ -19,7 +19,7 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
       params: {
         part: 'snippet',
         videoId: videoId,
-        maxResults: 5,
+        maxResults: 6,
         order: 'relevance',
         key: API_KEY,
       },

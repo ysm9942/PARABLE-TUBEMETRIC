@@ -483,7 +483,7 @@ const App: React.FC = () => {
 
               <div className="space-y-6">
                 <h4 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-tighter">
-                  <MessageSquare size={20} className="text-red-600" /> Top 5 Comments
+                  <MessageSquare size={20} className="text-red-600" /> Top 6 Comments
                 </h4>
                 <div className="space-y-4">
                   {selectedVideo.topComments.length === 0 ? (
