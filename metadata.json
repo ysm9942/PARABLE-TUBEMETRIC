@@ -1,0 +1,5 @@
+{
+  "name": "Parable TubeMetric",
+  "description": "YouTube API Key를 Vercel 환경 변수(YOUTUBE_API_KEY)로 관리하며 채널의 UC 코드를 기반으로 쇼츠 및 롱폼 성과를 일괄 분석하는 엔터프라이즈급 도구입니다.",
+  "requestFramePermissions": []
+}
