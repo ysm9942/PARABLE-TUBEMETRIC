@@ -21,7 +21,11 @@ import {
   Settings2,
   ChevronRight,
   BarChart3,
-  Lock
+  Lock,
+  CheckCircle2,
+  Circle,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod } from './services/youtubeService';
@@ -35,11 +39,15 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video'>('channel');
   
+  // Filters Control
+  const [useDateFilter, setUseDateFilter] = useState<boolean>(true);
+  const [useCountFilter, setUseCountFilter] = useState<boolean>(true);
+  
   // Channel Analysis States
   const [channelInput, setChannelInput] = useState<string>('');
   const [targetShorts, setTargetShorts] = useState<number | string>(30);
   const [targetLong, setTargetLong] = useState<number | string>(10);
-  const [period, setPeriod] = useState<AnalysisPeriod>('all');
+  const [period, setPeriod] = useState<AnalysisPeriod>('30d');
   const [channelResults, setChannelResults] = useState<ChannelResult[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<ChannelResult | null>(null);
   
@@ -79,13 +87,13 @@ const App: React.FC = () => {
   };
 
   const handleChannelStart = async () => {
-    const ucCodes = channelInput
+    const inputs = channelInput
       .split('\n')
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    if (ucCodes.length === 0) {
-      alert('분석할 UC 코드를 입력해주세요.');
+    if (inputs.length === 0) {
+      alert('분석할 채널 URL 또는 UC 코드를 입력해주세요.');
       return;
     }
 
@@ -96,8 +104,8 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
     setDashboardSubTab('channel');
     
-    const initialResults: ChannelResult[] = ucCodes.map((code) => ({
-      channelId: code,
+    const initialResults: ChannelResult[] = inputs.map((input) => ({
+      channelId: input,
       channelName: '데이터 수집 중...',
       thumbnail: '',
       subscriberCount: '0',
@@ -113,14 +121,15 @@ const App: React.FC = () => {
     
     setChannelResults(initialResults);
 
-    for (let i = 0; i < ucCodes.length; i++) {
-      const code = ucCodes[i];
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
       setChannelResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'processing' } : r));
       try {
-        const info = await getChannelInfo(code);
-        const stats = await fetchChannelStats(info.uploadsPlaylistId, shortsVal, longsVal, period);
+        const info = await getChannelInfo(input);
+        const stats = await fetchChannelStats(info.uploadsPlaylistId, shortsVal, longsVal, period, useDateFilter, useCountFilter);
         setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
           ...r, 
+          channelId: info.id,
           channelName: info.title, 
           thumbnail: info.thumbnail,
           subscriberCount: info.subscriberCount,
@@ -181,8 +190,9 @@ const App: React.FC = () => {
 
     if (dashboardSubTab === 'channel') {
       const summaryData = channelResults.map((r) => ({
-        '채널 ID': r.channelId,
+        '채널 링크': `https://www.youtube.com/channel/${r.channelId}`,
         '채널명': r.channelName,
+        '채널 ID': r.channelId,
         '구독자 수': parseInt(r.subscriberCount, 10),
         '쇼츠 평균 조회수': r.avgShortsViews,
         '쇼츠 분석 개수': r.shortsCountFound,
@@ -196,12 +206,12 @@ const App: React.FC = () => {
       channelResults.forEach((r) => {
         if (r.status === 'completed') {
           const videoData = [...r.shortsList, ...r.longsList].map(v => ({
-            '영상 ID': v.id,
+            '영상 링크': v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`,
             '영상 제목': v.title,
+            '영상 ID': v.id,
             '유형': v.isShort ? '쇼츠' : '롱폼',
             '조회수': v.viewCount,
-            '게시일': new Date(v.publishedAt).toLocaleDateString(),
-            'URL': v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`
+            '게시일': new Date(v.publishedAt).toLocaleDateString()
           }));
 
           if (videoData.length > 0) {
@@ -218,12 +228,12 @@ const App: React.FC = () => {
       XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
     } else {
       const data = videoResults.map((r) => ({
-        '영상 ID': r.videoId,
+        '영상 링크': `https://youtu.be/${r.videoId}`,
         '영상 제목': r.title,
         '채널명': r.channelTitle,
         '유형': r.isShort ? '쇼츠' : '롱폼',
         '조회수': r.viewCount,
-        'URL': `https://youtu.be/${r.videoId}`
+        '영상 ID': r.videoId
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, '영상 데이터');
@@ -232,9 +242,10 @@ const App: React.FC = () => {
   };
 
   const periodLabels: Record<AnalysisPeriod, string> = {
-    '7d': '최근 7일',
-    '30d': '최근 30일',
-    'all': '전체 기간'
+    '7d': '7일',
+    '30d': '30일',
+    '90d': '90일',
+    'all': '전체'
   };
 
   if (!isMounted) return null;
@@ -450,10 +461,10 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
                 <div className="xl:col-span-3 flex flex-col space-y-6">
                   <div className="flex items-center justify-between px-2">
-                    <label className="text-[12px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-3">
-                      <List size={16} className="text-red-600" /> UC-CODE INPUT
+                    <label className="text-[12px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
+                      <List size={16} className="text-red-600" /> CHANNEL / URL / UC-CODE INPUT
                     </label>
-                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[11px] font-black text-zinc-600 hover:text-red-500 transition-all uppercase">
+                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[11px] font-black text-white hover:text-red-500 transition-all uppercase">
                       <Trash2 size={14} /> Clear List
                     </button>
                   </div>
@@ -461,10 +472,10 @@ const App: React.FC = () => {
                     <textarea
                       value={channelInput}
                       onChange={(e) => setChannelInput(e.target.value)}
-                      placeholder="UC-xxxxxxxxxxxx&#10;UC-yyyyyyyyyyyy&#10;엔터로 구분하여 여러 개를 입력하세요."
+                      placeholder="https://www.youtube.com/@JU_RURU&#10;UC-xxxxxxxxxxxx&#10;엔터로 구분하여 여러 개를 입력하세요."
                       className="w-full h-full p-10 bg-transparent text-base font-mono leading-relaxed text-zinc-100 placeholder:text-zinc-800 focus:outline-none resize-none relative z-10"
                     />
-                    <div className="absolute bottom-8 right-8 text-[11px] font-bold text-zinc-700 bg-black/50 px-4 py-2 rounded-xl backdrop-blur-md">
+                    <div className="absolute bottom-8 right-8 text-[11px] font-bold text-white bg-black/50 px-4 py-2 rounded-xl backdrop-blur-md">
                       Line Count: {channelInput.split('\n').filter(l => l.trim()).length}
                     </div>
                   </div>
@@ -472,58 +483,87 @@ const App: React.FC = () => {
 
                 <div className="xl:col-span-2 flex flex-col space-y-6">
                    <div className="px-2">
-                    <label className="text-[12px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                    <label className="text-[12px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
                       <Settings2 size={16} className="text-red-600" /> ENGINE CONFIG
                     </label>
                   </div>
-                  <div className="flex-1 bg-[#121212] p-10 rounded-[40px] border border-white/5 shadow-2xl flex flex-col justify-between space-y-12">
-                    <div className="space-y-12">
-                      <div className="space-y-6">
-                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-3">
-                          <Calendar size={16} className="text-red-600" /> 분석 기간 필터
-                        </label>
-                        <div className="grid grid-cols-3 gap-3 p-2 bg-black/50 rounded-3xl border border-white/5">
-                          {(['all', '30d', '7d'] as AnalysisPeriod[]).map((p) => (
-                            <button key={p} onClick={() => setPeriod(p)} className={`py-4 text-[12px] font-black rounded-2xl transition-all ${period === p ? 'bg-white text-black shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>
+                  <div className="flex-1 bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl flex flex-col justify-between space-y-8">
+                    <div className="space-y-10">
+                      {/* Analysis Period Filter */}
+                      <div className="space-y-5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <Calendar size={16} className="text-red-600" /> 분석 기간 필터
+                          </label>
+                          <button 
+                            onClick={() => setUseDateFilter(!useDateFilter)} 
+                            className={`flex items-center gap-2 transition-all ${useDateFilter ? 'text-red-600' : 'text-zinc-800'}`}
+                          >
+                             {useDateFilter ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                          </button>
+                        </div>
+                        <div className={`grid grid-cols-4 gap-2 p-1.5 bg-black/50 rounded-2xl border border-white/5 transition-all ${!useDateFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
+                          {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map((p) => (
+                            <button 
+                              key={p} 
+                              onClick={() => setPeriod(p)} 
+                              className={`py-2 text-[10px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black shadow-xl' : 'text-white hover:text-zinc-300'}`}
+                            >
                               {periodLabels[p]}
                             </button>
                           ))}
                         </div>
+                        <p className={`text-[10px] font-bold text-white px-2 italic ${!useDateFilter ? 'opacity-0' : 'opacity-100'}`}>
+                          * {period === 'all' ? '채널 전체의 영상을 분석합니다.' : `${periodLabels[period]} 이내에 업로드된 영상만 분석합니다.`}
+                        </p>
                       </div>
 
-                      <div className="space-y-8">
-                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-3">
-                          <Radio size={16} className="text-red-600" /> 데이터 수집 목표량 (최신순)
-                        </label>
-                        <div className="space-y-10">
-                          <div className="space-y-5 bg-black/20 p-6 rounded-3xl border border-white/5">
+                      {/* Collection Target Filter */}
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <Radio size={16} className="text-red-600" /> 영상 개수 필터
+                          </label>
+                          <button 
+                            onClick={() => setUseCountFilter(!useCountFilter)} 
+                            className={`flex items-center gap-2 transition-all ${useCountFilter ? 'text-red-600' : 'text-zinc-800'}`}
+                          >
+                             {useCountFilter ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                          </button>
+                        </div>
+                        
+                        <div className={`space-y-6 transition-all ${!useCountFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
+                          <div className="space-y-3 bg-black/20 p-5 rounded-3xl border border-white/5">
                             <div className="flex justify-between items-center">
-                              <span className="text-[11px] font-black text-zinc-300 uppercase tracking-tighter italic">Shorts Target</span>
-                              <span className="text-2xl font-black text-red-600">{targetShorts} <span className="text-[10px] text-zinc-600 uppercase">Videos</span></span>
+                              <span className="text-[10px] font-black text-white uppercase italic">Shorts Target</span>
+                              <span className="text-xl font-black text-red-600">{targetShorts} <span className="text-[9px] text-white uppercase">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-red-600" />
+                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-red-600" />
                           </div>
                           
-                          <div className="space-y-5 bg-black/20 p-6 rounded-3xl border border-white/5">
+                          <div className="space-y-3 bg-black/20 p-5 rounded-3xl border border-white/5">
                             <div className="flex justify-between items-center">
-                              <span className="text-[11px] font-black text-zinc-300 uppercase tracking-tighter italic">Longform Target</span>
-                              <span className="text-2xl font-black text-white">{targetLong} <span className="text-[10px] text-zinc-600 uppercase">Videos</span></span>
+                              <span className="text-[10px] font-black text-white uppercase italic">Longform Target</span>
+                              <span className="text-xl font-black text-white">{targetLong} <span className="text-[9px] text-white uppercase">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-white" />
+                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-white" />
                           </div>
                         </div>
+                        <p className={`text-[10px] font-bold text-white px-2 italic ${!useCountFilter ? 'opacity-0' : 'opacity-100'}`}>
+                          * {useDateFilter ? `설정 기간 내의` : `업로드일 상관없이`} 최신 영상 {targetShorts}/{targetLong}개를 분석합니다.
+                        </p>
                       </div>
                     </div>
 
                     <button
                       onClick={handleChannelStart}
                       disabled={isProcessing || !channelInput.trim()}
-                      className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-700 text-white py-8 rounded-[32px] font-black text-lg flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95 group"
+                      className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-700 text-white py-6 rounded-[28px] font-black text-lg flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95 group"
                     >
                       {isProcessing ? (
                         <Loader2 className="animate-spin" size={24} />
                       ) : (
-                        <Play fill="currentColor" size={24} className="group-hover:scale-125 transition-transform" />
+                        <Play fill="currentColor" size={20} className="group-hover:scale-125 transition-transform" />
                       )}
                       분석 시작하기
                     </button>

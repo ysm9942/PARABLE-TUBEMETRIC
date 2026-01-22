@@ -7,29 +7,58 @@ import { VideoDetail, VideoResult } from '../types';
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
-export type AnalysisPeriod = '7d' | '30d' | 'all';
+export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
 
-export const getChannelInfo = async (channelId: string) => {
+/**
+ * UC-Code 또는 @핸들이 포함된 URL로부터 채널 정보를 가져옵니다.
+ */
+export const getChannelInfo = async (input: string) => {
   if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다. Vercel 환경 변수(API_KEY)를 확인해주세요.');
   
-  const response = await axios.get(`${BASE_URL}/channels`, {
-    params: {
-      part: 'snippet,contentDetails,statistics',
-      id: channelId,
-      key: API_KEY,
-    },
-  });
+  const cleanInput = input.trim();
+  let params: any = {
+    part: 'snippet,contentDetails,statistics',
+    key: API_KEY,
+  };
+
+  // 핸들 추출 (@handle)
+  const handleMatch = cleanInput.match(/@([^/?\s]+)/);
+  
+  if (handleMatch) {
+    params.forHandle = `@${handleMatch[1]}`;
+  } else if (cleanInput.startsWith('UC')) {
+    params.id = cleanInput;
+  } else {
+    const searchResponse = await axios.get(`${BASE_URL}/search`, {
+      params: {
+        part: 'snippet',
+        q: cleanInput,
+        type: 'channel',
+        maxResults: 1,
+        key: API_KEY,
+      }
+    });
+    
+    if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
+      throw new Error(`채널을 찾을 수 없습니다: ${cleanInput}`);
+    }
+    params.id = searchResponse.data.items[0].id.channelId;
+  }
+
+  const response = await axios.get(`${BASE_URL}/channels`, { params });
 
   if (!response.data.items || response.data.items.length === 0) {
-    throw new Error(`채널을 찾을 수 없습니다: ${channelId}`);
+    throw new Error(`채널 정보를 가져올 수 없습니다: ${cleanInput}`);
   }
 
   const channel = response.data.items[0];
   return {
+    id: channel.id,
     title: channel.snippet.title,
     thumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.default.url,
     subscriberCount: channel.statistics.subscriberCount,
     uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads,
+    customUrl: channel.snippet.customUrl || `@${handleMatch ? handleMatch[1] : ''}`,
   };
 };
 
@@ -67,7 +96,9 @@ export const fetchChannelStats = async (
   uploadsPlaylistId: string,
   targetShorts: number,
   targetLong: number,
-  period: AnalysisPeriod
+  period: AnalysisPeriod,
+  useDateFilter: boolean,
+  useCountFilter: boolean
 ): Promise<{ 
   avgShortsViews: number; 
   shortsCount: number; 
@@ -83,21 +114,28 @@ export const fetchChannelStats = async (
   let nextPageToken: string | undefined = undefined;
   let safetyCounter = 0;
 
+  // 필터 설정에 따른 목표 개수 확정
+  // 개수 필터가 꺼져있으면 해당 기간 내의 모든 영상을 가져오기 위해 넉넉한 캡(500) 설정
+  const maxShorts = useCountFilter ? targetShorts : 500;
+  const maxLongs = useCountFilter ? targetLong : 500;
+
   const now = new Date();
   let cutoffDate: Date | null = null;
-  if (period === '7d') {
-    cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  } else if (period === '30d') {
-    cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (useDateFilter && period !== 'all') {
+    const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+    cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   }
 
   let reachedDateLimit = false;
 
-  // 최대 20페이지까지 탐색하여 목표 수량을 충분히 확보합니다.
+  // 루프 조건: 
+  // 1. 날짜 제한에 걸리지 않았어야 함 (기간 필터 사용 시)
+  // 2. 목표 개수를 다 채우지 못했어야 함 (개수 필터 사용 시)
+  // 3. 만약 개수 필터가 꺼져있다면 날짜 제한이 올 때까지 계속 루프
   while (
     !reachedDateLimit &&
-    (shorts.length < targetShorts || longs.length < targetLong) && 
-    safetyCounter < 20
+    (useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && 
+    safetyCounter < 100 // 안전 장치: 최대 100페이지(5000개 영상) 탐색
   ) {
     safetyCounter++;
     
@@ -130,6 +168,7 @@ export const fetchChannelStats = async (
     for (const video of videoDetails) {
       const publishedAt = new Date(video.snippet.publishedAt);
       
+      // 날짜 필터 활성화 시, 기준일보다 이전이면 탐색 중단
       if (cutoffDate && publishedAt < cutoffDate) {
         reachedDateLimit = true;
         break;
@@ -139,11 +178,7 @@ export const fetchChannelStats = async (
       const durationSec = parseYtDurationSeconds(durationStr);
       const isShort = await isYouTubeShort(video.id, durationSec);
       const views = parseInt(video.statistics.viewCount || '0', 10);
-      
       const isLiveStream = !!video.liveStreamingDetails;
-      const concurrentViewers = video.liveStreamingDetails?.concurrentViewers 
-        ? parseInt(video.liveStreamingDetails.concurrentViewers, 10) 
-        : undefined;
 
       const videoInfo: VideoDetail = {
         id: video.id,
@@ -153,16 +188,15 @@ export const fetchChannelStats = async (
         viewCount: views,
         duration: durationStr,
         isShort: isShort,
-        isLiveStream,
-        concurrentViewers
+        isLiveStream
       };
 
       if (isLiveStream) {
         if (lives.length < 10) lives.push(videoInfo);
       } else if (isShort) {
-        if (shorts.length < targetShorts) shorts.push(videoInfo);
+        if (shorts.length < maxShorts) shorts.push(videoInfo);
       } else {
-        if (longs.length < targetLong) longs.push(videoInfo);
+        if (longs.length < maxLongs) longs.push(videoInfo);
       }
     }
 
