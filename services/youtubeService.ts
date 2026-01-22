@@ -3,14 +3,14 @@ import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
 import { VideoDetail, VideoResult } from '../types';
 
-// 제공된 API Key 직접 할당 (브라우저 환경에서 process.env 에러 방지)
-const API_KEY = 'AIzaSyDyg1ThpwHJIL2lHJW9bixqiDawMBUK2uo';
+// Vercel 환경 변수에서 API Key를 가져옵니다.
+const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | 'all';
 
 export const getChannelInfo = async (channelId: string) => {
-  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
+  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다. Vercel 환경 변수(API_KEY)를 확인해주세요.');
   
   const response = await axios.get(`${BASE_URL}/channels`, {
     params: {
@@ -93,11 +93,11 @@ export const fetchChannelStats = async (
 
   let reachedDateLimit = false;
 
-  // 최대 15페이지(약 750개 영상)까지 탐색하여 목표 수량을 채웁니다.
+  // 최대 20페이지까지 탐색하여 목표 수량을 충분히 확보합니다.
   while (
     !reachedDateLimit &&
     (shorts.length < targetShorts || longs.length < targetLong) && 
-    safetyCounter < 15
+    safetyCounter < 20
   ) {
     safetyCounter++;
     
@@ -140,7 +140,6 @@ export const fetchChannelStats = async (
       const isShort = await isYouTubeShort(video.id, durationSec);
       const views = parseInt(video.statistics.viewCount || '0', 10);
       
-      // 라이브 여부 확인
       const isLiveStream = !!video.liveStreamingDetails;
       const concurrentViewers = video.liveStreamingDetails?.concurrentViewers 
         ? parseInt(video.liveStreamingDetails.concurrentViewers, 10) 
@@ -159,10 +158,8 @@ export const fetchChannelStats = async (
       };
 
       if (isLiveStream) {
-        lives.push(videoInfo);
-      }
-
-      if (isShort) {
+        if (lives.length < 10) lives.push(videoInfo);
+      } else if (isShort) {
         if (shorts.length < targetShorts) shorts.push(videoInfo);
       } else {
         if (longs.length < targetLong) longs.push(videoInfo);
@@ -181,6 +178,6 @@ export const fetchChannelStats = async (
     longCount: longs.length,
     shortsList: shorts,
     longsList: longs,
-    liveList: lives.slice(0, 10),
+    liveList: lives,
   };
 };

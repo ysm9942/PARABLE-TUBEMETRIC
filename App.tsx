@@ -10,9 +10,7 @@ import {
   LayoutDashboard, 
   ExternalLink, 
   Calendar,
-  History,
   TrendingUp,
-  Info,
   Video,
   MonitorPlay,
   X,
@@ -20,7 +18,9 @@ import {
   FileSpreadsheet,
   Users,
   Radio,
-  Settings2
+  Settings2,
+  ChevronRight,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod } from './services/youtubeService';
@@ -45,10 +45,11 @@ const App: React.FC = () => {
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
-  // 브라우저에서 process.env 에러 방지를 위한 마운트 확인 (선택 사항)
   const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => { setIsMounted(true); }, []);
+
+  useEffect(() => { 
+    setIsMounted(true); 
+  }, []);
 
   const formatNumber = (num: number | string) => {
     const n = typeof num === 'string' ? parseInt(num, 10) : num;
@@ -84,7 +85,7 @@ const App: React.FC = () => {
     
     const initialResults: ChannelResult[] = ucCodes.map((code) => ({
       channelId: code,
-      channelName: '검색 중...',
+      channelName: '데이터 수집 중...',
       thumbnail: '',
       subscriberCount: '0',
       avgShortsViews: 0,
@@ -163,52 +164,22 @@ const App: React.FC = () => {
 
   const handleDownloadExcel = () => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    
-    if (dashboardSubTab === 'channel') {
-      const wb = XLSX.utils.book_new();
+    const wb = XLSX.utils.book_new();
 
-      // 1. Summary Sheet
+    if (dashboardSubTab === 'channel') {
       const summaryData = channelResults.map((r) => ({
         '채널 ID': r.channelId,
         '채널명': r.channelName,
         '구독자 수': parseInt(r.subscriberCount, 10),
-        '분석 기간': periodLabels[period],
         '쇼츠 평균 조회수': r.avgShortsViews,
-        '쇼츠 수집수': r.shortsCountFound,
+        '쇼츠 분석 개수': r.shortsCountFound,
         '롱폼 평균 조회수': r.avgLongViews,
-        '롱폼 수집수': r.longCountFound,
-        '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류(${r.error})` : '대기',
+        '롱폼 분석 개수': r.longCountFound,
+        '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? '오류' : '대기',
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, '종합 요약');
-
-      // 2. Individual Channel Detail Sheets
-      channelResults.filter(r => r.status === 'completed').forEach(r => {
-        const detailData = [
-          ...r.shortsList.map(v => ({
-            '유형': '쇼츠',
-            '영상 제목': v.title,
-            '조회수': v.viewCount,
-            '업로드일': new Date(v.publishedAt).toLocaleDateString(),
-            'URL': `https://youtube.com/shorts/${v.id}`
-          })),
-          ...r.longsList.map(v => ({
-            '유형': '롱폼',
-            '영상 제목': v.title,
-            '조회수': v.viewCount,
-            '업로드일': new Date(v.publishedAt).toLocaleDateString(),
-            'URL': `https://youtube.com/watch?v=${v.id}`
-          }))
-        ];
-
-        if (detailData.length > 0) {
-          const wsDetail = XLSX.utils.json_to_sheet(detailData);
-          const safeName = r.channelName.replace(/[\\/*?:\[\]]/g, '').substring(0, 31) || r.channelId.substring(0, 31);
-          XLSX.utils.book_append_sheet(wb, wsDetail, safeName);
-        }
-      });
-
-      XLSX.writeFile(wb, `TubeMetric_Channel_Report_${timestamp}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, wsSummary, '채널 요약');
+      XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
     } else {
       const data = videoResults.map((r) => ({
         '영상 ID': r.videoId,
@@ -216,13 +187,11 @@ const App: React.FC = () => {
         '채널명': r.channelTitle,
         '유형': r.isShort ? '쇼츠' : '롱폼',
         '조회수': r.viewCount,
-        '상태': r.status === 'completed' ? '완료' : '오류',
         'URL': `https://youtu.be/${r.videoId}`
       }));
       const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '영상 리포트');
-      XLSX.writeFile(wb, `TubeMetric_Video_Report_${timestamp}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, '영상 데이터');
+      XLSX.writeFile(wb, `TubeMetric_Video_${timestamp}.xlsx`);
     }
   };
 
@@ -235,55 +204,65 @@ const App: React.FC = () => {
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white flex font-sans overflow-hidden relative selection:bg-red-500/30">
+    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex font-sans overflow-hidden selection:bg-red-500/30">
       {/* Modal: Channel Details */}
       {selectedChannel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-[#161616] w-full max-w-5xl h-[90vh] rounded-[32px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="p-6 md:p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/10 to-transparent">
-              <div className="flex items-center gap-5">
-                <img src={selectedChannel.thumbnail} className="w-14 h-14 rounded-2xl border-2 border-red-600 shadow-lg object-cover" alt="" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  <img src={selectedChannel.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 shadow-2xl object-cover" alt="" />
+                  <div className="absolute -bottom-1 -right-1 bg-red-600 p-1.5 rounded-xl border-2 border-[#121212]">
+                    <Youtube size={12} className="text-white" />
+                  </div>
+                </div>
                 <div>
-                  <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
+                  <h3 className="text-2xl font-black text-white flex items-center gap-3">
                     {selectedChannel.channelName}
-                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-500 hover:text-white transition-colors"><ExternalLink size={18} /></a>
+                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-500 hover:text-red-500 transition-all"><ExternalLink size={20} /></a>
                   </h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">분석 내역 • {periodLabels[period]}</p>
-                    <span className="flex items-center gap-1 text-[10px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-full">
-                      <Users size={10} /> {formatNumber(selectedChannel.subscriberCount)} 구독자
+                  <div className="flex items-center gap-4 mt-1.5">
+                    <span className="flex items-center gap-1.5 text-[11px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                      <Users size={12} /> {formatNumber(selectedChannel.subscriberCount)} Subscribers
                     </span>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{periodLabels[period]} Analytics</p>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedChannel(null)} className="p-2.5 bg-white/5 hover:bg-red-600 text-white rounded-xl transition-all">
-                <X size={20} />
+              <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
+                <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-12">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div className="flex-1 overflow-y-auto p-10 space-y-16">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 {/* Shorts List */}
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between px-1">
-                    <h4 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-tighter">
-                      <div className="w-1.5 h-4 bg-red-600 rounded-full"></div>
-                      쇼츠 ({selectedChannel.shortsList.length})
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                    <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
+                      <div className="w-2 h-6 bg-red-600 rounded-full animate-pulse"></div>
+                      Shorts <span className="text-zinc-500 font-medium">({selectedChannel.shortsList.length})</span>
                     </h4>
-                    <span className="text-[11px] font-bold text-red-500">평균 {selectedChannel.avgShortsViews.toLocaleString()}회</span>
+                    <div className="text-right">
+                      <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Avg Views</div>
+                      <div className="text-lg font-black text-red-500">{selectedChannel.avgShortsViews.toLocaleString()}</div>
+                    </div>
                   </div>
-                  <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 gap-4">
                     {selectedChannel.shortsList.map((v) => (
-                      <div key={v.id} className="bg-white/5 p-3.5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-red-600/50 transition-all group">
-                        <img src={v.thumbnail} className="w-12 h-12 rounded-lg object-cover" alt="" />
+                      <div key={v.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-5 hover:bg-white/[0.08] hover:border-red-600/30 transition-all group relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <img src={v.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-lg" alt="" />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-bold text-white truncate leading-snug group-hover:text-red-400 transition-colors">{v.title}</div>
-                          <div className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tighter">
-                            {new Date(v.publishedAt).toLocaleDateString()} • {v.viewCount.toLocaleString()} 조회
+                          <div className="text-[14px] font-bold text-zinc-100 truncate leading-snug group-hover:text-white">{v.title}</div>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-[11px] font-black text-red-500">{v.viewCount.toLocaleString()} views</span>
+                            <span className="text-[10px] text-zinc-500 font-medium">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2 text-zinc-600 hover:text-white transition-colors">
-                          <ExternalLink size={14} />
+                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2.5 bg-white/5 text-zinc-400 hover:text-white hover:bg-red-600 rounded-xl transition-all">
+                          <ExternalLink size={16} />
                         </a>
                       </div>
                     ))}
@@ -291,26 +270,31 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Longform List */}
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between px-1">
-                    <h4 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-tighter">
-                      <div className="w-1.5 h-4 bg-white rounded-full"></div>
-                      롱폼 ({selectedChannel.longsList.length})
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                    <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
+                      <div className="w-2 h-6 bg-zinc-400 rounded-full animate-pulse"></div>
+                      Longform <span className="text-zinc-500 font-medium">({selectedChannel.longsList.length})</span>
                     </h4>
-                    <span className="text-[11px] font-bold text-zinc-400">평균 {selectedChannel.avgLongViews.toLocaleString()}회</span>
+                    <div className="text-right">
+                      <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Avg Views</div>
+                      <div className="text-lg font-black text-zinc-100">{selectedChannel.avgLongViews.toLocaleString()}</div>
+                    </div>
                   </div>
-                  <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 gap-4">
                     {selectedChannel.longsList.map((v) => (
-                      <div key={v.id} className="bg-white/5 p-3.5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-white/30 transition-all group">
-                        <img src={v.thumbnail} className="w-16 h-10 rounded-lg object-cover" alt="" />
+                      <div key={v.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-5 hover:bg-white/[0.08] hover:border-white/20 transition-all group relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-white opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <img src={v.thumbnail} className="w-20 h-12 rounded-xl object-cover shadow-lg" alt="" />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-bold text-white truncate leading-snug">{v.title}</div>
-                          <div className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tighter">
-                            {new Date(v.publishedAt).toLocaleDateString()} • {v.viewCount.toLocaleString()} 조회
+                          <div className="text-[14px] font-bold text-zinc-100 truncate leading-snug">{v.title}</div>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-[11px] font-black text-zinc-400">{v.viewCount.toLocaleString()} views</span>
+                            <span className="text-[10px] text-zinc-500 font-medium">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 text-zinc-600 hover:text-white transition-colors">
-                          <ExternalLink size={14} />
+                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2.5 bg-white/5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-xl transition-all">
+                          <ExternalLink size={16} />
                         </a>
                       </div>
                     ))}
@@ -323,107 +307,134 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className="w-72 bg-[#121212] border-r border-white/5 flex flex-col shrink-0 hidden lg:flex">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="bg-red-600 p-2 rounded-xl shadow-lg shadow-red-600/20">
-              <Youtube className="text-white w-6 h-6" />
+      <aside className="w-80 bg-[#0f0f0f] border-r border-white/5 flex flex-col shrink-0 hidden xl:flex">
+        <div className="p-10">
+          <div className="flex items-center gap-4 mb-16">
+            <div className="bg-red-600 p-3 rounded-2xl shadow-2xl shadow-red-600/40">
+              <Youtube className="text-white w-7 h-7" />
             </div>
-            <h1 className="text-lg font-black tracking-tighter italic uppercase">
-              Parable<br />
-              <span className="text-red-600">TubeMetric</span>
-            </h1>
+            <div>
+              <h1 className="text-xl font-black tracking-tight italic uppercase leading-tight">
+                Parable<br />
+                <span className="text-red-600">TubeMetric</span>
+              </h1>
+            </div>
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-3">
             {[
               { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
               { id: 'video-config', label: '영상 개별 분석', icon: Video },
-              { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
+              { id: 'dashboard', label: '데이터 대시보드', icon: BarChart3 },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as TabType)}
-                className={`w-full flex items-center gap-3.5 px-5 py-4 rounded-2xl text-[13px] font-bold transition-all duration-300 ${
+                className={`w-full flex items-center justify-between px-6 py-5 rounded-[24px] text-[14px] font-black transition-all duration-500 group ${
                   activeTab === item.id 
-                    ? 'bg-red-600 text-white shadow-xl shadow-red-600/20' 
-                    : 'text-zinc-500 hover:bg-white/5 hover:text-white'
+                    ? 'bg-red-600 text-white shadow-2xl shadow-red-600/30' 
+                    : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-200'
                 }`}
               >
-                <item.icon size={18} />
-                {item.label}
+                <div className="flex items-center gap-4">
+                  <item.icon size={20} className={activeTab === item.id ? 'text-white' : 'text-zinc-600 group-hover:text-red-500'} />
+                  {item.label}
+                </div>
+                {activeTab === item.id && <ChevronRight size={16} className="animate-bounce-x" />}
               </button>
             ))}
           </nav>
         </div>
+        
+        <div className="mt-auto p-10 border-t border-white/5 bg-gradient-to-t from-red-600/5 to-transparent">
+          <div className="bg-[#161616] p-5 rounded-3xl border border-white/5 space-y-3">
+            <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+              <Settings2 size={12} className="text-red-600" /> API Status
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="text-[11px] font-bold text-emerald-500 uppercase">Vercel Connected</span>
+            </div>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0f0f0f]">
-        <div className="p-6 md:p-12 max-w-7xl w-full mx-auto">
+      <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0a0a0a]">
+        <div className="p-8 md:p-16 max-w-7xl w-full mx-auto">
           {activeTab === 'channel-config' ? (
-            <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="text-red-600" size={24} />
-                  <h2 className="text-3xl md:text-4xl font-black tracking-tight uppercase italic">채널 ID 입력</h2>
+            <div className="space-y-16 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-2 bg-red-600 rounded-full"></div>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 분석 엔진</h2>
                 </div>
-                <p className="text-zinc-500 text-sm font-medium">분석할 채널의 UC 코드를 엔터로 구분하여 대량 입력하세요.</p>
+                <p className="text-zinc-500 text-lg font-medium pl-6">데이터 기반 유튜브 전략 수립을 위한 UC 코드 일괄 분석 시스템</p>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-stretch">
-                <div className="flex flex-col space-y-4 h-full">
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
+                <div className="xl:col-span-3 flex flex-col space-y-6">
                   <div className="flex items-center justify-between px-2">
-                    <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <List size={14} className="text-red-600" /> 유튜브 채널 UC 코드 목록
+                    <label className="text-[12px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                      <List size={16} className="text-red-600" /> UC-CODE INPUT
                     </label>
-                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[10px] font-black text-zinc-600 hover:text-red-500 transition-colors uppercase">
-                      <Trash2 size={12} /> 초기화
+                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[11px] font-black text-zinc-600 hover:text-red-500 transition-all uppercase">
+                      <Trash2 size={14} /> Clear List
                     </button>
                   </div>
-                  <div className="flex-1 min-h-[400px] bg-[#161616] p-1 border border-white/10 rounded-[32px] shadow-2xl relative group overflow-hidden">
+                  <div className="flex-1 min-h-[500px] bg-[#121212] p-1 border border-white/5 rounded-[40px] shadow-2xl relative group overflow-hidden focus-within:border-red-600/50 transition-all">
                     <textarea
                       value={channelInput}
                       onChange={(e) => setChannelInput(e.target.value)}
-                      placeholder="UC-xxxxxxxxxxxx&#10;UC-yyyyyyyyyyyy"
-                      className="w-full h-full p-8 bg-transparent text-sm font-mono leading-relaxed text-zinc-200 placeholder:text-zinc-700 focus:outline-none resize-none relative z-10"
+                      placeholder="UC-xxxxxxxxxxxx&#10;UC-yyyyyyyyyyyy&#10;엔터로 구분하여 여러 개를 입력하세요."
+                      className="w-full h-full p-10 bg-transparent text-base font-mono leading-relaxed text-zinc-100 placeholder:text-zinc-800 focus:outline-none resize-none relative z-10"
                     />
+                    <div className="absolute bottom-8 right-8 text-[11px] font-bold text-zinc-700 bg-black/50 px-4 py-2 rounded-xl backdrop-blur-md">
+                      Line Count: {channelInput.split('\n').filter(l => l.trim()).length}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col space-y-4 h-full">
+                <div className="xl:col-span-2 flex flex-col space-y-6">
                    <div className="px-2">
-                    <label className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <Settings2 size={14} className="text-red-600" /> 분석 설정
+                    <label className="text-[12px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                      <Settings2 size={16} className="text-red-600" /> ENGINE CONFIG
                     </label>
                   </div>
-                  <div className="flex-1 bg-[#161616] p-8 md:p-10 rounded-[32px] border border-white/10 shadow-2xl flex flex-col justify-between">
-                    <div className="space-y-10">
-                      <div className="space-y-4">
-                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                          <Calendar size={14} className="text-red-600" /> 분석 기간
+                  <div className="flex-1 bg-[#121212] p-10 rounded-[40px] border border-white/5 shadow-2xl flex flex-col justify-between space-y-12">
+                    <div className="space-y-12">
+                      <div className="space-y-6">
+                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+                          <Calendar size={16} className="text-red-600" /> 분석 기간 필터
                         </label>
-                        <div className="grid grid-cols-3 gap-3 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+                        <div className="grid grid-cols-3 gap-3 p-2 bg-black/50 rounded-3xl border border-white/5">
                           {(['all', '30d', '7d'] as AnalysisPeriod[]).map((p) => (
-                            <button key={p} onClick={() => setPeriod(p)} className={`py-3 text-[11px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                            <button key={p} onClick={() => setPeriod(p)} className={`py-4 text-[12px] font-black rounded-2xl transition-all ${period === p ? 'bg-white text-black shadow-xl' : 'text-zinc-600 hover:text-zinc-300'}`}>
                               {periodLabels[p]}
                             </button>
                           ))}
                         </div>
                       </div>
 
-                      <div className="space-y-6">
-                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                          <Radio size={14} className="text-red-600" /> 수집 목표 (최신순)
+                      <div className="space-y-8">
+                        <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+                          <Radio size={16} className="text-red-600" /> 데이터 수집 목표량 (최신순)
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                          <div className="space-y-4">
-                            <span className="text-[10px] font-bold text-zinc-600 uppercase">쇼츠 목표: {targetShorts}개</span>
-                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-red-600" />
+                        <div className="space-y-10">
+                          <div className="space-y-5 bg-black/20 p-6 rounded-3xl border border-white/5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] font-black text-zinc-300 uppercase tracking-tighter italic">Shorts Target</span>
+                              <span className="text-2xl font-black text-red-600">{targetShorts} <span className="text-[10px] text-zinc-600 uppercase">Videos</span></span>
+                            </div>
+                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-red-600" />
                           </div>
-                          <div className="space-y-4">
-                            <span className="text-[10px] font-bold text-zinc-600 uppercase">롱폼 목표: {targetLong}개</span>
-                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-white" />
+                          
+                          <div className="space-y-5 bg-black/20 p-6 rounded-3xl border border-white/5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] font-black text-zinc-300 uppercase tracking-tighter italic">Longform Target</span>
+                              <span className="text-2xl font-black text-white">{targetLong} <span className="text-[10px] text-zinc-600 uppercase">Videos</span></span>
+                            </div>
+                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-white" />
                           </div>
                         </div>
                       </div>
@@ -432,72 +443,122 @@ const App: React.FC = () => {
                     <button
                       onClick={handleChannelStart}
                       disabled={isProcessing || !channelInput.trim()}
-                      className="w-full bg-white hover:bg-red-600 hover:text-white disabled:bg-zinc-800 disabled:text-zinc-600 text-black py-6 rounded-[24px] font-black text-base flex items-center justify-center gap-3 transition-all"
+                      className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-700 text-white py-8 rounded-[32px] font-black text-lg flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95 group"
                     >
-                      {isProcessing ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={18} />}
-                      분석 시작
+                      {isProcessing ? (
+                        <Loader2 className="animate-spin" size={24} />
+                      ) : (
+                        <Play fill="currentColor" size={24} className="group-hover:scale-125 transition-transform" />
+                      )}
+                      분석 시작하기
                     </button>
                   </div>
                 </div>
               </div>
             </div>
           ) : activeTab === 'video-config' ? (
-            <div className="max-w-3xl mx-auto space-y-10">
-              <h2 className="text-3xl font-black italic">영상 개별 분석</h2>
-              <div className="bg-[#161616] p-8 rounded-[40px] border border-white/10 space-y-8">
-                <textarea value={videoInput} onChange={(e) => setVideoInput(e.target.value)} placeholder="URL을 입력하세요..." className="w-full h-64 p-8 bg-black/40 border border-white/5 rounded-3xl text-sm outline-none resize-none" />
-                <button onClick={handleVideoStart} disabled={isProcessing || !videoInput.trim()} className="w-full bg-white text-black py-6 rounded-3xl font-black text-lg flex items-center justify-center gap-3">
-                  {isProcessing ? <Loader2 className="animate-spin" /> : <MonitorPlay size={24} />}
-                  데이터 수집
+            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-top-6 duration-700">
+              <div className="text-center space-y-4">
+                <h2 className="text-5xl font-black italic uppercase">Single <span className="text-red-600">Video</span> Analysis</h2>
+                <p className="text-zinc-500 font-medium text-lg">개별 영상의 데이터를 실시간으로 크롤링하여 분석합니다.</p>
+              </div>
+              <div className="bg-[#121212] p-12 rounded-[48px] border border-white/5 shadow-2xl space-y-10">
+                <textarea 
+                  value={videoInput} 
+                  onChange={(e) => setVideoInput(e.target.value)} 
+                  placeholder="분석할 영상의 URL을 한 줄씩 입력하세요..." 
+                  className="w-full h-80 p-10 bg-black/50 border border-white/5 rounded-[40px] text-lg font-mono outline-none resize-none focus:border-red-600/50 transition-all text-zinc-100" 
+                />
+                <button 
+                  onClick={handleVideoStart} 
+                  disabled={isProcessing || !videoInput.trim()} 
+                  className="w-full bg-white text-black hover:bg-zinc-200 py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-white/5 active:scale-95"
+                >
+                  {isProcessing ? <Loader2 className="animate-spin" size={24} /> : <MonitorPlay size={28} />}
+                  영상 데이터 수집
                 </button>
               </div>
             </div>
           ) : (
-            <div className="space-y-10">
-              <div className="flex justify-between items-end">
-                <h2 className="text-3xl font-black italic uppercase">인사이트 <span className="text-red-600">리포트</span></h2>
-                <button onClick={handleDownloadExcel} className="bg-white text-black px-8 py-4 rounded-2xl font-black flex items-center gap-2 text-sm">
-                  <FileSpreadsheet size={18} /> 엑셀 다운로드
+            <div className="space-y-12 animate-in fade-in duration-700">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                <div className="space-y-2">
+                  <h2 className="text-4xl font-black italic uppercase text-white">Insight <span className="text-red-600">Report</span></h2>
+                  <p className="text-zinc-500 font-medium">실시간으로 수집된 채널 및 영상 데이터를 종합적으로 분석합니다.</p>
+                </div>
+                <button onClick={handleDownloadExcel} className="bg-white text-black hover:bg-zinc-200 px-10 py-5 rounded-[24px] font-black flex items-center gap-3 text-sm shadow-2xl shadow-white/10 transition-all active:scale-95">
+                  <FileSpreadsheet size={20} /> Excel Export
                 </button>
               </div>
 
-              <div className="bg-[#161616] rounded-[32px] border border-white/5 overflow-hidden shadow-2xl">
-                <table className="w-full text-left">
-                  <thead className="bg-white/5 text-zinc-500 text-[10px] uppercase font-black">
-                    <tr>
-                      <th className="px-8 py-5">분석 대상</th>
-                      <th className="px-8 py-5 text-center">구독자</th>
-                      <th className="px-8 py-5 text-right">쇼츠 평균</th>
-                      <th className="px-8 py-5 text-right">롱폼 평균</th>
-                      <th className="px-8 py-5 text-center">상세</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {channelResults.length === 0 ? (
-                      <tr><td colSpan={5} className="py-20 text-center text-zinc-700">분석된 데이터가 없습니다.</td></tr>
-                    ) : (
-                      channelResults.map((r, i) => (
-                        <tr key={i} className="hover:bg-white/[0.02]">
-                          <td className="px-8 py-6 flex items-center gap-4">
-                            {r.thumbnail ? <img src={r.thumbnail} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 bg-zinc-800 rounded-lg" />}
-                            <div>
-                              <div className="font-black text-white">{r.channelName}</div>
-                              <div className="text-[9px] text-zinc-600">{r.channelId}</div>
+              <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
+                      <tr>
+                        <th className="px-10 py-8">Channel Information</th>
+                        <th className="px-10 py-8 text-center">Subscribers</th>
+                        <th className="px-10 py-8 text-right">Shorts Avg</th>
+                        <th className="px-10 py-8 text-right">Longform Avg</th>
+                        <th className="px-10 py-8 text-center">Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {channelResults.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-40 text-center">
+                            <div className="flex flex-col items-center gap-4 text-zinc-700">
+                              <LayoutDashboard size={48} strokeWidth={1} />
+                              <p className="text-lg font-bold">No data analyzed yet.</p>
                             </div>
                           </td>
-                          <td className="px-8 py-6 text-center text-zinc-400 font-bold">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}</td>
-                          <td className="px-8 py-6 text-right font-black">{r.avgShortsViews.toLocaleString()}</td>
-                          <td className="px-8 py-6 text-right font-black">{r.avgLongViews.toLocaleString()}</td>
-                          <td className="px-8 py-6 text-center">
-                            <button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-2 bg-white/5 rounded-lg">
-                              <Eye size={16} />
-                            </button>
-                          </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        channelResults.map((r, i) => (
+                          <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-10 py-8 flex items-center gap-6">
+                              <div className="relative">
+                                {r.thumbnail ? (
+                                  <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                ) : (
+                                  <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center">
+                                    <Loader2 className="animate-spin text-zinc-700" size={20} />
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
+                                <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-8 text-center">
+                              <span className="bg-zinc-900 px-4 py-2 rounded-xl text-zinc-400 font-black text-sm border border-white/5">
+                                {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
+                              </span>
+                            </td>
+                            <td className="px-10 py-8 text-right">
+                              <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
+                              <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                            </td>
+                            <td className="px-10 py-8 text-right">
+                              <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
+                              <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                            </td>
+                            <td className="px-10 py-8 text-center">
+                              <button 
+                                disabled={r.status !== 'completed'} 
+                                onClick={() => setSelectedChannel(r)} 
+                                className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all disabled:opacity-20 active:scale-90"
+                              >
+                                <Eye size={20} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
