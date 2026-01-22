@@ -167,6 +167,7 @@ const App: React.FC = () => {
     const wb = XLSX.utils.book_new();
 
     if (dashboardSubTab === 'channel') {
+      // 1. 채널 요약 시트 생성
       const summaryData = channelResults.map((r) => ({
         '채널 ID': r.channelId,
         '채널명': r.channelName,
@@ -179,6 +180,32 @@ const App: React.FC = () => {
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, '채널 요약');
+
+      // 2. 각 채널별 상세 비디오 정보 시트 추가
+      channelResults.forEach((r) => {
+        if (r.status === 'completed') {
+          const videoData = [...r.shortsList, ...r.longsList].map(v => ({
+            '영상 ID': v.id,
+            '영상 제목': v.title,
+            '유형': v.isShort ? '쇼츠' : '롱폼',
+            '조회수': v.viewCount,
+            '게시일': new Date(v.publishedAt).toLocaleDateString(),
+            'URL': v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`
+          }));
+
+          if (videoData.length > 0) {
+            const wsChannel = XLSX.utils.json_to_sheet(videoData);
+            // 시트 이름 제한 처리 (31자 이내, 특수문자 제거)
+            let sheetName = r.channelName.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
+            // 시트 이름이 중복될 경우를 대비해 ID 일부 추가
+            if (wb.SheetNames.includes(sheetName)) {
+              sheetName = (r.channelName.substring(0, 20) + '_' + r.channelId.substring(0, 5)).replace(/[\\/*?:[\]]/g, '');
+            }
+            XLSX.utils.book_append_sheet(wb, wsChannel, sheetName || r.channelId);
+          }
+        }
+      });
+
       XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
     } else {
       const data = videoResults.map((r) => ({
