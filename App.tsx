@@ -20,7 +20,8 @@ import {
   Radio,
   Settings2,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  Lock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod } from './services/youtubeService';
@@ -29,6 +30,8 @@ import { ChannelResult, VideoResult, VideoDetail } from './types';
 type TabType = 'channel-config' | 'video-config' | 'dashboard';
 
 const App: React.FC = () => {
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video'>('channel');
   
@@ -50,6 +53,16 @@ const App: React.FC = () => {
   useEffect(() => { 
     setIsMounted(true); 
   }, []);
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === '5350') {
+      setIsAuthorized(true);
+    } else {
+      alert('PIN 번호가 일치하지 않습니다.');
+      setPinInput('');
+    }
+  };
 
   const formatNumber = (num: number | string) => {
     const n = typeof num === 'string' ? parseInt(num, 10) : num;
@@ -167,7 +180,6 @@ const App: React.FC = () => {
     const wb = XLSX.utils.book_new();
 
     if (dashboardSubTab === 'channel') {
-      // 1. 채널 요약 시트 생성
       const summaryData = channelResults.map((r) => ({
         '채널 ID': r.channelId,
         '채널명': r.channelName,
@@ -181,7 +193,6 @@ const App: React.FC = () => {
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, '채널 요약');
 
-      // 2. 각 채널별 상세 비디오 정보 시트 추가
       channelResults.forEach((r) => {
         if (r.status === 'completed') {
           const videoData = [...r.shortsList, ...r.longsList].map(v => ({
@@ -195,9 +206,7 @@ const App: React.FC = () => {
 
           if (videoData.length > 0) {
             const wsChannel = XLSX.utils.json_to_sheet(videoData);
-            // 시트 이름 제한 처리 (31자 이내, 특수문자 제거)
             let sheetName = r.channelName.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
-            // 시트 이름이 중복될 경우를 대비해 ID 일부 추가
             if (wb.SheetNames.includes(sheetName)) {
               sheetName = (r.channelName.substring(0, 20) + '_' + r.channelId.substring(0, 5)).replace(/[\\/*?:[\]]/g, '');
             }
@@ -229,6 +238,48 @@ const App: React.FC = () => {
   };
 
   if (!isMounted) return null;
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex items-center justify-center p-6 selection:bg-red-500/30">
+        <div className="w-full max-w-md space-y-12 animate-in fade-in zoom-in-95 duration-700">
+          <div className="text-center space-y-6">
+            <div className="inline-block bg-red-600 p-5 rounded-[2.5rem] shadow-2xl shadow-red-600/20 mb-4">
+              <Lock className="text-white w-10 h-10" strokeWidth={2.5} />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-4xl font-black tracking-tighter italic uppercase text-white">
+                Parable<br />
+                <span className="text-red-600">TubeMetric</span>
+              </h1>
+              <p className="text-zinc-500 text-sm font-bold tracking-widest uppercase">System Locked</p>
+            </div>
+          </div>
+
+          <form onSubmit={handlePinSubmit} className="space-y-6">
+            <div className="relative group">
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="PIN CODE"
+                autoFocus
+                className="w-full bg-[#121212] border-2 border-white/5 rounded-[32px] py-6 px-10 text-center text-3xl font-black tracking-[0.5em] text-white focus:outline-none focus:border-red-600/50 focus:ring-4 focus:ring-red-600/10 transition-all placeholder:text-zinc-800 placeholder:tracking-normal placeholder:text-base"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-red-600 hover:bg-red-500 text-white py-6 rounded-[32px] font-black text-lg transition-all shadow-2xl shadow-red-600/20 active:scale-95 uppercase tracking-widest flex items-center justify-center gap-3"
+            >
+              Authorize System <ChevronRight size={20} />
+            </button>
+          </form>
+          
+          <p className="text-center text-[10px] text-zinc-700 font-bold uppercase tracking-[0.3em]">Authorized Access Only</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex font-sans overflow-hidden selection:bg-red-500/30">
@@ -264,7 +315,6 @@ const App: React.FC = () => {
             
             <div className="flex-1 overflow-y-auto p-10 space-y-16">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                {/* Shorts List */}
                 <div className="space-y-8">
                   <div className="flex items-center justify-between border-b border-white/5 pb-4">
                     <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
@@ -296,7 +346,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Longform List */}
                 <div className="space-y-8">
                   <div className="flex items-center justify-between border-b border-white/5 pb-4">
                     <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
@@ -351,7 +400,7 @@ const App: React.FC = () => {
           <nav className="space-y-3">
             {[
               { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
-              { id: 'video-config', label: '영상 개별 분석', icon: Video },
+              { id: 'video-config', label: '단일 영상 분석', icon: Video },
               { id: 'dashboard', label: '데이터 대시보드', icon: BarChart3 },
             ].map((item) => (
               <button
@@ -394,7 +443,7 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-2 bg-red-600 rounded-full"></div>
-                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 분석 엔진</h2>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 통합 분석</h2>
                 </div>
               </div>
 
@@ -485,7 +534,7 @@ const App: React.FC = () => {
           ) : activeTab === 'video-config' ? (
             <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-top-6 duration-700">
               <div className="text-center space-y-4">
-                <h2 className="text-5xl font-black italic uppercase">Single <span className="text-red-600">Video</span> Analysis</h2>
+                <h2 className="text-5xl font-black italic uppercase">단일 <span className="text-red-600">영상</span> 분석</h2>
                 <p className="text-zinc-500 font-medium text-lg">개별 영상의 데이터를 실시간으로 크롤링하여 분석합니다.</p>
               </div>
               <div className="bg-[#121212] p-12 rounded-[48px] border border-white/5 shadow-2xl space-y-10">
