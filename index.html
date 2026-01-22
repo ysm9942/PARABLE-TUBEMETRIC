@@ -13,7 +13,7 @@
             background-color: #0f0f0f;
             color: #ffffff;
         }
-        /* Custom scrollbar for a premium look */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -27,21 +27,32 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #3a3a3a;
         }
+        @keyframes bounce-x {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(5px); }
+        }
+        .animate-bounce-x {
+            animation: bounce-x 1s infinite;
+        }
     </style>
 <script type="importmap">
 {
   "imports": {
+    "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "axios": "https://esm.sh/axios@^1.13.2",
-    "xlsx": "https://esm.sh/xlsx@^0.18.5"
+    "axios": "https://esm.sh/axios@^1.13.2"
   }
 }
 </script>
 </head>
 <body class="antialiased overflow-hidden">
     <div id="root"></div>
+    <!-- Vite entry point: index.tsx를 모듈로 로드합니다. -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

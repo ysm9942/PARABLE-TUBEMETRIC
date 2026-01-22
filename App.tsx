@@ -483,8 +483,21 @@ const App: React.FC = () => {
             <div className="space-y-12 animate-in fade-in duration-700">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="space-y-2">
-                  <h2 className="text-4xl font-black italic uppercase text-white">Insight <span className="text-red-600">Report</span></h2>
-                  <p className="text-zinc-500 font-medium">실시간으로 수집된 채널 및 영상 데이터를 종합적으로 분석합니다.</p>
+                  <h2 className="text-4xl font-black italic uppercase text-white">Data <span className="text-red-600">Report</span></h2>
+                  <div className="flex items-center gap-4 mt-4">
+                    <button 
+                      onClick={() => setDashboardSubTab('channel')} 
+                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'channel' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Channel Analysis
+                    </button>
+                    <button 
+                      onClick={() => setDashboardSubTab('video')} 
+                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'video' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Video Analysis
+                    </button>
+                  </div>
                 </div>
                 <button onClick={handleDownloadExcel} className="bg-white text-black hover:bg-zinc-200 px-10 py-5 rounded-[24px] font-black flex items-center gap-3 text-sm shadow-2xl shadow-white/10 transition-all active:scale-95">
                   <FileSpreadsheet size={20} /> Excel Export
@@ -494,69 +507,137 @@ const App: React.FC = () => {
               <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
-                      <tr>
-                        <th className="px-10 py-8">Channel Information</th>
-                        <th className="px-10 py-8 text-center">Subscribers</th>
-                        <th className="px-10 py-8 text-right">Shorts Avg</th>
-                        <th className="px-10 py-8 text-right">Longform Avg</th>
-                        <th className="px-10 py-8 text-center">Detail</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {channelResults.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="py-40 text-center">
-                            <div className="flex flex-col items-center gap-4 text-zinc-700">
-                              <LayoutDashboard size={48} strokeWidth={1} />
-                              <p className="text-lg font-bold">No data analyzed yet.</p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        channelResults.map((r, i) => (
-                          <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                            <td className="px-10 py-8 flex items-center gap-6">
-                              <div className="relative">
-                                {r.thumbnail ? (
-                                  <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
-                                ) : (
-                                  <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center">
-                                    <Loader2 className="animate-spin text-zinc-700" size={20} />
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
-                                <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
-                              </div>
-                            </td>
-                            <td className="px-10 py-8 text-center">
-                              <span className="bg-zinc-900 px-4 py-2 rounded-xl text-zinc-400 font-black text-sm border border-white/5">
-                                {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
-                              </span>
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                              <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
-                              <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                              <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
-                              <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
-                            </td>
-                            <td className="px-10 py-8 text-center">
-                              <button 
-                                disabled={r.status !== 'completed'} 
-                                onClick={() => setSelectedChannel(r)} 
-                                className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all disabled:opacity-20 active:scale-90"
-                              >
-                                <Eye size={20} />
-                              </button>
-                            </td>
+                    {dashboardSubTab === 'channel' ? (
+                      <>
+                        <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
+                          <tr>
+                            <th className="px-10 py-8">Channel Information</th>
+                            <th className="px-10 py-8 text-center">Subscribers</th>
+                            <th className="px-10 py-8 text-right">Shorts Avg</th>
+                            <th className="px-10 py-8 text-right">Longform Avg</th>
+                            <th className="px-10 py-8 text-center">Detail</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {channelResults.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="py-40 text-center">
+                                <div className="flex flex-col items-center gap-4 text-zinc-700">
+                                  <LayoutDashboard size={48} strokeWidth={1} />
+                                  <p className="text-lg font-bold">No channel data analyzed yet.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            channelResults.map((r, i) => (
+                              <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-10 py-8 flex items-center gap-6">
+                                  <div className="relative">
+                                    {r.thumbnail ? (
+                                      <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                    ) : (
+                                      <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center">
+                                        <Loader2 className="animate-spin text-zinc-700" size={20} />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
+                                    <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
+                                  </div>
+                                </td>
+                                <td className="px-10 py-8 text-center">
+                                  <span className="bg-zinc-900 px-4 py-2 rounded-xl text-zinc-400 font-black text-sm border border-white/5">
+                                    {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
+                                  </span>
+                                </td>
+                                <td className="px-10 py-8 text-right">
+                                  <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
+                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                                </td>
+                                <td className="px-10 py-8 text-right">
+                                  <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
+                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                                </td>
+                                <td className="px-10 py-8 text-center">
+                                  <button 
+                                    disabled={r.status !== 'completed'} 
+                                    onClick={() => setSelectedChannel(r)} 
+                                    className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all disabled:opacity-20 active:scale-90"
+                                  >
+                                    <Eye size={20} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </>
+                    ) : (
+                      <>
+                        <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
+                          <tr>
+                            <th className="px-10 py-8">Video Details</th>
+                            <th className="px-10 py-8">Channel</th>
+                            <th className="px-10 py-8 text-center">Type</th>
+                            <th className="px-10 py-8 text-right">View Count</th>
+                            <th className="px-10 py-8 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {videoResults.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="py-40 text-center">
+                                <div className="flex flex-col items-center gap-4 text-zinc-700">
+                                  <MonitorPlay size={48} strokeWidth={1} />
+                                  <p className="text-lg font-bold">No video data analyzed yet.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            videoResults.map((v, i) => (
+                              <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-10 py-8 flex items-center gap-6">
+                                  <div className="relative shrink-0">
+                                    {v.thumbnail ? (
+                                      <img src={v.thumbnail} className={`rounded-xl object-cover shadow-xl border border-white/10 ${v.isShort ? 'w-10 h-14' : 'w-20 h-12'}`} />
+                                    ) : (
+                                      <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center">
+                                        <Loader2 className="animate-spin text-zinc-700" size={20} />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-black text-zinc-100 text-[15px] group-hover:text-red-500 transition-colors truncate max-w-[300px]">{v.title}</div>
+                                    <div className="text-[10px] text-zinc-600 font-mono mt-1">{v.videoId}</div>
+                                  </div>
+                                </td>
+                                <td className="px-10 py-8">
+                                  <div className="text-[14px] font-bold text-zinc-400">{v.channelTitle || '...'}</div>
+                                </td>
+                                <td className="px-10 py-8 text-center">
+                                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${v.isShort ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-zinc-400'}`}>
+                                    {v.isShort ? 'Shorts' : 'Longform'}
+                                  </span>
+                                </td>
+                                <td className="px-10 py-8 text-right">
+                                  <div className="text-xl font-black text-white">{v.viewCount.toLocaleString()}</div>
+                                </td>
+                                <td className="px-10 py-8 text-center">
+                                  <a 
+                                    href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} 
+                                    target="_blank" 
+                                    className="inline-block p-4 bg-white/5 hover:bg-zinc-100 hover:text-black rounded-2xl transition-all active:scale-90"
+                                  >
+                                    <ExternalLink size={18} />
+                                  </a>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </>
+                    )}
                   </table>
                 </div>
               </div>
