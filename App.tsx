@@ -388,15 +388,14 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0a0a0a]">
-        <div className="p-8 md:p-16 max-w-7xl w-full mx-auto">
+        <div className="p-8 md:pt-10 md:pb-16 md:px-16 max-w-7xl w-full mx-auto">
           {activeTab === 'channel-config' ? (
-            <div className="space-y-16 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-1000">
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-2 bg-red-600 rounded-full"></div>
                   <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 분석 엔진</h2>
                 </div>
-                <p className="text-zinc-500 text-lg font-medium pl-6">데이터 기반 유튜브 전략 수립을 위한 UC 코드 일괄 분석 시스템</p>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
