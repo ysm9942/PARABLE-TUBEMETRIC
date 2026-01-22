@@ -98,7 +98,9 @@ export const fetchChannelStats = async (
   targetLong: number,
   period: AnalysisPeriod,
   useDateFilter: boolean,
-  useCountFilter: boolean
+  useCountFilter: boolean,
+  useShorts: boolean,
+  useLongs: boolean
 ): Promise<{ 
   avgShortsViews: number; 
   shortsCount: number; 
@@ -115,9 +117,9 @@ export const fetchChannelStats = async (
   let safetyCounter = 0;
 
   // 필터 설정에 따른 목표 개수 확정
-  // 개수 필터가 꺼져있으면 해당 기간 내의 모든 영상을 가져오기 위해 넉넉한 캡(500) 설정
-  const maxShorts = useCountFilter ? targetShorts : 500;
-  const maxLongs = useCountFilter ? targetLong : 500;
+  // 해당 카테고리를 사용하지 않으면 0, 사용하면 개수 필터 여부에 따라 설정
+  const maxShorts = useShorts ? (useCountFilter ? targetShorts : 500) : 0;
+  const maxLongs = useLongs ? (useCountFilter ? targetLong : 500) : 0;
 
   const now = new Date();
   let cutoffDate: Date | null = null;
@@ -130,12 +132,11 @@ export const fetchChannelStats = async (
 
   // 루프 조건: 
   // 1. 날짜 제한에 걸리지 않았어야 함 (기간 필터 사용 시)
-  // 2. 목표 개수를 다 채우지 못했어야 함 (개수 필터 사용 시)
-  // 3. 만약 개수 필터가 꺼져있다면 날짜 제한이 올 때까지 계속 루프
+  // 2. 목표 개수를 다 채우지 못했어야 함
   while (
     !reachedDateLimit &&
-    (useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && 
-    safetyCounter < 100 // 안전 장치: 최대 100페이지(5000개 영상) 탐색
+    (shorts.length < maxShorts || longs.length < maxLongs) && 
+    safetyCounter < 100 
   ) {
     safetyCounter++;
     
@@ -168,7 +169,6 @@ export const fetchChannelStats = async (
     for (const video of videoDetails) {
       const publishedAt = new Date(video.snippet.publishedAt);
       
-      // 날짜 필터 활성화 시, 기준일보다 이전이면 탐색 중단
       if (cutoffDate && publishedAt < cutoffDate) {
         reachedDateLimit = true;
         break;
@@ -194,9 +194,9 @@ export const fetchChannelStats = async (
       if (isLiveStream) {
         if (lives.length < 10) lives.push(videoInfo);
       } else if (isShort) {
-        if (shorts.length < maxShorts) shorts.push(videoInfo);
+        if (useShorts && shorts.length < maxShorts) shorts.push(videoInfo);
       } else {
-        if (longs.length < maxLongs) longs.push(videoInfo);
+        if (useLongs && longs.length < maxLongs) longs.push(videoInfo);
       }
     }
 

@@ -42,6 +42,8 @@ const App: React.FC = () => {
   // Filters Control
   const [useDateFilter, setUseDateFilter] = useState<boolean>(true);
   const [useCountFilter, setUseCountFilter] = useState<boolean>(true);
+  const [useShorts, setUseShorts] = useState<boolean>(true);
+  const [useLongs, setUseLongs] = useState<boolean>(true);
   
   // Channel Analysis States
   const [channelInput, setChannelInput] = useState<string>('');
@@ -97,6 +99,11 @@ const App: React.FC = () => {
       return;
     }
 
+    if (!useShorts && !useLongs) {
+      alert('분석할 영상 유형(쇼츠 또는 롱폼)을 최소 하나 이상 선택해주세요.');
+      return;
+    }
+
     const shortsVal = typeof targetShorts === 'string' ? parseInt(targetShorts, 10) || 1 : targetShorts;
     const longsVal = typeof targetLong === 'string' ? parseInt(targetLong, 10) || 1 : targetLong;
 
@@ -126,7 +133,16 @@ const App: React.FC = () => {
       setChannelResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'processing' } : r));
       try {
         const info = await getChannelInfo(input);
-        const stats = await fetchChannelStats(info.uploadsPlaylistId, shortsVal, longsVal, period, useDateFilter, useCountFilter);
+        const stats = await fetchChannelStats(
+          info.uploadsPlaylistId, 
+          shortsVal, 
+          longsVal, 
+          period, 
+          useDateFilter, 
+          useCountFilter,
+          useShorts,
+          useLongs
+        );
         setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
           ...r, 
           channelId: info.id,
@@ -514,7 +530,7 @@ const App: React.FC = () => {
                           ))}
                         </div>
                         <p className={`text-[11.5px] font-bold text-white px-2 italic ${!useDateFilter ? 'opacity-0' : 'opacity-100'}`}>
-                          * {period === 'all' ? '채널 전체의 영상을 분석합니다.' : `${periodLabels[period]} 이내에 업로드된 영상만 분석합니다.`}
+                          * {period === 'all' ? '전체 기간의 영상을 분석합니다.' : `${periodLabels[period]} 이내에 업로드된 영상만 분석합니다.`}
                         </p>
                       </div>
 
@@ -533,24 +549,48 @@ const App: React.FC = () => {
                         </div>
                         
                         <div className={`space-y-8 transition-all ${!useCountFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
-                          <div className="space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5">
+                          <div className={`space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5 transition-all ${!useShorts ? 'opacity-40' : 'opacity-100'}`}>
                             <div className="flex justify-between items-center">
-                              <span className="text-[11.5px] font-black text-white uppercase italic">Shorts Target</span>
-                              <span className="text-[23px] font-black text-red-600">{targetShorts} <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
+                              <div className="flex items-center gap-3">
+                                <button onClick={() => setUseShorts(!useShorts)} className="text-white hover:text-red-500 transition-colors">
+                                  {useShorts ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                                </button>
+                                <span className="text-[11.5px] font-black text-white uppercase italic">Shorts Target</span>
+                              </div>
+                              <span className="text-[23px] font-black text-red-600">{useShorts ? targetShorts : '-' } <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-red-600" />
+                            <input 
+                              type="range" 
+                              min="1" max="100" 
+                              value={Number(targetShorts)} 
+                              onChange={(e) => setTargetShorts(Number(e.target.value))} 
+                              disabled={!useShorts}
+                              className="w-full h-2 bg-white/5 rounded-full appearance-none accent-red-600 disabled:accent-zinc-700" 
+                            />
                           </div>
                           
-                          <div className="space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5">
+                          <div className={`space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5 transition-all ${!useLongs ? 'opacity-40' : 'opacity-100'}`}>
                             <div className="flex justify-between items-center">
-                              <span className="text-[11.5px] font-black text-white uppercase italic">Longform Target</span>
-                              <span className="text-[23px] font-black text-white">{targetLong} <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
+                              <div className="flex items-center gap-3">
+                                <button onClick={() => setUseLongs(!useLongs)} className="text-white hover:text-red-500 transition-colors">
+                                  {useLongs ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                                </button>
+                                <span className="text-[11.5px] font-black text-white uppercase italic">Longform Target</span>
+                              </div>
+                              <span className="text-[23px] font-black text-white">{useLongs ? targetLong : '-'} <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-white" />
+                            <input 
+                              type="range" 
+                              min="1" max="50" 
+                              value={Number(targetLong)} 
+                              onChange={(e) => setTargetLong(Number(e.target.value))} 
+                              disabled={!useLongs}
+                              className="w-full h-2 bg-white/5 rounded-full appearance-none accent-white disabled:accent-zinc-700" 
+                            />
                           </div>
                         </div>
                         <p className={`text-[11.5px] font-bold text-white px-2 italic ${!useCountFilter ? 'opacity-0' : 'opacity-100'}`}>
-                          * {useDateFilter ? `설정 기간 내의` : `업로드일 상관없이`} 최신 영상 {targetShorts}/{targetLong}개를 분석합니다.
+                          * {useDateFilter ? `설정 기간 내의` : `업로드일 상관없이`} 최신 영상을 분석합니다.
                         </p>
                       </div>
                     </div>
