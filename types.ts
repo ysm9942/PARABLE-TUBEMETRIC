@@ -1,4 +1,3 @@
-
 export interface CommentInfo {
   author: string;
   text: string;
@@ -15,6 +14,8 @@ export interface ChannelResult {
   shortsCountFound: number;
   avgLongViews: number;
   longCountFound: number;
+  avgTotalViews: number;
+  totalCountFound: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
   liveList: VideoDetail[]; // 최근 라이브 스트림 목록

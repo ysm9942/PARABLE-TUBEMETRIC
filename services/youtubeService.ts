@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
 import { VideoDetail, VideoResult, CommentInfo } from '../types';
@@ -137,6 +136,8 @@ export const fetchChannelStats = async (
   shortsCount: number; 
   avgLongViews: number; 
   longCount: number;
+  avgTotalViews: number;
+  totalCount: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
   liveList: VideoDetail[];
@@ -163,10 +164,11 @@ export const fetchChannelStats = async (
 
   // 루프 조건: 
   // 1. 날짜 제한에 걸리지 않았어야 함 (기간 필터 사용 시)
-  // 2. 목표 개수를 다 채우지 못했어야 함
+  // 2. 목표 개수를 다 채우지 못했어야 함 (개수 필터 사용 시)
+  // 3. 개수 필터 미사용 시에는 날짜 제한 또는 최대 100페이지까지 탐색
   while (
     !reachedDateLimit &&
-    (shorts.length < maxShorts || longs.length < maxLongs) && 
+    (useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && 
     safetyCounter < 100 
   ) {
     safetyCounter++;
@@ -225,9 +227,9 @@ export const fetchChannelStats = async (
       if (isLiveStream) {
         if (lives.length < 10) lives.push(videoInfo);
       } else if (isShort) {
-        if (useShorts && shorts.length < maxShorts) shorts.push(videoInfo);
+        if (useShorts && (useCountFilter ? shorts.length < maxShorts : true)) shorts.push(videoInfo);
       } else {
-        if (useLongs && longs.length < maxLongs) longs.push(videoInfo);
+        if (useLongs && (useCountFilter ? longs.length < maxLongs : true)) longs.push(videoInfo);
       }
     }
 
@@ -236,11 +238,16 @@ export const fetchChannelStats = async (
 
   const calcAvg = (arr: VideoDetail[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length);
 
+  const totalVideos = [...shorts, ...longs];
+  const avgTotalViews = calcAvg(totalVideos);
+
   return {
     avgShortsViews: calcAvg(shorts),
     shortsCount: shorts.length,
     avgLongViews: calcAvg(longs),
     longCount: longs.length,
+    avgTotalViews: avgTotalViews,
+    totalCount: totalVideos.length,
     shortsList: shorts,
     longsList: longs,
     liveList: lives,

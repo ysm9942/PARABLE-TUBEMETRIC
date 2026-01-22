@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -27,7 +26,8 @@ import {
   ToggleLeft,
   ToggleRight,
   MessageSquare,
-  ThumbsUp
+  ThumbsUp,
+  Activity
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod } from './services/youtubeService';
@@ -123,6 +123,8 @@ const App: React.FC = () => {
       shortsCountFound: 0,
       avgLongViews: 0,
       longCountFound: 0,
+      avgTotalViews: 0,
+      totalCountFound: 0,
       shortsList: [],
       longsList: [],
       liveList: [],
@@ -156,6 +158,8 @@ const App: React.FC = () => {
           shortsCountFound: stats.shortsCount,
           avgLongViews: stats.avgLongViews,
           longCountFound: stats.longCount,
+          avgTotalViews: stats.avgTotalViews,
+          totalCountFound: stats.totalCount,
           shortsList: stats.shortsList,
           longsList: stats.longsList,
           liveList: stats.liveList,
@@ -213,6 +217,7 @@ const App: React.FC = () => {
         '채널명': r.channelName,
         '채널 ID': r.channelId,
         '구독자 수': parseInt(r.subscriberCount, 10),
+        '통합 평균 조회수': r.avgTotalViews,
         '쇼츠 평균 조회수': r.avgShortsViews,
         '쇼츠 분석 개수': r.shortsCountFound,
         '롱폼 평균 조회수': r.avgLongViews,
@@ -374,9 +379,17 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
-                <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
-              </button>
+              <div className="flex items-center gap-6">
+                 {!useCountFilter && (
+                  <div className="bg-white/5 px-6 py-3 rounded-2xl border border-white/10 text-right">
+                    <div className="text-[10px] font-black text-zinc-500 uppercase mb-1">통합 평균 조회수</div>
+                    <div className="text-lg font-black text-white">{selectedChannel.avgTotalViews.toLocaleString()}</div>
+                  </div>
+                )}
+                <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
+                  <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+                </button>
+              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-10 space-y-16">
@@ -691,8 +704,8 @@ const App: React.FC = () => {
                             />
                           </div>
                         </div>
-                        <p className={`text-[11.5px] font-bold text-white px-2 italic ${!useCountFilter ? 'opacity-0' : 'opacity-100'}`}>
-                          * {useDateFilter ? `설정 기간 내의` : `업로드일 상관없이`} 최신 영상을 분석합니다.
+                        <p className={`text-[11.5px] font-bold text-white px-2 italic`}>
+                          * {useCountFilter ? (useDateFilter ? `설정 기간 내의 최신 영상을 분석합니다.` : `업로드일 상관없이 최신 영상을 분석합니다.`) : (useDateFilter ? `설정 기간 내의 모든 영상을 통합 분석합니다.` : `채널의 모든 영상을 통합 분석합니다.`)}
                         </p>
                       </div>
                     </div>
@@ -770,15 +783,21 @@ const App: React.FC = () => {
                           <tr>
                             <th className="px-10 py-8">Channel Information</th>
                             <th className="px-10 py-8 text-center">Subscribers</th>
-                            <th className="px-10 py-8 text-right">Shorts Avg</th>
-                            <th className="px-10 py-8 text-right">Longform Avg</th>
+                            {useCountFilter ? (
+                              <>
+                                <th className="px-10 py-8 text-right">Shorts Avg</th>
+                                <th className="px-10 py-8 text-right">Longform Avg</th>
+                              </>
+                            ) : (
+                              <th className="px-10 py-8 text-right bg-red-600/5">Integrated Avg Views</th>
+                            )}
                             <th className="px-10 py-8 text-center">Detail</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {channelResults.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="py-40 text-center">
+                              <td colSpan={useCountFilter ? 5 : 4} className="py-40 text-center">
                                 <div className="flex flex-col items-center gap-4 text-zinc-700">
                                   <LayoutDashboard size={48} strokeWidth={1} />
                                   <p className="text-lg font-bold">No channel data analyzed yet.</p>
@@ -808,14 +827,26 @@ const App: React.FC = () => {
                                     {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
                                   </span>
                                 </td>
-                                <td className="px-10 py-8 text-right">
-                                  <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
-                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
-                                </td>
-                                <td className="px-10 py-8 text-right">
-                                  <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
-                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
-                                </td>
+                                {useCountFilter ? (
+                                  <>
+                                    <td className="px-10 py-8 text-right">
+                                      <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
+                                      <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                                    </td>
+                                    <td className="px-10 py-8 text-right">
+                                      <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
+                                      <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <td className="px-10 py-8 text-right bg-red-600/[0.02]">
+                                    <div className="text-2xl font-black text-white flex items-center justify-end gap-3">
+                                      <Activity size={20} className="text-red-600" />
+                                      {r.avgTotalViews.toLocaleString()}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.totalCountFound} Total Videos Analyzed</div>
+                                  </td>
+                                )}
                                 <td className="px-10 py-8 text-center">
                                   <button 
                                     disabled={r.status !== 'completed'} 
