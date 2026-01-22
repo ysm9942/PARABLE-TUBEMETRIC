@@ -3,14 +3,14 @@ import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
 import { VideoDetail, VideoResult } from '../types';
 
-// Vercel 환경 변수 사용
-const API_KEY = process.env.YOUTUBE_API_KEY || '';
+// 제공된 API Key 직접 할당 (브라우저 환경에서 process.env 에러 방지)
+const API_KEY = 'AIzaSyDyg1ThpwHJIL2lHJW9bixqiDawMBUK2uo';
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | 'all';
 
 export const getChannelInfo = async (channelId: string) => {
-  if (!API_KEY) throw new Error('YouTube API Key is not configured in Vercel.');
+  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
   
   const response = await axios.get(`${BASE_URL}/channels`, {
     params: {
@@ -21,13 +21,13 @@ export const getChannelInfo = async (channelId: string) => {
   });
 
   if (!response.data.items || response.data.items.length === 0) {
-    throw new Error(`Channel not found: ${channelId}`);
+    throw new Error(`채널을 찾을 수 없습니다: ${channelId}`);
   }
 
   const channel = response.data.items[0];
   return {
     title: channel.snippet.title,
-    thumbnail: channel.snippet.thumbnails.default.url,
+    thumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.default.url,
     subscriberCount: channel.statistics.subscriberCount,
     uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads,
   };
@@ -53,7 +53,7 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
       videoId: item.id,
       title: item.snippet.title,
       channelTitle: item.snippet.channelTitle,
-      thumbnail: item.snippet.thumbnails.default.url,
+      thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default.url,
       viewCount: parseInt(item.statistics.viewCount || '0', 10),
       duration: item.contentDetails.duration,
       isShort,
@@ -93,6 +93,7 @@ export const fetchChannelStats = async (
 
   let reachedDateLimit = false;
 
+  // 최대 15페이지(약 750개 영상)까지 탐색하여 목표 수량을 채웁니다.
   while (
     !reachedDateLimit &&
     (shorts.length < targetShorts || longs.length < targetLong) && 
@@ -139,7 +140,7 @@ export const fetchChannelStats = async (
       const isShort = await isYouTubeShort(video.id, durationSec);
       const views = parseInt(video.statistics.viewCount || '0', 10);
       
-      // 라이브 스트림 판별 (방송 종료 후 아카이브된 영상도 포함됨)
+      // 라이브 여부 확인
       const isLiveStream = !!video.liveStreamingDetails;
       const concurrentViewers = video.liveStreamingDetails?.concurrentViewers 
         ? parseInt(video.liveStreamingDetails.concurrentViewers, 10) 
@@ -148,7 +149,7 @@ export const fetchChannelStats = async (
       const videoInfo: VideoDetail = {
         id: video.id,
         title: video.snippet.title,
-        thumbnail: video.snippet.thumbnails.default?.url || video.snippet.thumbnails.medium?.url,
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url,
         publishedAt: video.snippet.publishedAt,
         viewCount: views,
         duration: durationStr,
@@ -161,10 +162,10 @@ export const fetchChannelStats = async (
         lives.push(videoInfo);
       }
 
-      if (isShort && shorts.length < targetShorts) {
-        shorts.push(videoInfo);
-      } else if (!isShort && longs.length < targetLong) {
-        longs.push(videoInfo);
+      if (isShort) {
+        if (shorts.length < targetShorts) shorts.push(videoInfo);
+      } else {
+        if (longs.length < targetLong) longs.push(videoInfo);
       }
     }
 
@@ -180,6 +181,6 @@ export const fetchChannelStats = async (
     longCount: longs.length,
     shortsList: shorts,
     longsList: longs,
-    liveList: lives.slice(0, 10), // 최근 라이브 10개까지만 상세 리스트업
+    liveList: lives.slice(0, 10),
   };
 };

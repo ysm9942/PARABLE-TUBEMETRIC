@@ -1,9 +1,7 @@
 
-import { VideoDetail } from '../types';
-
 /**
- * ISO8601 Duration Parser
- * Ported from the provided logic
+ * ISO8601 duration 파서
+ * 예: PT1M30S -> 90
  */
 export const parseYtDurationSeconds = (isoDur: string | null): number | null => {
   if (!isoDur) return null;
@@ -20,44 +18,40 @@ export const parseYtDurationSeconds = (isoDur: string | null): number | null => 
 };
 
 /**
- * Shorts detection logic
- * Ported and adapted for browser environment
+ * 쇼츠 판별 로직 (사용자 제공 로직 이식)
  */
 export const isYouTubeShort = async (
   videoId: string,
   durationSeconds: number | null,
-  enableHead: boolean = false,
+  enableHead: boolean = false, // 브라우저에서는 CORS 문제로 기본 false
   headOnlyOnBoundary: boolean = true
 ): Promise<boolean> => {
-  // Primary rule: duration <= 180 seconds is Shorts
+  // 1순위: duration ≤ 180 → Shorts
   if (durationSeconds !== null && durationSeconds <= 180) {
     return true;
   }
 
-  // If head check is disabled, treat longer as non-short
+  // HEAD 보조 비활성화면 롱폼 처리
   if (!enableHead) {
     return false;
   }
 
-  // Boundary cases (e.g., 181-200s) might be shorts
+  // 경계 케이스만 HEAD 보조(예: 181~200초)
   if (headOnlyOnBoundary && durationSeconds !== null && durationSeconds > 200) {
     return false;
   }
 
   /**
-   * IMPORTANT NOTE ON HEAD REQUEST IN BROWSER:
-   * Fetching youtube.com/shorts/{id} from a browser usually triggers CORS.
-   * In a real production environment, this would need a proxy.
-   * For this implementation, we try it but fallback to false if blocked.
+   * 브라우저 환경에서 youtube.com/shorts/{id} 에 대한 HEAD 요청은 
+   * 일반적으로 CORS에 의해 차단됩니다. 
+   * 따라서 브라우저 클라이언트 사이드에서는 180초 규칙에 의존하는 것이 가장 안전합니다.
    */
   try {
     const url = `https://www.youtube.com/shorts/${videoId}`;
     const resp = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-    // Note: no-cors mode results in an opaque response (status 0).
-    // In actual YouTube logic, if it's NOT a short, it redirects to /watch?v=...
-    // But we cannot easily check redirect status in standard fetch no-cors.
-    // So we rely heavily on the 180s rule.
-    return true; // Simple logic fallback
+    // no-cors 모드에서는 status 확인이 불가능하므로, 
+    // 실제 서비스에서는 프록시 서버를 통해 체크해야 합니다.
+    return true; 
   } catch {
     return false;
   }
