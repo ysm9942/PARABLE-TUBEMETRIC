@@ -461,11 +461,11 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
                 <div className="xl:col-span-3 flex flex-col space-y-6">
                   <div className="flex items-center justify-between px-2">
-                    <label className="text-[12px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                      <List size={16} className="text-red-600" /> CHANNEL / URL / UC-CODE INPUT
+                    <label className="text-[14px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
+                      <List size={18} className="text-red-600" /> CHANNEL / URL / UC-CODE INPUT
                     </label>
-                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[11px] font-black text-white hover:text-red-500 transition-all uppercase">
-                      <Trash2 size={14} /> Clear List
+                    <button onClick={() => setChannelInput('')} className="flex items-center gap-2 text-[13px] font-black text-white hover:text-red-500 transition-all uppercase">
+                      <Trash2 size={16} /> Clear List
                     </button>
                   </div>
                   <div className="flex-1 min-h-[500px] bg-[#121212] p-1 border border-white/5 rounded-[40px] shadow-2xl relative group overflow-hidden focus-within:border-red-600/50 transition-all">
@@ -473,9 +473,9 @@ const App: React.FC = () => {
                       value={channelInput}
                       onChange={(e) => setChannelInput(e.target.value)}
                       placeholder="https://www.youtube.com/@JU_RURU&#10;UC-xxxxxxxxxxxx&#10;엔터로 구분하여 여러 개를 입력하세요."
-                      className="w-full h-full p-10 bg-transparent text-base font-mono leading-relaxed text-zinc-100 placeholder:text-zinc-800 focus:outline-none resize-none relative z-10"
+                      className="w-full h-full p-10 bg-transparent text-[18.5px] font-mono leading-relaxed text-white placeholder:text-zinc-800 focus:outline-none resize-none relative z-10"
                     />
-                    <div className="absolute bottom-8 right-8 text-[11px] font-bold text-white bg-black/50 px-4 py-2 rounded-xl backdrop-blur-md">
+                    <div className="absolute bottom-8 right-8 text-[13px] font-bold text-white bg-black/50 px-5 py-2.5 rounded-xl backdrop-blur-md">
                       Line Count: {channelInput.split('\n').filter(l => l.trim()).length}
                     </div>
                   </div>
@@ -483,23 +483,23 @@ const App: React.FC = () => {
 
                 <div className="xl:col-span-2 flex flex-col space-y-6">
                    <div className="px-2">
-                    <label className="text-[12px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                      <Settings2 size={16} className="text-red-600" /> ENGINE CONFIG
+                    <label className="text-[14px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
+                      <Settings2 size={18} className="text-red-600" /> ENGINE CONFIG
                     </label>
                   </div>
                   <div className="flex-1 bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl flex flex-col justify-between space-y-8">
                     <div className="space-y-10">
                       {/* Analysis Period Filter */}
-                      <div className="space-y-5">
+                      <div className="space-y-6">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-3">
-                            <Calendar size={16} className="text-red-600" /> 분석 기간 필터
+                          <label className="text-[13px] font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <Calendar size={18} className="text-red-600" /> 분석 기간 필터
                           </label>
                           <button 
                             onClick={() => setUseDateFilter(!useDateFilter)} 
                             className={`flex items-center gap-2 transition-all ${useDateFilter ? 'text-red-600' : 'text-zinc-800'}`}
                           >
-                             {useDateFilter ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                             {useDateFilter ? <ToggleRight size={38} /> : <ToggleLeft size={38} />}
                           </button>
                         </div>
                         <div className={`grid grid-cols-4 gap-2 p-1.5 bg-black/50 rounded-2xl border border-white/5 transition-all ${!useDateFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
@@ -507,49 +507,49 @@ const App: React.FC = () => {
                             <button 
                               key={p} 
                               onClick={() => setPeriod(p)} 
-                              className={`py-2 text-[10px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black shadow-xl' : 'text-white hover:text-zinc-300'}`}
+                              className={`py-3 text-[12px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black shadow-xl' : 'text-white hover:text-zinc-300'}`}
                             >
                               {periodLabels[p]}
                             </button>
                           ))}
                         </div>
-                        <p className={`text-[10px] font-bold text-white px-2 italic ${!useDateFilter ? 'opacity-0' : 'opacity-100'}`}>
+                        <p className={`text-[11.5px] font-bold text-white px-2 italic ${!useDateFilter ? 'opacity-0' : 'opacity-100'}`}>
                           * {period === 'all' ? '채널 전체의 영상을 분석합니다.' : `${periodLabels[period]} 이내에 업로드된 영상만 분석합니다.`}
                         </p>
                       </div>
 
                       {/* Collection Target Filter */}
-                      <div className="space-y-6">
+                      <div className="space-y-7">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-3">
-                            <Radio size={16} className="text-red-600" /> 영상 개수 필터
+                          <label className="text-[13px] font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <Radio size={18} className="text-red-600" /> 영상 개수 필터
                           </label>
                           <button 
                             onClick={() => setUseCountFilter(!useCountFilter)} 
                             className={`flex items-center gap-2 transition-all ${useCountFilter ? 'text-red-600' : 'text-zinc-800'}`}
                           >
-                             {useCountFilter ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                             {useCountFilter ? <ToggleRight size={38} /> : <ToggleLeft size={38} />}
                           </button>
                         </div>
                         
-                        <div className={`space-y-6 transition-all ${!useCountFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
-                          <div className="space-y-3 bg-black/20 p-5 rounded-3xl border border-white/5">
+                        <div className={`space-y-8 transition-all ${!useCountFilter ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}>
+                          <div className="space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5">
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black text-white uppercase italic">Shorts Target</span>
-                              <span className="text-xl font-black text-red-600">{targetShorts} <span className="text-[9px] text-white uppercase">Videos</span></span>
+                              <span className="text-[11.5px] font-black text-white uppercase italic">Shorts Target</span>
+                              <span className="text-[23px] font-black text-red-600">{targetShorts} <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-red-600" />
+                            <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-red-600" />
                           </div>
                           
-                          <div className="space-y-3 bg-black/20 p-5 rounded-3xl border border-white/5">
+                          <div className="space-y-4 bg-black/20 p-6 rounded-3xl border border-white/5">
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black text-white uppercase italic">Longform Target</span>
-                              <span className="text-xl font-black text-white">{targetLong} <span className="text-[9px] text-white uppercase">Videos</span></span>
+                              <span className="text-[11.5px] font-black text-white uppercase italic">Longform Target</span>
+                              <span className="text-[23px] font-black text-white">{targetLong} <span className="text-[10px] text-white uppercase ml-1">Videos</span></span>
                             </div>
-                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-1.5 bg-white/5 rounded-full appearance-none accent-white" />
+                            <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full h-2 bg-white/5 rounded-full appearance-none accent-white" />
                           </div>
                         </div>
-                        <p className={`text-[10px] font-bold text-white px-2 italic ${!useCountFilter ? 'opacity-0' : 'opacity-100'}`}>
+                        <p className={`text-[11.5px] font-bold text-white px-2 italic ${!useCountFilter ? 'opacity-0' : 'opacity-100'}`}>
                           * {useDateFilter ? `설정 기간 내의` : `업로드일 상관없이`} 최신 영상 {targetShorts}/{targetLong}개를 분석합니다.
                         </p>
                       </div>
@@ -558,12 +558,12 @@ const App: React.FC = () => {
                     <button
                       onClick={handleChannelStart}
                       disabled={isProcessing || !channelInput.trim()}
-                      className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-700 text-white py-6 rounded-[28px] font-black text-lg flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95 group"
+                      className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-900 disabled:text-zinc-700 text-white py-8 rounded-[32px] font-black text-[21px] flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95 group"
                     >
                       {isProcessing ? (
-                        <Loader2 className="animate-spin" size={24} />
+                        <Loader2 className="animate-spin" size={26} />
                       ) : (
-                        <Play fill="currentColor" size={20} className="group-hover:scale-125 transition-transform" />
+                        <Play fill="currentColor" size={24} className="group-hover:scale-125 transition-transform" />
                       )}
                       분석 시작하기
                     </button>
