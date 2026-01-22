@@ -1,13 +1,40 @@
 
 import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
-import { VideoDetail, VideoResult } from '../types';
+import { VideoDetail, VideoResult, CommentInfo } from '../types';
 
 // Vercel 환경 변수에서 API Key를 가져옵니다.
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
+
+/**
+ * 특정 영상의 좋아요가 가장 많이 달린 댓글 5개를 가져옵니다.
+ */
+const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
+  if (!API_KEY) return [];
+  try {
+    const response = await axios.get(`${BASE_URL}/commentThreads`, {
+      params: {
+        part: 'snippet',
+        videoId: videoId,
+        maxResults: 5,
+        order: 'relevance',
+        key: API_KEY,
+      },
+    });
+    return response.data.items.map((item: any) => ({
+      author: item.snippet.topLevelComment.snippet.authorDisplayName,
+      text: item.snippet.topLevelComment.snippet.textDisplay,
+      likeCount: item.snippet.topLevelComment.snippet.likeCount,
+      publishedAt: item.snippet.topLevelComment.snippet.publishedAt,
+    }));
+  } catch (e) {
+    // 댓글이 비활성화된 경우 등이 있을 수 있음
+    return [];
+  }
+};
 
 /**
  * UC-Code 또는 @핸들이 포함된 URL로부터 채널 정보를 가져옵니다.
@@ -77,6 +104,7 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   for (const item of response.data.items) {
     const durationSec = parseYtDurationSeconds(item.contentDetails.duration);
     const isShort = await isYouTubeShort(item.id, durationSec);
+    const topComments = await fetchTopComments(item.id);
     
     results.push({
       videoId: item.id,
@@ -84,6 +112,9 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
       channelTitle: item.snippet.channelTitle,
       thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default.url,
       viewCount: parseInt(item.statistics.viewCount || '0', 10),
+      likeCount: parseInt(item.statistics.likeCount || '0', 10),
+      commentCount: parseInt(item.statistics.commentCount || '0', 10),
+      topComments,
       duration: item.contentDetails.duration,
       isShort,
       status: 'completed'

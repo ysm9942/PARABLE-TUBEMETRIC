@@ -1,4 +1,11 @@
 
+export interface CommentInfo {
+  author: string;
+  text: string;
+  likeCount: number;
+  publishedAt: string;
+}
+
 export interface ChannelResult {
   channelId: string;
   channelName: string;
@@ -21,6 +28,9 @@ export interface VideoResult {
   channelTitle: string;
   thumbnail: string;
   viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  topComments: CommentInfo[];
   duration: string;
   isShort: boolean;
   status: 'pending' | 'processing' | 'completed' | 'error';

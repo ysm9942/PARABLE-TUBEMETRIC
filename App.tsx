@@ -25,11 +25,13 @@ import {
   CheckCircle2,
   Circle,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  MessageSquare,
+  ThumbsUp
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod } from './services/youtubeService';
-import { ChannelResult, VideoResult, VideoDetail } from './types';
+import { ChannelResult, VideoResult, VideoDetail, CommentInfo } from './types';
 
 type TabType = 'channel-config' | 'video-config' | 'dashboard';
 
@@ -56,6 +58,7 @@ const App: React.FC = () => {
   // Individual Video States
   const [videoInput, setVideoInput] = useState<string>('');
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<VideoResult | null>(null);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -179,11 +182,11 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
     setDashboardSubTab('video');
     setVideoResults(videoIds.map(id => ({
-      videoId: id, title: '로딩 중...', channelTitle: '', thumbnail: '', viewCount: 0, duration: '', isShort: false, status: 'processing'
+      videoId: id, title: '로딩 중...', channelTitle: '', thumbnail: '', viewCount: 0, likeCount: 0, commentCount: 0, topComments: [], duration: '', isShort: false, status: 'processing'
     })));
 
     try {
-      const chunkSize = 40;
+      const chunkSize = 10; // 댓글 수집이 포함되어 청크 사이즈를 줄여 안정성 확보
       for (let i = 0; i < videoIds.length; i += chunkSize) {
         const chunk = videoIds.slice(i, i + chunkSize);
         const fetched = await fetchVideosByIds(chunk);
@@ -243,16 +246,52 @@ const App: React.FC = () => {
 
       XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
     } else {
+      // 영상 데이터 요약
       const data = videoResults.map((r) => ({
-        '영상 링크': `https://youtu.be/${r.videoId}`,
+        '영상 링크': r.isShort ? `https://youtube.com/shorts/${r.videoId}` : `https://youtu.be/${r.videoId}`,
         '영상 제목': r.title,
         '채널명': r.channelTitle,
         '유형': r.isShort ? '쇼츠' : '롱폼',
         '조회수': r.viewCount,
+        '좋아요수': r.likeCount,
+        '댓글수': r.commentCount,
         '영상 ID': r.videoId
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, '영상 데이터');
+
+      // 댓글 정보를 채널별 탭으로 저장
+      const channelCommentsMap: Record<string, any[]> = {};
+      videoResults.forEach(v => {
+        if (v.status === 'completed' && v.topComments.length > 0) {
+          if (!channelCommentsMap[v.channelTitle]) {
+            channelCommentsMap[v.channelTitle] = [];
+          }
+          v.topComments.forEach(c => {
+            channelCommentsMap[v.channelTitle].push({
+              '영상 제목': v.title,
+              '영상 ID': v.videoId,
+              '댓글 작성자': c.author,
+              '댓글 내용': c.text,
+              '댓글 좋아요': c.likeCount,
+              '작성일': new Date(c.publishedAt).toLocaleDateString()
+            });
+          });
+        }
+      });
+
+      Object.entries(channelCommentsMap).forEach(([channelName, comments]) => {
+        const wsComments = XLSX.utils.json_to_sheet(comments);
+        let sheetName = channelName.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
+        // 이미 존재하는 탭 이름일 경우 처리
+        let counter = 1;
+        let finalSheetName = sheetName;
+        while (wb.SheetNames.includes(finalSheetName)) {
+          finalSheetName = `${sheetName.substring(0, 25)}_${counter++}`;
+        }
+        XLSX.utils.book_append_sheet(wb, wsComments, finalSheetName);
+      });
+
       XLSX.writeFile(wb, `TubeMetric_Video_${timestamp}.xlsx`);
     }
   };
@@ -402,6 +441,69 @@ const App: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Video Details (Comments) */}
+      {selectedVideo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#121212] w-full max-w-4xl max-h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <img src={selectedVideo.thumbnail} className={`rounded-xl object-cover shadow-2xl ${selectedVideo.isShort ? 'w-12 h-16' : 'w-20 h-12'}`} alt="" />
+                <div>
+                  <h3 className="text-xl font-black text-white truncate max-w-md">{selectedVideo.title}</h3>
+                  <p className="text-zinc-500 text-[12px] font-bold uppercase tracking-wider">{selectedVideo.channelTitle}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedVideo(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-10 space-y-8">
+              <div className="grid grid-cols-3 gap-6">
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Views</p>
+                  <p className="text-2xl font-black text-white">{selectedVideo.viewCount.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Likes</p>
+                  <p className="text-2xl font-black text-red-500">{selectedVideo.likeCount.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Comments</p>
+                  <p className="text-2xl font-black text-zinc-100">{selectedVideo.commentCount.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h4 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-tighter">
+                  <MessageSquare size={20} className="text-red-600" /> Top 5 Comments
+                </h4>
+                <div className="space-y-4">
+                  {selectedVideo.topComments.length === 0 ? (
+                    <div className="text-center py-10 bg-white/5 rounded-3xl border border-white/5 text-zinc-500 font-bold">
+                      수집된 댓글이 없습니다. (댓글 비활성화 등)
+                    </div>
+                  ) : (
+                    selectedVideo.topComments.map((comment, idx) => (
+                      <div key={idx} className="bg-white/5 p-6 rounded-3xl border border-white/5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[13px] font-black text-white">{comment.author}</span>
+                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-500">
+                            <ThumbsUp size={12} /> {comment.likeCount.toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-zinc-300 text-[14px] leading-relaxed" dangerouslySetInnerHTML={{ __html: comment.text }} />
+                        <p className="text-[10px] text-zinc-600 font-medium">{new Date(comment.publishedAt).toLocaleDateString()}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -615,7 +717,7 @@ const App: React.FC = () => {
             <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-top-6 duration-700">
               <div className="text-center space-y-4">
                 <h2 className="text-5xl font-black italic uppercase">단일 <span className="text-red-600">영상</span> 분석</h2>
-                <p className="text-zinc-500 font-medium text-lg">개별 영상의 데이터를 실시간으로 크롤링하여 분석합니다.</p>
+                <p className="text-zinc-500 font-medium text-lg">개별 영상의 제목, 댓글 수, 좋아요 수를 수집하고 주요 댓글을 분석합니다.</p>
               </div>
               <div className="bg-[#121212] p-12 rounded-[48px] border border-white/5 shadow-2xl space-y-10">
                 <textarea 
@@ -630,7 +732,7 @@ const App: React.FC = () => {
                   className="w-full bg-white text-black hover:bg-zinc-200 py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-white/5 active:scale-95"
                 >
                   {isProcessing ? <Loader2 className="animate-spin" size={24} /> : <MonitorPlay size={28} />}
-                  영상 데이터 수집
+                  영상 데이터 및 댓글 수집
                 </button>
               </div>
             </div>
@@ -734,9 +836,9 @@ const App: React.FC = () => {
                           <tr>
                             <th className="px-10 py-8">Video Details</th>
                             <th className="px-10 py-8">Channel</th>
-                            <th className="px-10 py-8 text-center">Type</th>
+                            <th className="px-10 py-8 text-center">Stats (Likes/Comments)</th>
                             <th className="px-10 py-8 text-right">View Count</th>
-                            <th className="px-10 py-8 text-center">Action</th>
+                            <th className="px-10 py-8 text-center">Detail</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -771,18 +873,30 @@ const App: React.FC = () => {
                                   <div className="text-[14px] font-bold text-zinc-400">{v.channelTitle || '...'}</div>
                                 </td>
                                 <td className="px-10 py-8 text-center">
-                                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${v.isShort ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-zinc-400'}`}>
-                                    {v.isShort ? 'Shorts' : 'Longform'}
-                                  </span>
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-[11px] font-black text-red-500 flex items-center gap-1.5">
+                                      <ThumbsUp size={12} /> {v.likeCount.toLocaleString()}
+                                    </span>
+                                    <span className="text-[11px] font-black text-zinc-100 flex items-center gap-1.5">
+                                      <MessageSquare size={12} /> {v.commentCount.toLocaleString()}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="px-10 py-8 text-right">
                                   <div className="text-xl font-black text-white">{v.viewCount.toLocaleString()}</div>
                                 </td>
-                                <td className="px-10 py-8 text-center">
+                                <td className="px-10 py-8 text-center flex items-center justify-center gap-2">
+                                  <button 
+                                    disabled={v.status !== 'completed'} 
+                                    onClick={() => setSelectedVideo(v)} 
+                                    className="p-4 bg-white/5 hover:bg-zinc-100 hover:text-black rounded-2xl transition-all disabled:opacity-20 active:scale-90"
+                                  >
+                                    <Eye size={20} />
+                                  </button>
                                   <a 
                                     href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} 
                                     target="_blank" 
-                                    className="inline-block p-4 bg-white/5 hover:bg-zinc-100 hover:text-black rounded-2xl transition-all active:scale-90"
+                                    className="inline-block p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all active:scale-90"
                                   >
                                     <ExternalLink size={18} />
                                   </a>
