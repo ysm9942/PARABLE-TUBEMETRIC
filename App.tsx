@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -567,6 +568,77 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Ad Analysis Details */}
+      {selectedAdResult && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  <img src={selectedAdResult.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 shadow-2xl object-cover" alt="" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    {selectedAdResult.channelName} (광고 분석 결과)
+                  </h3>
+                  <div className="flex items-center gap-4 mt-1.5">
+                    <span className="flex items-center gap-1.5 text-[11px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                      <Megaphone size={12} /> {selectedAdResult.totalAdCount} Detected Ads
+                    </span>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Ad Detection Details</p>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedAdResult(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
+                <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-10 space-y-6">
+              {selectedAdResult.adVideos.length === 0 ? (
+                <div className="h-full flex flex-center items-center justify-center text-zinc-600 font-black uppercase tracking-widest">분석된 광고 영상이 없습니다.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {selectedAdResult.adVideos.map((v) => (
+                    <div key={v.id} className="bg-white/5 p-6 rounded-[32px] border border-white/5 hover:border-red-600/30 transition-all group">
+                      <div className="flex gap-6">
+                        <img src={v.thumbnail} className={`shrink-0 rounded-2xl object-cover shadow-2xl ${v.isShort ? 'w-24 h-36' : 'w-32 h-20'}`} alt="" />
+                        <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                          <div>
+                            <div className="text-[15px] font-black text-white line-clamp-2 leading-tight group-hover:text-red-500 transition-colors">{v.title}</div>
+                            <div className="flex items-center gap-3 mt-3">
+                              <span className="text-[11px] font-black text-zinc-400 flex items-center gap-1.5"><Eye size={12}/> {v.viewCount.toLocaleString()}</span>
+                              <span className="text-[11px] font-black text-zinc-500 flex items-center gap-1.5"><ThumbsUp size={12}/> {v.likeCount.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                             <div className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Detection Evidence</div>
+                             <div className="flex flex-wrap gap-2">
+                               {v.detection.evidence.map((ev, idx) => (
+                                 <span key={idx} className="text-[10px] font-black bg-red-600/10 text-red-500 px-3 py-1 rounded-lg flex items-center gap-1.5">
+                                   <ShieldCheck size={10} /> {ev}
+                                 </span>
+                               ))}
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-6 flex items-center justify-between">
+                         <div className="text-[11px] font-black text-zinc-600 uppercase tracking-tighter italic">Published: {new Date(v.publishedAt).toLocaleDateString()}</div>
+                         <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" className="bg-white/10 hover:bg-red-600 text-white p-3 rounded-2xl transition-all">
+                           <ExternalLink size={18} />
+                         </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
