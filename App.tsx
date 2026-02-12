@@ -344,7 +344,6 @@ const App: React.FC = () => {
       }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adSummary), '광고 통합 요약');
 
-      // 광고 분석에서도 개별 채널 탭 생성
       adResults.forEach((r) => {
         if (r.status === 'completed' && r.adVideos.length > 0) {
           const videoData = r.adVideos.map(v => ({
@@ -357,7 +356,7 @@ const App: React.FC = () => {
             '댓글': v.commentCount,
             '판별 근거': v.detection.evidence.join(', '),
             '판별 방식': v.detection.method,
-            '신뢰도': (v.detection.confidence * 100).toFixed(1) + '%',
+            '신뢰도 점수': v.detection.score,
             '게시일': new Date(v.publishedAt).toLocaleDateString()
           }));
 
@@ -472,6 +471,63 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex font-sans overflow-hidden selection:bg-red-500/30">
+      {/* Modal: Ad Details */}
+      {selectedAdResult && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+           <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+             <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
+               <div className="flex items-center gap-6">
+                 <img src={selectedAdResult.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 object-cover" alt="" />
+                 <div>
+                   <h3 className="text-2xl font-black text-white">{selectedAdResult.channelName} 광고 분석 리포트</h3>
+                   <div className="flex items-center gap-4 mt-1.5">
+                     <span className="text-[11px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase">총 {selectedAdResult.totalAdCount}개의 광고 영상 감지</span>
+                   </div>
+                 </div>
+               </div>
+               <button onClick={() => setSelectedAdResult(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all"><X size={24} /></button>
+             </div>
+             <div className="flex-1 overflow-y-auto p-10 space-y-6">
+               {selectedAdResult.adVideos.map(v => (
+                 <div key={v.id} className="bg-white/5 border border-white/5 rounded-[32px] p-6 flex items-start gap-8 hover:bg-white/[0.08] transition-all group">
+                   <img src={v.thumbnail} className={`rounded-2xl object-cover shadow-2xl ${v.isShort ? 'w-24 h-40' : 'w-48 h-28'}`} alt="" />
+                   <div className="flex-1 space-y-4">
+                     <div className="flex justify-between items-start">
+                       <h4 className="text-xl font-black text-white leading-tight">{v.title}</h4>
+                       <div className="text-right">
+                         <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Confidence Score</div>
+                         <div className={`text-2xl font-black ${v.detection.score >= 90 ? 'text-red-600' : v.detection.score >= 70 ? 'text-orange-500' : 'text-zinc-400'}`}>{v.detection.score}</div>
+                       </div>
+                     </div>
+                     <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-black/30 p-3 rounded-2xl border border-white/5">
+                           <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Views</div>
+                           <div className="font-black text-zinc-100">{v.viewCount.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-black/30 p-3 rounded-2xl border border-white/5">
+                           <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Likes</div>
+                           <div className="font-black text-red-500">{v.likeCount.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-black/30 p-3 rounded-2xl border border-white/5">
+                           <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Method</div>
+                           <div className="font-black text-zinc-400 uppercase text-[11px]">{v.detection.method}</div>
+                        </div>
+                     </div>
+                     <div className="bg-red-600/5 border border-red-600/20 p-4 rounded-2xl">
+                        <div className="text-[11px] font-black text-red-500 uppercase mb-2 flex items-center gap-2"><CheckCircle2 size={12}/> Analysis Evidence</div>
+                        <p className="text-sm text-zinc-400 font-medium leading-relaxed">{v.detection.evidence.join(' & ')}</p>
+                     </div>
+                   </div>
+                   <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" className="p-4 bg-white/5 text-zinc-500 hover:text-white hover:bg-red-600 rounded-2xl self-start transition-all">
+                      <ExternalLink size={20} />
+                   </a>
+                 </div>
+               ))}
+             </div>
+           </div>
+        </div>
+      )}
+
       {/* Modal: Channel Details */}
       {selectedChannel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
@@ -671,7 +727,7 @@ const App: React.FC = () => {
                <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
                   <div className="xl:col-span-3 flex flex-col space-y-6">
                     <label className="text-[14px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                      <List size={18} className="text-red-600" /> CHANNEL LIST (UC-CODE)
+                      <List size={18} className="text-red-600" /> CHANNEL LIST
                     </label>
                     <textarea 
                       value={channelInput} 
@@ -912,7 +968,7 @@ const App: React.FC = () => {
                             <th className="px-10 py-8">Channel Information</th>
                             <th className="px-10 py-8 text-center">Ads Found</th>
                             <th className="px-10 py-8 text-right">Avg Views</th>
-                            <th className="px-10 py-8 text-right">Avg Likes</th>
+                            <th className="px-10 py-8 text-right">Avg Score</th>
                             <th className="px-10 py-8 text-center">Detail</th>
                           </tr>
                         </thead>
@@ -932,7 +988,9 @@ const App: React.FC = () => {
                                 </td>
                                 <td className="px-10 py-8 text-center"><span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-black text-sm">{r.totalAdCount}</span></td>
                                 <td className="px-10 py-8 text-right font-black text-xl">{r.avgViews.toLocaleString()}</td>
-                                <td className="px-10 py-8 text-right font-black text-red-500">{r.avgLikes.toLocaleString()}</td>
+                                <td className="px-10 py-8 text-right font-black">
+                                   <div className={`text-xl ${r.avgLikes >= 80 ? 'text-red-600' : 'text-zinc-100'}`}>{r.avgLikes}</div>
+                                </td>
                                 <td className="px-10 py-8 text-center">
                                   <button 
                                     disabled={r.status !== 'completed'}
