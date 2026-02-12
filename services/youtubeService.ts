@@ -1,12 +1,10 @@
 
 import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
-import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult } from '../types';
+import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult, AnalysisPeriod } from '../types';
 
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
-
-export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
 
 const getErrorMessage = (error: any): string => {
   if (error.response?.data?.error?.message) {
@@ -31,7 +29,7 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
 };
 
 /**
- * 텍스트에서 URL 리스트 추출
+ * 텍스트에서 URL 리스트 추출 (정규화 포함)
  */
 const extractLinks = (text: string): string[] => {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -40,7 +38,7 @@ const extractLinks = (text: string): string[] => {
 };
 
 /**
- * 4) 광고 판별 1단계: paidPromotion 플래그 분석 (HTML/JSON 기반)
+ * 광고 판별 1단계: paidPromotion 플래그 분석
  */
 export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies: string[] = []): any => {
   const videoIdMatch = videoUrl.match(/(?:v=|\/shorts\/|youtu\.be\/)([^"&?\/\s]{11})/);
@@ -50,10 +48,7 @@ export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies:
   const evidence: any[] = [];
   const found: any[] = [];
 
-  // 탐색 타겟 문자열 결합
   const allData = [html, ...responseBodies].join('\n');
-  
-  // 정규식 기반 키 탐색 (isPaidPromotion, paidPromotion, paidProductPlacement 등)
   const adKeys = ['paidPromotion', 'isPaidPromotion', 'paidProductPlacement', 'productPlacement'];
   
   for (const key of adKeys) {
@@ -62,9 +57,7 @@ export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies:
     while ((match = regex.exec(allData)) !== null) {
       const valStr = match[1].toLowerCase().replace(/"/g, '');
       const isTrue = valStr === 'true' || valStr === '1';
-      
       found.push({ path: "JSON_SCAN", key, value: valStr });
-      
       if (isTrue && paidPromotion !== true) {
         paidPromotion = true;
         evidence.push({ source: "Crawl", path: "ytInitialPlayerResponse", key, value: valStr, note: "Paid promotion flag detected" });
@@ -75,51 +68,43 @@ export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies:
   }
 
   const confidence = paidPromotion === true ? 0.8 : (paidPromotion === false ? 0.6 : 0.2);
-
-  return {
-    video_id: videoId,
-    paid_promotion: paidPromotion,
-    confidence,
-    evidence: evidence.slice(0, 3),
-    raw_flags: { found: found.slice(0, 5) }
-  };
+  return { video_id: videoId, paid_promotion: paidPromotion, confidence, evidence: evidence.slice(0, 3), raw_flags: { found: found.slice(0, 5) } };
 };
 
 /**
- * 5) 광고 판별 2단계: 텍스트 및 링크 분석
+ * 광고 판별 2단계: 텍스트 키워드 및 링크 일치 분석
+ * 사용자 요청: 제목 '광고', 설명란 '광고'/'다운로드', 설명란-댓글1번 동일 링크 공유
  */
 export const detectAdNLP = (videoId: string, title: string, description: string, topComments: CommentInfo[]): any => {
   const firstComment = topComments.length > 0 ? topComments[0].text : "";
-  const combinedText = `${description}\n---FIRST_COMMENT---\n${firstComment}`;
-  
   const lowerTitle = title.toLowerCase();
-  const lowerDesc = description.toLowerCase();
-  const lowerComment = firstComment.toLowerCase();
+  const lowerDesc = (description || "").toLowerCase();
   
   let score = 0;
   const matchedPhrases: any[] = [];
   const evidence: string[] = [];
 
-  // 1. 키워드 탐지 (제목 및 설명란)
+  // 1. 제목 키워드: '광고'
   if (lowerTitle.includes("광고")) {
     score += 5;
     matchedPhrases.push({ phrase: "제목에 '광고' 포함", weight: 'high', source: 'title' });
   }
-  
-  const highKeywords = ["유료 광고", "유료광고", "광고 포함", "협찬", "다운로드"];
-  highKeywords.forEach(k => {
-    if (lowerDesc.includes(k)) {
-      score += 3;
-      matchedPhrases.push({ phrase: `설명란에 '${k}' 포함`, weight: 'high', source: 'description' });
-    }
-  });
 
-  // 2. 링크 매칭 분석 (설명란 vs 첫 번째 댓글)
-  const descLinks = extractLinks(description);
+  // 2. 설명란 키워드: '광고', '다운로드'
+  if (lowerDesc.includes("광고")) {
+    score += 3;
+    matchedPhrases.push({ phrase: "설명란에 '광고' 포함", weight: 'mid', source: 'description' });
+  }
+  if (lowerDesc.includes("다운로드")) {
+    score += 3;
+    matchedPhrases.push({ phrase: "설명란에 '다운로드' 포함", weight: 'mid', source: 'description' });
+  }
+
+  // 3. 링크 매칭 분석: 설명란 vs 첫 번째 댓글
+  const descLinks = extractLinks(description || "");
   const commentLinks = extractLinks(firstComment);
   
-  // 유튜브 내부 링크나 너무 일반적인 링크 제외 (필요시 추가 로직)
-  const commonExclusions = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'twitter.com'];
+  const commonExclusions = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'twitter.com', 'linktr.ee'];
   
   const hasLinkMatch = descLinks.some(dLink => 
     commentLinks.some(cLink => {
@@ -129,15 +114,9 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
   );
 
   if (hasLinkMatch) {
-    score += 10; // 강력한 광고 지표
+    score += 10;
     evidence.push("설명란과 첫 번째 댓글의 홍보 링크 일치");
     matchedPhrases.push({ phrase: "설명란-댓글 동일 링크 공유", weight: 'high', source: 'link_match' });
-  }
-
-  // 첫 번째 댓글 자체 키워드 분석
-  if (lowerComment.includes("광고") || lowerComment.includes("협찬") || lowerComment.includes("구매")) {
-    score += 2;
-    matchedPhrases.push({ phrase: "첫 번째 댓글에 광고성 키워드", weight: 'mid', source: 'comment' });
   }
 
   let ad_disclosure: boolean | 'unknown' = 'unknown';
@@ -145,7 +124,7 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
   else if (score >= 2) ad_disclosure = 'unknown';
   else ad_disclosure = false;
 
-  const confidence = ad_disclosure === true ? 0.9 : (ad_disclosure === false ? 0.55 : 0.3);
+  const confidence = ad_disclosure === true ? 0.95 : (ad_disclosure === false ? 0.6 : 0.3);
   
   return {
     video_id: videoId,
@@ -153,35 +132,27 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
     confidence,
     matched_phrases: matchedPhrases,
     evidence: evidence,
-    reasoning: ad_disclosure === true ? "강력한 광고 신호가 발견되었습니다." : "광고 신호가 부족합니다."
+    reasoning: ad_disclosure === true ? "사용자 정의 광고 탐지 규칙에 의해 광고로 판별되었습니다." : "광고 신호가 발견되지 않았습니다."
   };
 };
 
-/**
- * 6) 최종 광고 판정 결합 규칙
- */
 export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => {
   let is_ad = false;
   let method: 'paid_flag' | 'nlp' | 'both' | 'none' = 'none';
-  
   const isPaidTrue = paidFlag.paid_promotion === true;
   const isNlpTrue = nlp.ad_disclosure === true;
 
-  if (isPaidTrue && isNlpTrue) {
+  if (isPaidTrue || isNlpTrue) {
     is_ad = true;
-    method = 'both';
-  } else if (isPaidTrue) {
-    is_ad = true;
-    method = 'paid_flag';
-  } else if (isNlpTrue) {
-    is_ad = true;
-    method = 'nlp';
+    method = isPaidTrue && isNlpTrue ? 'both' : (isPaidTrue ? 'paid_flag' : 'nlp');
   }
 
   const evidence: string[] = [...nlp.evidence];
   if (isPaidTrue) evidence.push("시스템 유료 광고 플래그 확인");
-  if (nlp.matched_phrases.some((p: any) => p.source === 'title')) evidence.push("제목 내 '광고' 키워드");
-  if (nlp.matched_phrases.some((p: any) => p.source === 'description')) evidence.push("설명란 내 광고/다운로드 키워드");
+  nlp.matched_phrases.forEach((p: any) => {
+    if (p.source === 'title') evidence.push("제목 내 '광고' 키워드");
+    if (p.source === 'description' && p.phrase.includes('다운로드')) evidence.push("설명란 내 '다운로드' 키워드");
+  });
 
   return {
     is_ad,
@@ -272,7 +243,7 @@ export const fetchChannelStats = async (
   let shorts: VideoDetail[] = [], longs: VideoDetail[] = [], lives: VideoDetail[] = [], nextPageToken: string | undefined, safetyCounter = 0;
   
   const getCutoff = (cfg: FetchStatsConfig) => {
-    if (!cfg.useDateFilter || cfg.period === 'all') return null;
+    if (!cfg.useDateFilter) return null;
     const days = cfg.period === '7d' ? 7 : cfg.period === '30d' ? 30 : 90;
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   };
@@ -282,7 +253,6 @@ export const fetchChannelStats = async (
 
   while (safetyCounter < 500) {
     safetyCounter++;
-    
     const shortsDone = !shortsCfg.enabled || (shortsCfg.useCountFilter && shorts.length >= shortsCfg.target);
     const longsDone = !longsCfg.enabled || (longsCfg.useCountFilter && longs.length >= longsCfg.target);
     if (shortsDone && longsDone) break;
@@ -324,24 +294,6 @@ export const fetchChannelStats = async (
       }
     }
 
-    const shortsNeedMoreWithoutDate = shortsCfg.enabled && !shortsCfg.useDateFilter && (!shortsCfg.useCountFilter || shorts.length < shortsCfg.target);
-    const longsNeedMoreWithoutDate = longsCfg.enabled && !longsCfg.useDateFilter && (!longsCfg.useCountFilter || longs.length < longsCfg.target);
-
-    if (!shortsNeedMoreWithoutDate && !longsNeedMoreWithoutDate) {
-        const oldestCutoff = new Date(Math.min(
-          (shortsCfg.enabled && shortsCutoff) ? shortsCutoff.getTime() : Infinity,
-          (longsCfg.enabled && longsCutoff) ? longsCutoff.getTime() : Infinity
-        ));
-        
-        if (oldestCutoff.getTime() !== Infinity) {
-          const lastVideoDate = new Date(videoResponse.data.items[videoResponse.data.items.length - 1].snippet.publishedAt);
-          if (lastVideoDate < oldestCutoff) {
-            nextPageToken = undefined;
-            break;
-          }
-        }
-    }
-
     if (!nextPageToken) break;
   }
 
@@ -372,9 +324,7 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // 댓글 데이터 확보
       const comments = await fetchTopComments(video.id);
-      
       const paidFlag = detectAdPaidFlag(`https://youtu.be/${video.id}`, ""); 
       const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "", comments);
       const combined = combineAdResults(paidFlag, nlp);
