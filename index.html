@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -12,6 +11,18 @@
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
             background-color: #0f0f0f;
             color: #ffffff;
+            /* 텍스트 선택 방지 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        /* 입력창과 텍스트 영역은 선택 가능하도록 예외 처리 */
+        input, textarea, [contenteditable="true"] {
+            -webkit-user-select: auto !important;
+            -moz-user-select: auto !important;
+            -ms-user-select: auto !important;
+            user-select: auto !important;
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
@@ -35,6 +46,36 @@
             animation: bounce-x 1s infinite;
         }
     </style>
+    <script>
+        // 마우스 우클릭 차단
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        }, false);
+
+        // 개발자 도구 및 소스보기 단축키 차단
+        document.addEventListener('keydown', function(e) {
+            // F12 차단
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                return false;
+            }
+            // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (개발자 도구 단축키) 차단
+            if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+                e.preventDefault();
+                return false;
+            }
+            // Ctrl+U (소스 보기) 차단
+            if (e.ctrlKey && e.keyCode === 85) {
+                e.preventDefault();
+                return false;
+            }
+            // Mac용 단축키 대응 (Cmd + Opt + I 등)
+            if (e.metaKey && e.altKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+                e.preventDefault();
+                return false;
+            }
+        }, false);
+    </script>
 <script type="importmap">
 {
   "imports": {

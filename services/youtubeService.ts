@@ -149,9 +149,9 @@ export const fetchChannelStats = async (
   let safetyCounter = 0;
 
   // 필터 설정에 따른 목표 개수 확정
-  // 해당 카테고리를 사용하지 않으면 0, 사용하면 개수 필터 여부에 따라 설정
-  const maxShorts = useShorts ? (useCountFilter ? targetShorts : 500) : 0;
-  const maxLongs = useLongs ? (useCountFilter ? targetLong : 500) : 0;
+  // 개수 필터가 꺼져 있으면 제한 없이(Infinity) 수집하도록 설정합니다.
+  const maxShorts = useShorts ? (useCountFilter ? targetShorts : Infinity) : 0;
+  const maxLongs = useLongs ? (useCountFilter ? targetLong : Infinity) : 0;
 
   const now = new Date();
   let cutoffDate: Date | null = null;
@@ -164,12 +164,12 @@ export const fetchChannelStats = async (
 
   // 루프 조건: 
   // 1. 날짜 제한에 걸리지 않았어야 함 (기간 필터 사용 시)
-  // 2. 목표 개수를 다 채우지 못했어야 함 (개수 필터 사용 시)
-  // 3. 개수 필터 미사용 시에는 날짜 제한 또는 최대 100페이지까지 탐색
+  // 2. 개수 필터 사용 시 목표 개수를 다 채우지 못했어야 함 (어느 한쪽이라도 미달이면 계속 탐색)
+  // 3. 개수 필터 미사용 시에는 날짜 제한 또는 더 이상 데이터가 없을 때까지 탐색 (안전 장치로 200페이지 제한)
   while (
     !reachedDateLimit &&
     (useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && 
-    safetyCounter < 100 
+    safetyCounter < 200 
   ) {
     safetyCounter++;
     
@@ -227,9 +227,15 @@ export const fetchChannelStats = async (
       if (isLiveStream) {
         if (lives.length < 10) lives.push(videoInfo);
       } else if (isShort) {
-        if (useShorts && (useCountFilter ? shorts.length < maxShorts : true)) shorts.push(videoInfo);
+        // 개수 필터(useCountFilter)가 꺼져 있으면 무조건 push, 켜져 있으면 maxShorts 까지만 push
+        if (useShorts && (useCountFilter ? shorts.length < maxShorts : true)) {
+          shorts.push(videoInfo);
+        }
       } else {
-        if (useLongs && (useCountFilter ? longs.length < maxLongs : true)) longs.push(videoInfo);
+        // 개수 필터(useCountFilter)가 꺼져 있으면 무조건 push, 켜져 있으면 maxLongs 까지만 push
+        if (useLongs && (useCountFilter ? longs.length < maxLongs : true)) {
+          longs.push(videoInfo);
+        }
       }
     }
 
