@@ -136,7 +136,8 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!useShorts && !useLongs) {
+    // 개수 필터가 켜져 있을 때만 유형 선택을 확인
+    if (useGlobalCountFilter && !useShorts && !useLongs) {
       alert('분석할 영상 유형(쇼츠 또는 롱폼)을 최소 하나 이상 선택해주세요.');
       return;
     }
@@ -179,14 +180,16 @@ const App: React.FC = () => {
             period: period, 
             useDateFilter: useDateFilter, 
             useCountFilter: useGlobalCountFilter, 
-            enabled: useShorts 
+            // 개수 필터가 꺼지면(DISABLED) 숏폼/롱폼 가리지 않고 전체 분석을 위해 강제 true
+            enabled: useGlobalCountFilter ? useShorts : true 
           },
           { 
             target: longsVal, 
             period: period, 
             useDateFilter: useDateFilter, 
             useCountFilter: useGlobalCountFilter, 
-            enabled: useLongs 
+            // 개수 필터가 꺼지면(DISABLED) 숏폼/롱폼 가리지 않고 전체 분석을 위해 강제 true
+            enabled: useGlobalCountFilter ? useLongs : true 
           }
         );
         setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
@@ -795,7 +798,7 @@ const App: React.FC = () => {
                           </h3>
                           <button 
                             onClick={() => setUseGlobalCountFilter(!useGlobalCountFilter)} 
-                            className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useGlobalCountFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                            className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useGlobalCountFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-emerald-500'}`}
                           >
                             {useGlobalCountFilter ? 'ENABLED' : 'DISABLED'}
                           </button>
@@ -808,12 +811,16 @@ const App: React.FC = () => {
                                 <Radio size={14} className="text-red-500" /> Shorts Target
                               </label>
                               <div className="flex items-center gap-4">
-                                <button onClick={() => setUseShorts(!useShorts)} className={useShorts ? 'text-red-600' : 'text-zinc-800'}>
-                                  {useShorts ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                <button 
+                                  disabled={!useGlobalCountFilter}
+                                  onClick={() => setUseShorts(!useShorts)} 
+                                  className={`${(useShorts && useGlobalCountFilter) ? 'text-red-600' : 'text-zinc-800'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                >
+                                  {(useShorts && useGlobalCountFilter) ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
                                 </button>
                               </div>
                            </div>
-                           <div className={`space-y-3 transition-opacity ${!useShorts || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
+                           <div className={`space-y-3 transition-opacity ${(!useShorts || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between font-black italic text-[14px]">
                                 <span className="text-zinc-500">MAX TARGET</span>
                                 <span className="text-red-600">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
@@ -837,12 +844,16 @@ const App: React.FC = () => {
                                 <MonitorPlay size={14} className="text-white" /> Longform Target
                               </label>
                               <div className="flex items-center gap-4">
-                                <button onClick={() => setUseLongs(!useLongs)} className={useLongs ? 'text-white' : 'text-zinc-800'}>
-                                  {useLongs ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                <button 
+                                  disabled={!useGlobalCountFilter}
+                                  onClick={() => setUseLongs(!useLongs)} 
+                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-zinc-800'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                >
+                                  {(useLongs && useGlobalCountFilter) ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
                                 </button>
                               </div>
                            </div>
-                           <div className={`space-y-3 transition-opacity ${!useLongs || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
+                           <div className={`space-y-3 transition-opacity ${(!useLongs || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between font-black italic text-[14px]">
                                 <span className="text-zinc-500">MAX TARGET</span>
                                 <span>{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
