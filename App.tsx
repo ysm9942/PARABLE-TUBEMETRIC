@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -29,7 +30,9 @@ import {
   ThumbsUp,
   Activity,
   Megaphone,
-  CalendarDays
+  CalendarDays,
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
@@ -62,6 +65,7 @@ const App: React.FC = () => {
   const [adStartDate, setAdStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [adEndDate, setAdEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [adResults, setAdResults] = useState<AdAnalysisResult[]>([]);
+  const [selectedAdResult, setSelectedAdResult] = useState<AdAnalysisResult | null>(null);
 
   // Individual Video States
   const [videoInput, setVideoInput] = useState<string>('');
@@ -516,6 +520,84 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Modal: Ad Analysis Details */}
+      {selectedAdResult && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
+              <div className="flex items-center gap-6">
+                <img src={selectedAdResult.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 object-cover" alt="" />
+                <div>
+                  <h3 className="text-2xl font-black text-white">{selectedAdResult.channelName} <span className="text-zinc-500 font-medium ml-2">Ad Archive</span></h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[10px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1.5"><Megaphone size={12} /> {selectedAdResult.totalAdCount} Ads Detected</span>
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{adStartDate} ~ {adEndDate}</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedAdResult(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
+                <X size={24} className="group-hover:rotate-90 transition-transform" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-10 space-y-10">
+              <div className="grid grid-cols-4 gap-6">
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">총 광고 조회수</p>
+                  <p className="text-2xl font-black text-white">{selectedAdResult.totalViews.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 광고 조회수</p>
+                  <p className="text-2xl font-black text-red-500">{selectedAdResult.avgViews.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 좋아요</p>
+                  <p className="text-2xl font-black text-zinc-100">{selectedAdResult.avgLikes.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 댓글</p>
+                  <p className="text-2xl font-black text-zinc-100">{selectedAdResult.avgComments.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h4 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-tighter"><ShieldCheck className="text-red-600" /> Detected Ad Videos</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {selectedAdResult.adVideos.map((ad) => (
+                    <div key={ad.id} className="bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex flex-col hover:border-red-600/30 transition-all group">
+                      <div className="relative h-48 overflow-hidden">
+                        <img src={ad.thumbnail} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
+                          <div className="flex-1 min-w-0">
+                             <div className="text-[10px] font-black text-red-500 uppercase mb-1 flex items-center gap-1.5"><div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div> Verified Advertisement</div>
+                             <h5 className="text-white font-black truncate">{ad.title}</h5>
+                          </div>
+                        </div>
+                        <a href={`https://youtu.be/${ad.id}`} target="_blank" className="absolute top-4 right-4 p-3 bg-red-600 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"><ExternalLink size={18} /></a>
+                      </div>
+                      <div className="p-6 space-y-4 flex-1">
+                        <div className="flex justify-between items-center text-xs font-black uppercase">
+                          <span className="text-zinc-500">조회수 {ad.viewCount.toLocaleString()}</span>
+                          <span className="text-red-500 bg-red-600/10 px-3 py-1 rounded-full">{ad.detection.method === 'both' ? 'FLAG+NLP' : ad.detection.method.toUpperCase()}</span>
+                        </div>
+                        <div className="bg-black/40 p-4 rounded-2xl space-y-2 border border-white/5">
+                           <div className="text-[10px] font-black text-zinc-500 uppercase">Detection Evidence</div>
+                           <div className="flex flex-wrap gap-2">
+                             {ad.detection.evidence.map((ev, i) => (
+                               <span key={i} className="text-[10px] font-bold text-white bg-white/10 px-2 py-1 rounded-md flex items-center gap-1"><CheckCircle2 size={10} className="text-red-600" /> {ev}</span>
+                             ))}
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Video Details (Comments) */}
       {selectedVideo && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
@@ -700,21 +782,37 @@ const App: React.FC = () => {
                 <div className="xl:col-span-2 space-y-8 flex flex-col justify-between">
                   <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 space-y-8 shadow-2xl">
                     <div className="space-y-6">
-                      <label className="text-[13px] font-black text-zinc-500 uppercase flex items-center gap-2"><CalendarDays size={16} className="text-red-600" /> 분석 기간 설정</label>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-zinc-400 uppercase">START DATE</label>
-                          <input type="date" value={adStartDate} onChange={(e) => setAdStartDate(e.target.value)} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-white font-bold focus:border-red-600/50 outline-none" />
+                      <label className="text-[13px] font-black text-zinc-500 uppercase flex items-center gap-2 tracking-[0.2em]"><CalendarDays size={18} className="text-red-600" /> 분석 기간 설정</label>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="group relative bg-black/40 border-2 border-white/5 hover:border-red-600/30 rounded-3xl p-6 transition-all cursor-pointer">
+                          <label className="absolute -top-3 left-6 bg-[#121212] px-3 text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">Start Date</label>
+                          <div className="flex items-center gap-4">
+                            <Calendar size={20} className="text-red-600" />
+                            <input 
+                              type="date" 
+                              value={adStartDate} 
+                              onChange={(e) => setAdStartDate(e.target.value)} 
+                              className="w-full bg-transparent border-none text-white font-black text-lg focus:ring-0 cursor-pointer outline-none [color-scheme:dark]" 
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-zinc-400 uppercase">END DATE</label>
-                          <input type="date" value={adEndDate} onChange={(e) => setAdEndDate(e.target.value)} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-white font-bold focus:border-red-600/50 outline-none" />
+                        <div className="group relative bg-black/40 border-2 border-white/5 hover:border-red-600/30 rounded-3xl p-6 transition-all cursor-pointer">
+                          <label className="absolute -top-3 left-6 bg-[#121212] px-3 text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">End Date</label>
+                          <div className="flex items-center gap-4">
+                            <Calendar size={20} className="text-red-600" />
+                            <input 
+                              type="date" 
+                              value={adEndDate} 
+                              onChange={(e) => setAdEndDate(e.target.value)} 
+                              className="w-full bg-transparent border-none text-white font-black text-lg focus:ring-0 cursor-pointer outline-none [color-scheme:dark]" 
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
                     <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2 text-red-600 font-black text-xs uppercase"><Activity size={14} /> AD Detection Logic</div>
-                      <p className="text-[11px] text-zinc-400 font-bold leading-relaxed">설정한 기간 내 모든 업로드 영상을 전수 조사하여 Paid Flag 및 NLP 알고리즘(가중치 기반)으로 광고 영상을 정밀 필터링합니다.</p>
+                      <div className="flex items-center gap-2 text-red-600 font-black text-xs uppercase"><ShieldCheck size={14} /> Intelligence Detection</div>
+                      <p className="text-[11px] text-zinc-400 font-bold leading-relaxed tracking-tight">설정한 기간 내 모든 업로드 영상을 전수 조사하여 Paid Flag 및 NLP 알고리즘으로 광고 영상을 정밀 필터링합니다.</p>
                     </div>
                   </div>
                   <button onClick={handleAdStart} disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95">
@@ -775,14 +873,24 @@ const App: React.FC = () => {
                             adResults.map((r, i) => (
                               <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
                                 <td className="px-10 py-8 flex items-center gap-6">
-                                  <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                  {r.thumbnail ? (
+                                    <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                  ) : (
+                                    <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center"><Loader2 className="animate-spin text-zinc-700" size={16} /></div>
+                                  )}
                                   <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
                                 </td>
                                 <td className="px-10 py-8 text-center"><span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-black text-sm">{r.totalAdCount}</span></td>
                                 <td className="px-10 py-8 text-right font-black text-xl">{r.avgViews.toLocaleString()}</td>
                                 <td className="px-10 py-8 text-right font-black text-red-500">{r.avgLikes.toLocaleString()}</td>
                                 <td className="px-10 py-8 text-center">
-                                  <button className="p-4 bg-white/5 hover:bg-red-600 rounded-2xl transition-all"><Eye size={20} /></button>
+                                  <button 
+                                    disabled={r.status !== 'completed'}
+                                    onClick={() => setSelectedAdResult(r)}
+                                    className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all disabled:opacity-20"
+                                  >
+                                    <Eye size={20} />
+                                  </button>
                                 </td>
                               </tr>
                             ))
