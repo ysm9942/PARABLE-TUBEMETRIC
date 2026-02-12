@@ -6,25 +6,29 @@ export interface CommentInfo {
   publishedAt: string;
 }
 
+export type SignalType = 'Direct' | 'Strong' | 'Soft';
+export type DataSourceType = 'youtubei_player' | 'runtime_eval' | 'html_regex' | 'ui_rendered' | 'nlp_text';
+
+// Define TabType for main application navigation tabs
+export type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard';
+
+export interface DetectionSignal {
+  type: SignalType;
+  source: DataSourceType;
+  path: string;
+  key: string;
+  note: string;
+  confidence: number;
+}
+
 export interface AdDetectionResult {
   is_ad: boolean;
   confidence: number;
   method: 'paid_flag' | 'nlp' | 'both' | 'none';
-  evidence: string[]; // 최종 사용자에게 보여줄 간단한 요약 리스트
+  evidence: string[]; 
   score: number;
-  // 상세 분석 데이터 (내부 로직용 및 확장용)
-  paid_flag?: {
-    paid_promotion: boolean | 'unknown';
-    confidence: number;
-    evidence: Array<{ source: string; path: string; key: string; value: string; note: string }>;
-  };
-  nlp?: {
-    ad_disclosure: boolean | 'unknown';
-    ad_type: 'paid_promotion' | 'sponsorship' | 'affiliate' | 'gifted' | 'self_promo' | 'unknown';
-    confidence: number;
-    matched_phrases: Array<{ phrase: string; weight: 'high' | 'mid' | 'low'; source: string }>;
-    reasoning: string;
-  };
+  signals: DetectionSignal[]; // 모든 수집된 신호의 상세 내역
+  analysisSource: DataSourceType; // 주된 분석 출처
 }
 
 export interface AdVideoDetail extends VideoDetail {
