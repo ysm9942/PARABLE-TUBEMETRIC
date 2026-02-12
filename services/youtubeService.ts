@@ -1,16 +1,13 @@
+
 import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
-import { VideoDetail, VideoResult, CommentInfo } from '../types';
+import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult } from '../types';
 
-// Vercel 환경 변수에서 API Key를 가져옵니다.
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
 
-/**
- * YouTube API 에러 메시지 추출
- */
 const getErrorMessage = (error: any): string => {
   if (error.response?.data?.error?.message) {
     return error.response.data.error.message;
@@ -18,20 +15,11 @@ const getErrorMessage = (error: any): string => {
   return error.message || '알 수 없는 오류가 발생했습니다.';
 };
 
-/**
- * 특정 영상의 좋아요가 가장 많이 달린 댓글 6개를 가져옵니다.
- */
 const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
   if (!API_KEY || !videoId) return [];
   try {
     const response = await axios.get(`${BASE_URL}/commentThreads`, {
-      params: {
-        part: 'snippet',
-        videoId: videoId,
-        maxResults: 6,
-        order: 'relevance',
-        key: API_KEY,
-      },
+      params: { part: 'snippet', videoId, maxResults: 6, order: 'relevance', key: API_KEY },
     });
     return response.data.items.map((item: any) => ({
       author: item.snippet.topLevelComment.snippet.authorDisplayName,
@@ -39,72 +27,187 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
       likeCount: item.snippet.topLevelComment.snippet.likeCount,
       publishedAt: item.snippet.topLevelComment.snippet.publishedAt,
     }));
-  } catch (e) {
-    // 댓글이 비활성화된 경우(403) 등은 빈 배열 반환
-    return [];
-  }
+  } catch (e) { return []; }
 };
 
 /**
- * 입력값에서 채널 ID 또는 핸들을 추출하여 채널 정보를 가져옵니다.
+ * 4) 광고 판별 1단계: paidPromotion 플래그 분석 (HTML/JSON 기반)
  */
+export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies: string[] = []): any => {
+  const videoIdMatch = videoUrl.match(/(?:v=|\/shorts\/|youtu\.be\/)([^"&?\/\s]{11})/);
+  const videoId = videoIdMatch ? videoIdMatch[1] : "unknown";
+
+  let paidPromotion: boolean | 'unknown' = 'unknown';
+  const evidence: any[] = [];
+  const found: any[] = [];
+
+  // 탐색 타겟 문자열 결합
+  const allData = [html, ...responseBodies].join('\n');
+  
+  // 정규식 기반 키 탐색 (isPaidPromotion, paidPromotion, paidProductPlacement 등)
+  // 대소문자/언더스코어 허용
+  const adKeys = ['paidPromotion', 'isPaidPromotion', 'paidProductPlacement', 'productPlacement'];
+  
+  for (const key of adKeys) {
+    const regex = new RegExp(`"${key}"\\s*:\\s*(true|false|1|0|"true"|"false")`, 'gi');
+    let match;
+    while ((match = regex.exec(allData)) !== null) {
+      const valStr = match[1].toLowerCase().replace(/"/g, '');
+      const isTrue = valStr === 'true' || valStr === '1';
+      
+      found.push({ path: "JSON_SCAN", key, value: valStr });
+      
+      if (isTrue && paidPromotion !== true) {
+        paidPromotion = true;
+        evidence.push({ source: "Crawl", path: "ytInitialPlayerResponse", key, value: valStr, note: "Paid promotion flag detected" });
+      } else if (!isTrue && paidPromotion === 'unknown') {
+        paidPromotion = false;
+      }
+    }
+  }
+
+  const confidence = paidPromotion === true ? 0.8 : (paidPromotion === false ? 0.6 : 0.2);
+
+  return {
+    video_id: videoId,
+    paid_promotion: paidPromotion,
+    confidence,
+    evidence: evidence.slice(0, 3),
+    raw_flags: { found: found.slice(0, 5) }
+  };
+};
+
+/**
+ * 5) 광고 판별 2단계: description 텍스트 NLP 필터
+ */
+export const detectAdNLP = (videoId: string, title: string, description: string, pinnedComment: string = "", channelName: string = ""): any => {
+  const combinedText = `${description}\n---PINNED---\n${pinnedComment}`;
+  
+  // 전처리: URL, 이메일 마스킹 및 정규화
+  const cleanedText = combinedText
+    .replace(/https?:\/\/[^\s]+/g, '<URL>')
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '<CONTACT>');
+    
+  const lowerText = (title + " " + cleanedText).toLowerCase().replace(/\s+/g, ' ');
+  
+  let score = 0;
+  const matchedPhrases: any[] = [];
+
+  const weights = {
+    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "ad:", "광고입니다"],
+    mid: ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십", "원고료", "제작비"],
+    low: ["affiliate", "제휴 링크", "수수료", "커미션", "gifted", "PR", "#ad", "#sponsored", "#협찬", "#광고"],
+    negative: ["광고 아님", "내돈내산", "not sponsored", "no sponsorship"]
+  };
+
+  weights.high.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 3; matchedPhrases.push({ phrase: p, weight: 'high', source: 'text' }); } });
+  weights.mid.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 2; matchedPhrases.push({ phrase: p, weight: 'mid', source: 'text' }); } });
+  weights.low.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 1; matchedPhrases.push({ phrase: p, weight: 'low', source: 'text' }); } });
+  weights.negative.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score -= 2; matchedPhrases.push({ phrase: p, weight: 'negative', source: 'text' }); } });
+
+  let ad_disclosure: boolean | 'unknown' = 'unknown';
+  if (score >= 3) ad_disclosure = true;
+  else if (score === 2) ad_disclosure = 'unknown';
+  else ad_disclosure = false;
+
+  let ad_type: string = "unknown";
+  if (ad_disclosure === true) {
+    if (lowerText.includes("수수료") || lowerText.includes("affiliate")) ad_type = "affiliate";
+    else if (lowerText.includes("제공받아")) ad_type = "gifted";
+    else if (score >= 5) ad_type = "paid_promotion";
+    else ad_type = "sponsorship";
+  }
+
+  const confidence = ad_disclosure === true ? 0.75 : (ad_disclosure === false ? 0.55 : 0.3);
+  const reasoning = ad_disclosure === true 
+    ? `텍스트 분석 결과 '${matchedPhrases[0]?.phrase}' 등 강한 광고 신호가 포착되었습니다.`
+    : (ad_disclosure === false ? "광고를 암시하는 키워드가 발견되지 않았습니다." : "광고 여부가 불분명합니다.");
+
+  return {
+    video_id: videoId,
+    ad_disclosure,
+    ad_type,
+    confidence,
+    matched_phrases: matchedPhrases.slice(0, 5),
+    reasoning,
+    cleaned_text: cleanedText.substring(0, 500)
+  };
+};
+
+/**
+ * 6) 최종 광고 판정 결합 규칙
+ */
+export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => {
+  let is_ad = false;
+  let method: 'paid_flag' | 'nlp' | 'both' | 'none' = 'none';
+  
+  const isPaidTrue = paidFlag.paid_promotion === true;
+  const isNlpTrue = nlp.ad_disclosure === true;
+
+  if (isPaidTrue && isNlpTrue) {
+    is_ad = true;
+    method = 'both';
+  } else if (isPaidTrue) {
+    is_ad = true;
+    method = 'paid_flag';
+  } else if (isNlpTrue) {
+    is_ad = true;
+    method = 'nlp';
+  }
+
+  // 애매한 경우 오탐 방지 (4, 5번 규칙)
+  if (!isPaidTrue && !isNlpTrue) {
+    is_ad = false;
+    method = 'none';
+  }
+
+  let finalConfidence = 0;
+  if (is_ad) {
+    finalConfidence = method === 'both' ? Math.max(paidFlag.confidence, nlp.confidence) : (isPaidTrue ? paidFlag.confidence : nlp.confidence);
+  } else {
+    finalConfidence = Math.min(0.6, (paidFlag.confidence + nlp.confidence) / 2);
+  }
+
+  const evidence: string[] = [];
+  if (isPaidTrue) evidence.push("시스템 플래그 감지 (Paid Promotion)");
+  if (isNlpTrue) evidence.push(`설명란 키워드 감지 (${nlp.matched_phrases[0]?.phrase})`);
+  if (!is_ad) evidence.push("광고 신호 없음/불충분");
+
+  return {
+    is_ad,
+    confidence: finalConfidence,
+    method,
+    evidence: evidence.slice(0, 2),
+    score: (isPaidTrue ? 5 : 0) + (nlp.ad_disclosure === true ? 3 : 0),
+    paid_flag: paidFlag,
+    nlp: nlp
+  };
+};
+
 export const getChannelInfo = async (input: string) => {
   if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
-  
-  // 입력값 정제: URL 형태인 경우 경로만 남기고 쿼리스트링 제거
   let cleanInput = input.trim();
   if (cleanInput.includes('youtube.com/') || cleanInput.includes('youtu.be/')) {
     try {
       const url = new URL(cleanInput.startsWith('http') ? cleanInput : `https://${cleanInput}`);
       cleanInput = url.pathname + url.search;
-    } catch (e) {
-      // URL 파싱 실패 시 원본 사용
-    }
+    } catch (e) {}
   }
-
-  let params: any = {
-    part: 'snippet,contentDetails,statistics',
-    key: API_KEY,
-  };
-
-  // 1. UC로 시작하는 채널 ID 직접 추출
+  let params: any = { part: 'snippet,contentDetails,statistics', key: API_KEY };
   const idMatch = cleanInput.match(/UC[a-zA-Z0-9_-]{22}/);
-  // 2. @로 시작하는 핸들 추출
   const handleMatch = cleanInput.match(/@([^/?\s]+)/);
-
-  if (idMatch) {
-    params.id = idMatch[0];
-  } else if (handleMatch) {
-    // forHandle은 @를 포함해야 함
-    params.forHandle = `@${handleMatch[1]}`;
-  } else {
-    // ID나 핸들을 찾지 못한 경우 검색 API 사용
+  if (idMatch) params.id = idMatch[0];
+  else if (handleMatch) params.forHandle = `@${handleMatch[1]}`;
+  else {
     try {
-      const searchResponse = await axios.get(`${BASE_URL}/search`, {
-        params: {
-          part: 'snippet',
-          q: input.trim(),
-          type: 'channel',
-          maxResults: 1,
-          key: API_KEY,
-        }
-      });
-      
-      if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
-        throw new Error(`채널을 찾을 수 없습니다: ${input}`);
-      }
+      const searchResponse = await axios.get(`${BASE_URL}/search`, { params: { part: 'snippet', q: input.trim(), type: 'channel', maxResults: 1, key: API_KEY } });
+      if (!searchResponse.data.items?.length) throw new Error(`채널을 찾을 수 없습니다: ${input}`);
       params.id = searchResponse.data.items[0].id.channelId;
-    } catch (err) {
-      throw new Error(`검색 중 오류 발생: ${getErrorMessage(err)}`);
-    }
+    } catch (err) { throw new Error(`검색 중 오류 발생: ${getErrorMessage(err)}`); }
   }
-
   try {
     const response = await axios.get(`${BASE_URL}/channels`, { params });
-    if (!response.data.items || response.data.items.length === 0) {
-      throw new Error('채널 정보를 찾을 수 없습니다. (ID/핸들 확인 필요)');
-    }
-
+    if (!response.data.items?.length) throw new Error('채널 정보를 찾을 수 없습니다.');
     const channel = response.data.items[0];
     return {
       id: channel.id,
@@ -113,30 +216,18 @@ export const getChannelInfo = async (input: string) => {
       subscriberCount: channel.statistics.subscriberCount,
       uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads,
     };
-  } catch (err) {
-    throw new Error(`채널 조회 실패: ${getErrorMessage(err)}`);
-  }
+  } catch (err) { throw new Error(`채널 조회 실패: ${getErrorMessage(err)}`); }
 };
 
 export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[]> => {
-  const validIds = videoIds.filter(id => id && id.length === 11);
-  if (validIds.length === 0) return [];
-
+  const validIds = videoIds.filter(id => id?.length === 11);
+  if (!validIds.length) return [];
   try {
-    const response = await axios.get(`${BASE_URL}/videos`, {
-      params: {
-        part: 'snippet,contentDetails,statistics',
-        id: validIds.join(','),
-        key: API_KEY,
-      },
-    });
-
+    const response = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: validIds.join(','), key: API_KEY } });
     const results: VideoResult[] = [];
     for (const item of response.data.items) {
       const durationSec = parseYtDurationSeconds(item.contentDetails.duration);
       const isShort = await isYouTubeShort(item.id, durationSec);
-      const topComments = await fetchTopComments(item.id);
-      
       results.push({
         videoId: item.id,
         title: item.snippet.title,
@@ -145,150 +236,75 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
         viewCount: parseInt(item.statistics.viewCount || '0', 10),
         likeCount: parseInt(item.statistics.likeCount || '0', 10),
         commentCount: parseInt(item.statistics.commentCount || '0', 10),
-        topComments,
+        topComments: await fetchTopComments(item.id),
         duration: item.contentDetails.duration,
         isShort,
         status: 'completed'
       });
     }
     return results;
-  } catch (err) {
-    throw new Error(`영상 정보 조회 실패: ${getErrorMessage(err)}`);
-  }
+  } catch (err) { throw new Error(`영상 정보 조회 실패: ${getErrorMessage(err)}`); }
 };
 
-export const fetchChannelStats = async (
-  uploadsPlaylistId: string,
-  targetShorts: number,
-  targetLong: number,
-  period: AnalysisPeriod,
-  useDateFilter: boolean,
-  useCountFilter: boolean,
-  useShorts: boolean,
-  useLongs: boolean
-): Promise<{ 
-  avgShortsViews: number; 
-  shortsCount: number; 
-  avgLongViews: number; 
-  longCount: number;
-  avgTotalViews: number;
-  totalCount: number;
-  shortsList: VideoDetail[];
-  longsList: VideoDetail[];
-  liveList: VideoDetail[];
-}> => {
-  if (!uploadsPlaylistId) throw new Error('업로드 플레이리스트 ID가 없습니다.');
-
-  let shorts: VideoDetail[] = [];
-  let longs: VideoDetail[] = [];
-  let lives: VideoDetail[] = [];
-  let nextPageToken: string | undefined = undefined;
-  let safetyCounter = 0;
-
-  const maxShorts = useShorts ? (useCountFilter ? targetShorts : Infinity) : 0;
-  const maxLongs = useLongs ? (useCountFilter ? targetLong : Infinity) : 0;
-
-  const now = new Date();
+export const fetchChannelStats = async (uploadsPlaylistId: string, targetShorts: number, targetLong: number, period: AnalysisPeriod, useDateFilter: boolean, useCountFilter: boolean, useShorts: boolean, useLongs: boolean) => {
+  let shorts: VideoDetail[] = [], longs: VideoDetail[] = [], lives: VideoDetail[] = [], nextPageToken: string | undefined, safetyCounter = 0;
+  const maxShorts = useShorts ? (useCountFilter ? targetShorts : Infinity) : 0, maxLongs = useLongs ? (useCountFilter ? targetLong : Infinity) : 0;
   let cutoffDate: Date | null = null;
-  if (useDateFilter && period !== 'all') {
-    const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
-    cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  }
-
-  let reachedDateLimit = false;
-
-  while (
-    !reachedDateLimit &&
-    (useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && 
-    safetyCounter < 100 // 무한 루프 방지
-  ) {
+  if (useDateFilter && period !== 'all') cutoffDate = new Date(Date.now() - (period === '7d' ? 7 : period === '30d' ? 30 : 90) * 24 * 60 * 60 * 1000);
+  while ((useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && safetyCounter < 100) {
     safetyCounter++;
-    
-    try {
-      const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, {
-        params: {
-          part: 'contentDetails',
-          playlistId: uploadsPlaylistId,
-          maxResults: 50,
-          pageToken: nextPageToken,
-          key: API_KEY,
-        },
-      });
-
-      const items = playlistResponse.data.items;
-      if (!items || items.length === 0) break;
-      nextPageToken = playlistResponse.data.nextPageToken;
-
-      const videoIds = items.map((i: any) => i.contentDetails.videoId).filter((id: string) => !!id);
-      if (videoIds.length === 0) break;
-
-      const videoResponse = await axios.get(`${BASE_URL}/videos`, {
-        params: {
-          part: 'snippet,contentDetails,statistics,liveStreamingDetails',
-          id: videoIds.join(','),
-          key: API_KEY,
-        },
-      });
-
-      const videoDetails = videoResponse.data.items;
-
-      for (const video of videoDetails) {
-        const publishedAt = new Date(video.snippet.publishedAt);
-        if (cutoffDate && publishedAt < cutoffDate) {
-          reachedDateLimit = true;
-          break;
-        }
-
-        const durationStr = video.contentDetails.duration;
-        const durationSec = parseYtDurationSeconds(durationStr);
-        const isShort = await isYouTubeShort(video.id, durationSec);
-        const views = parseInt(video.statistics.viewCount || '0', 10);
-        const isLiveStream = !!video.liveStreamingDetails;
-
-        const videoInfo: VideoDetail = {
-          id: video.id,
-          title: video.snippet.title,
-          thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url,
-          publishedAt: video.snippet.publishedAt,
-          viewCount: views,
-          duration: durationStr,
-          isShort: isShort,
-          isLiveStream
-        };
-
-        if (isLiveStream) {
-          if (lives.length < 10) lives.push(videoInfo);
-        } else if (isShort) {
-          if (useShorts && (useCountFilter ? shorts.length < maxShorts : true)) {
-            shorts.push(videoInfo);
-          }
-        } else {
-          if (useLongs && (useCountFilter ? longs.length < maxLongs : true)) {
-            longs.push(videoInfo);
-          }
-        }
-      }
-
-      if (!nextPageToken) break;
-    } catch (err) {
-      throw new Error(`목록 수집 중 오류: ${getErrorMessage(err)}`);
+    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
+    if (!playlistResponse.data.items?.length) break;
+    nextPageToken = playlistResponse.data.nextPageToken;
+    const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics,liveStreamingDetails', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    for (const video of videoResponse.data.items) {
+      if (cutoffDate && new Date(video.snippet.publishedAt) < cutoffDate) { nextPageToken = undefined; break; }
+      const isShort = await isYouTubeShort(video.id, parseYtDurationSeconds(video.contentDetails.duration));
+      const info = { id: video.id, title: video.snippet.title, thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url, publishedAt: video.snippet.publishedAt, viewCount: parseInt(video.statistics.viewCount || '0', 10), duration: video.contentDetails.duration, isShort, isLiveStream: !!video.liveStreamingDetails };
+      if (info.isLiveStream) { if(lives.length<10) lives.push(info); }
+      else if (isShort) { if(useShorts && shorts.length < maxShorts) shorts.push(info); }
+      else { if(useLongs && longs.length < maxLongs) longs.push(info); }
     }
+    if (!nextPageToken) break;
   }
+  const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
+  return { avgShortsViews: calcAvg(shorts), shortsCount: shorts.length, avgLongViews: calcAvg(longs), longCount: longs.length, avgTotalViews: calcAvg([...shorts, ...longs]), totalCount: shorts.length + longs.length, shortsList: shorts, longsList: longs, liveList: lives };
+};
 
-  const calcAvg = (arr: VideoDetail[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length);
+export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date, endDate: Date): Promise<AdVideoDetail[]> => {
+  let adVideos: AdVideoDetail[] = [], nextPageToken: string | undefined, safetyCounter = 0;
+  while (safetyCounter < 100) {
+    safetyCounter++;
+    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
+    if (!playlistResponse.data.items?.length) break;
+    nextPageToken = playlistResponse.data.nextPageToken;
+    const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    for (const video of videoResponse.data.items) {
+      const pub = new Date(video.snippet.publishedAt);
+      if (pub < startDate) { nextPageToken = undefined; break; }
+      if (pub > endDate) continue;
 
-  const totalVideos = [...shorts, ...longs];
-  const avgTotalViews = calcAvg(totalVideos);
+      // 1단계: Paid Flag (API에서는 HTML 크롤링이 불가하므로 unknown 처리하거나 status 파라미터 확인)
+      // 실제 브라우저에서는 이 시점에 HTML이 없으므로 NLP 위주로 동작하게 됨
+      const paidFlag = detectAdPaidFlag(`https://youtu.be/${video.id}`, ""); 
+      
+      // 2단계: NLP 분석
+      const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "");
+      
+      // 최종 결합
+      const combined = combineAdResults(paidFlag, nlp);
 
-  return {
-    avgShortsViews: calcAvg(shorts),
-    shortsCount: shorts.length,
-    avgLongViews: calcAvg(longs),
-    longCount: longs.length,
-    avgTotalViews: avgTotalViews,
-    totalCount: totalVideos.length,
-    shortsList: shorts,
-    longsList: longs,
-    liveList: lives,
-  };
+      if (combined.is_ad) {
+        adVideos.push({
+          id: video.id, title: video.snippet.title, thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
+          publishedAt: video.snippet.publishedAt, viewCount: parseInt(video.statistics.viewCount || '0', 10),
+          likeCount: parseInt(video.statistics.likeCount || '0', 10), commentCount: parseInt(video.statistics.commentCount || '0', 10),
+          duration: video.contentDetails.duration, isShort: await isYouTubeShort(video.id, parseYtDurationSeconds(video.contentDetails.duration)),
+          detection: combined
+        });
+      }
+    }
+    if (!nextPageToken) break;
+  }
+  return adVideos;
 };

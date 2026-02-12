@@ -1,8 +1,36 @@
+
 export interface CommentInfo {
   author: string;
   text: string;
   likeCount: number;
   publishedAt: string;
+}
+
+export interface AdDetectionResult {
+  is_ad: boolean;
+  confidence: number;
+  method: 'paid_flag' | 'nlp' | 'both' | 'none';
+  evidence: string[]; // 최종 사용자에게 보여줄 간단한 요약 리스트
+  score: number;
+  // 상세 분석 데이터 (내부 로직용 및 확장용)
+  paid_flag?: {
+    paid_promotion: boolean | 'unknown';
+    confidence: number;
+    evidence: Array<{ source: string; path: string; key: string; value: string; note: string }>;
+  };
+  nlp?: {
+    ad_disclosure: boolean | 'unknown';
+    ad_type: 'paid_promotion' | 'sponsorship' | 'affiliate' | 'gifted' | 'self_promo' | 'unknown';
+    confidence: number;
+    matched_phrases: Array<{ phrase: string; weight: 'high' | 'mid' | 'low'; source: string }>;
+    reasoning: string;
+  };
+}
+
+export interface AdVideoDetail extends VideoDetail {
+  detection: AdDetectionResult;
+  likeCount: number;
+  commentCount: number;
 }
 
 export interface ChannelResult {
@@ -18,7 +46,21 @@ export interface ChannelResult {
   totalCountFound: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
-  liveList: VideoDetail[]; // 최근 라이브 스트림 목록
+  liveList: VideoDetail[];
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  error?: string;
+}
+
+export interface AdAnalysisResult {
+  channelId: string;
+  channelName: string;
+  thumbnail: string;
+  adVideos: AdVideoDetail[];
+  totalAdCount: number;
+  totalViews: number;
+  avgViews: number;
+  avgLikes: number;
+  avgComments: number;
   status: 'pending' | 'processing' | 'completed' | 'error';
   error?: string;
 }
@@ -47,5 +89,5 @@ export interface VideoDetail {
   duration: string;
   isShort: boolean;
   isLiveStream?: boolean;
-  concurrentViewers?: number; // 라이브 중일 때 현재 시청자 (Public API는 과거 Peak CCU를 제공하지 않으므로 라이브 상태일 때만 표시 가능)
+  concurrentViewers?: number;
 }
