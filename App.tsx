@@ -816,7 +816,7 @@ const App: React.FC = () => {
                            <div className={`space-y-3 transition-opacity ${!useShorts || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between font-black italic text-[14px]">
                                 <span className="text-zinc-500">MAX TARGET</span>
-                                <span className="text-red-600">{targetShorts}개</span>
+                                <span className="text-red-600">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
                               </div>
                               <input 
                                type="range" 
@@ -845,7 +845,7 @@ const App: React.FC = () => {
                            <div className={`space-y-3 transition-opacity ${!useLongs || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between font-black italic text-[14px]">
                                 <span className="text-zinc-500">MAX TARGET</span>
-                                <span>{targetLong}개</span>
+                                <span>{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
                               </div>
                               <input 
                                type="range" 

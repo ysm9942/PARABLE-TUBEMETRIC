@@ -246,17 +246,47 @@ export const fetchChannelStats = async (
   const shortsCutoff = getCutoff(shortsCfg);
   const longsCutoff = getCutoff(longsCfg);
 
-  while (safetyCounter < 100) {
+  // 날짜 필터가 활성화된 경우, 루프를 중단할 가장 빠른 날짜를 계산
+  const globalCutoff = (shortsCfg.useDateFilter || longsCfg.useDateFilter) 
+    ? (shortsCutoff && longsCutoff ? (shortsCutoff < longsCutoff ? shortsCutoff : longsCutoff) : (shortsCutoff || longsCutoff)) 
+    : null;
+
+  // 전체 분석을 위해 safetyCounter를 500(25,000개 영상)으로 상향
+  while (safetyCounter < 500) {
     safetyCounter++;
-    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
+    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { 
+      params: { 
+        part: 'contentDetails', 
+        playlistId: uploadsPlaylistId, 
+        maxResults: 50, 
+        pageToken: nextPageToken, 
+        key: API_KEY 
+      } 
+    });
+    
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
 
     const videoIds = playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(',');
-    const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics,liveStreamingDetails', id: videoIds, key: API_KEY } });
+    const videoResponse = await axios.get(`${BASE_URL}/videos`, { 
+      params: { 
+        part: 'snippet,contentDetails,statistics,liveStreamingDetails', 
+        id: videoIds, 
+        key: API_KEY 
+      } 
+    });
     
+    let stopDueToDate = false;
+
     for (const video of videoResponse.data.items) {
       const publishedAt = new Date(video.snippet.publishedAt);
+      
+      // 최적화: 수집 기간을 벗어난 영상을 만나면 루프 종료 (유튜브 API는 최신순으로 반환하므로 가능)
+      if (globalCutoff && publishedAt < globalCutoff) {
+        stopDueToDate = true;
+        break;
+      }
+
       const isShort = await isYouTubeShort(video.id, parseYtDurationSeconds(video.contentDetails.duration));
       const info: VideoDetail = { 
         id: video.id, 
@@ -272,20 +302,28 @@ export const fetchChannelStats = async (
       if (info.isLiveStream) {
         if (lives.length < 10) lives.push(info);
       } else if (isShort) {
-        if (shortsCfg.enabled && (!shortsCfg.useCountFilter || shorts.length < shortsCfg.target)) {
-          if (!shortsCfg.useDateFilter || (shortsCutoff && publishedAt >= shortsCutoff)) {
+        if (shortsCfg.enabled) {
+          // useCountFilter가 DISABLED면 개수 제한 무시, ENABLED면 target 확인
+          const withinTarget = !shortsCfg.useCountFilter || shorts.length < shortsCfg.target;
+          const withinDate = !shortsCfg.useDateFilter || (shortsCutoff && publishedAt >= shortsCutoff);
+          
+          if (withinTarget && withinDate) {
             shorts.push(info);
           }
         }
       } else {
-        if (longsCfg.enabled && (!longsCfg.useCountFilter || longs.length < longsCfg.target)) {
-          if (!longsCfg.useDateFilter || (longsCutoff && publishedAt >= longsCutoff)) {
+        if (longsCfg.enabled) {
+          const withinTarget = !longsCfg.useCountFilter || longs.length < longsCfg.target;
+          const withinDate = !longsCfg.useDateFilter || (longsCutoff && publishedAt >= longsCutoff);
+          
+          if (withinTarget && withinDate) {
             longs.push(info);
           }
         }
       }
     }
-    if (!nextPageToken) break;
+    
+    if (stopDueToDate || !nextPageToken) break;
   }
 
   const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
@@ -316,14 +354,12 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // 1. 영상 기본 데이터 수집 (설명란, 제목, 댓글)
       const comments = await fetchTopComments(video.id);
       const payload = await fetchDetailedPlayerResponse(video.id);
       payload.description = video.snippet.description;
       payload.title = video.snippet.title;
       payload.topComments = comments;
       
-      // 2. AI 기반 광고 판별 (사용자 요청 로직 반영)
       const detection = await detectAdWithAI(`https://www.youtube.com/watch?v=${video.id}`, payload);
 
       if (detection.is_ad) {
