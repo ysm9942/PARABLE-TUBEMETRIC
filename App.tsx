@@ -4,7 +4,7 @@ import {
   Play, Download, Trash2, Youtube, Loader2, LayoutDashboard, ExternalLink, Calendar,
   Video, MonitorPlay, X, Eye, FileSpreadsheet, Users, Radio, Settings2,
   ChevronRight, Lock, CheckCircle2, Circle, ToggleLeft, ToggleRight,
-  Megaphone, Zap, Binary, Database, Activity, Info
+  Megaphone, Zap, Binary, Database, Activity, Info, ShieldCheck, Cpu
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
@@ -56,7 +56,6 @@ const App: React.FC = () => {
   }, []);
 
   const handlePinSubmit = () => {
-    // 사용자가 요청한 5350으로 PIN 번호 수정
     if (pinInput === '5350') { 
       setIsAuthorized(true);
       localStorage.setItem('isAuthorized', 'true');
@@ -90,9 +89,7 @@ const App: React.FC = () => {
           ...stats,
           status: 'completed'
         });
-      } catch (err) {
-        console.error(err);
-      }
+      } catch (err) { console.error(err); }
     }
     setChannelResults(results);
     setIsProcessing(false);
@@ -160,10 +157,19 @@ const App: React.FC = () => {
 
   const getSourceIcon = (src: DataSourceType) => {
     switch(src) {
-      case 'youtubei_player': return <Zap size={14} className="text-yellow-400" />;
+      case 'youtubei_player': return <Cpu size={14} className="text-yellow-400" />;
       case 'runtime_eval': return <Binary size={14} className="text-blue-400" />;
       case 'ui_rendered': return <MonitorPlay size={14} className="text-emerald-400" />;
       default: return <Database size={14} className="text-zinc-500" />;
+    }
+  };
+
+  const getSourceLabel = (src: DataSourceType) => {
+    switch(src) {
+      case 'youtubei_player': return 'Network Layer';
+      case 'runtime_eval': return 'Runtime Logic';
+      case 'ui_rendered': return 'UI Overlay';
+      default: return 'NLP Analysis';
     }
   };
 
@@ -284,7 +290,7 @@ const App: React.FC = () => {
                   value={channelInput}
                   onChange={(e) => setChannelInput(e.target.value)}
                   placeholder="분석할 채널의 UC 코드를 한 줄씩 입력하세요..."
-                  className="w-full h-80 bg-[#121212] border border-white/5 rounded-[32px] p-6 text-white text-sm focus:outline-none focus:border-red-600/50 transition-all font-mono leading-relaxed placeholder:text-zinc-800"
+                  className="w-full h-80 bg-[#121212] border border-white/5 rounded-[32px] p-6 text-white text-sm focus:outline-none focus:border-red-600/50 transition-all font-mono leading-relaxed"
                 />
               </div>
               <div className="lg:col-span-5 space-y-6">
@@ -352,8 +358,8 @@ const App: React.FC = () => {
               <div className="lg:col-span-5 space-y-6">
                 <div className="bg-[#0f0f0f] border border-white/5 rounded-[32px] p-8 space-y-6">
                   <div className="flex items-center gap-3 mb-2">
-                    <Megaphone className="text-red-600" size={20} />
-                    <h3 className="text-lg font-black">Ad Setup</h3>
+                    <ShieldCheck className="text-red-600" size={20} />
+                    <h3 className="text-lg font-black">Ad Detection Setup</h3>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -367,8 +373,8 @@ const App: React.FC = () => {
                        </div>
                     </div>
                     <div className="p-5 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                       <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase mb-2"><Zap size={14}/> Intelligent Engine</div>
-                       <p className="text-[10px] text-zinc-500 leading-relaxed font-medium">유료 프로모션 고지 데이터와 설명란 텍스트를 교차 분석하여 광고 여부를 정밀 판정합니다.</p>
+                       <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase mb-2"><Zap size={14}/> Intelligent Scanning</div>
+                       <p className="text-[10px] text-zinc-500 leading-relaxed font-medium">단순 키워드를 넘어 유튜브 플레이어의 내부 런타임 데이터를 분석하여 '유료 광고 포함' 플래그를 실시간으로 탐지합니다.</p>
                     </div>
                   </div>
                   <button 
@@ -409,77 +415,59 @@ const App: React.FC = () => {
                   )}
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {dashboardSubTab === 'channel' && (
-                    channelResults.length === 0 ? (
-                      <div className="col-span-2 h-72 flex flex-col items-center justify-center bg-[#0f0f0f] rounded-[32px] border border-white/5 border-dashed">
-                         <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-zinc-700 mb-4"><Users size={24}/></div>
-                         <div className="text-sm font-black text-zinc-600 uppercase tracking-widest">No Analysis Data</div>
-                      </div>
-                    ) : (
-                      channelResults.map((c, i) => (
-                        <div key={i} onClick={() => setSelectedChannel(c)} className="bg-[#121212] p-6 rounded-[32px] border border-white/5 hover:border-red-600/30 transition-all cursor-pointer group">
-                           <div className="flex items-center gap-5 mb-6">
-                              <img src={c.thumbnail} className="w-14 h-14 rounded-2xl border border-white/10 object-cover" alt="" />
-                              <div>
-                                 <h4 className="text-base font-black text-white group-hover:text-red-500 transition-colors">{c.channelName}</h4>
-                                 <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-0.5">{formatNumber(Number(c.subscriberCount))} Subscribers</div>
-                              </div>
-                           </div>
-                           <div className="grid grid-cols-3 gap-3">
-                              <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
-                                 <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Shorts Avg</div>
-                                 <div className="text-sm font-black text-red-500">{formatNumber(c.avgShortsViews)}</div>
-                              </div>
-                              <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
-                                 <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Longs Avg</div>
-                                 <div className="text-sm font-black text-zinc-300">{formatNumber(c.avgLongViews)}</div>
-                              </div>
-                              <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
-                                 <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Total</div>
-                                 <div className="text-sm font-black text-zinc-500">{c.totalCountFound}</div>
-                              </div>
-                           </div>
-                        </div>
-                      ))
-                    )
-                  )}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {dashboardSubTab === 'ad' && adResults.map((r, i) => (
+                    <div key={i} onClick={() => setSelectedAdResult(r)} className="bg-[#121212] p-6 rounded-[32px] border border-white/5 hover:border-red-600/30 transition-all cursor-pointer group">
+                       <div className="flex items-center gap-4 mb-4">
+                          <img src={r.thumbnail} className="w-12 h-12 rounded-xl object-cover" alt="" />
+                          <div className="min-w-0">
+                             <div className="text-xs font-black text-white truncate">{r.channelName}</div>
+                             <div className="text-[9px] font-black text-red-500 bg-red-500/10 px-2 py-0.5 rounded-lg inline-block mt-1">{r.totalAdCount} ADS FOUND</div>
+                          </div>
+                       </div>
+                       <div className="space-y-2">
+                          <div className="flex justify-between text-[10px]">
+                             <span className="text-zinc-600 font-bold uppercase">Average Ad View</span>
+                             <span className="text-white font-black">{formatNumber(r.avgViews)}</span>
+                          </div>
+                          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                             <div className="h-full bg-red-600" style={{ width: '65%' }}></div>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
 
-                  {dashboardSubTab === 'ad' && (
-                    adResults.length === 0 ? (
-                      <div className="col-span-2 h-72 flex flex-col items-center justify-center bg-[#0f0f0f] rounded-[32px] border border-white/5 border-dashed">
-                         <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-zinc-700 mb-4"><Megaphone size={24}/></div>
-                         <div className="text-sm font-black text-zinc-600 uppercase tracking-widest">No Ads Found</div>
-                      </div>
-                    ) : (
-                      adResults.map((r, i) => (
-                        <div key={i} onClick={() => setSelectedAdResult(r)} className="bg-[#121212] p-6 rounded-[32px] border border-white/5 hover:border-red-600/30 transition-all cursor-pointer group">
-                           <div className="flex items-center gap-4 mb-4">
-                              <img src={r.thumbnail} className="w-12 h-12 rounded-xl object-cover" alt="" />
-                              <div className="min-w-0">
-                                 <div className="text-xs font-black text-white truncate">{r.channelName}</div>
-                                 <div className="text-[9px] font-black text-red-500 bg-red-500/10 px-2 py-0.5 rounded-lg inline-block mt-1">{r.totalAdCount} ADS</div>
-                              </div>
-                           </div>
-                           <div className="space-y-2">
-                              <div className="flex justify-between text-[10px]">
-                                 <span className="text-zinc-600 font-bold uppercase">Avg View</span>
-                                 <span className="text-white font-black">{formatNumber(r.avgViews)}</span>
-                              </div>
-                              <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                                 <div className="h-full bg-red-600" style={{ width: '50%' }}></div>
-                              </div>
-                           </div>
-                        </div>
-                      ))
-                    )
-                  )}
+                  {dashboardSubTab === 'channel' && channelResults.map((c, i) => (
+                    <div key={i} onClick={() => setSelectedChannel(c)} className="bg-[#121212] p-6 rounded-[32px] border border-white/5 hover:border-red-600/30 transition-all cursor-pointer group">
+                       <div className="flex items-center gap-5 mb-6">
+                          <img src={c.thumbnail} className="w-14 h-14 rounded-2xl border border-white/10 object-cover" alt="" />
+                          <div>
+                             <h4 className="text-base font-black text-white group-hover:text-red-500 transition-colors">{c.channelName}</h4>
+                             <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-0.5">{formatNumber(Number(c.subscriberCount))} Subs</div>
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
+                             <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Shorts</div>
+                             <div className="text-sm font-black text-red-500">{formatNumber(c.avgShortsViews)}</div>
+                          </div>
+                          <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
+                             <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Longs</div>
+                             <div className="text-sm font-black text-zinc-300">{formatNumber(c.avgLongViews)}</div>
+                          </div>
+                          <div className="bg-black/40 p-4 rounded-2xl border border-white/5 text-center">
+                             <div className="text-[8px] font-black text-zinc-600 uppercase mb-1">Found</div>
+                             <div className="text-sm font-black text-zinc-500">{c.totalCountFound}</div>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
                </div>
             </div>
           )}
         </div>
 
-        {/* Modal: Ad Details Intelligence Panel */}
+        {/* Intelligence Panel Modal */}
         {selectedAdResult && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-300">
             <div className="bg-[#111111] w-full max-w-5xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl">
@@ -488,98 +476,57 @@ const App: React.FC = () => {
                   <img src={selectedAdResult.thumbnail} className="w-14 h-14 rounded-2xl object-cover" alt="" />
                   <div>
                     <h3 className="text-xl font-black text-white">{selectedAdResult.channelName}</h3>
-                    <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-1">Detection Result: {selectedAdResult.totalAdCount} Ads</div>
+                    <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-1">
+                      <ShieldCheck size={12} className="inline mr-1" /> Intelligent Trace: Active
+                    </div>
                   </div>
                 </div>
                 <button onClick={() => setSelectedAdResult(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all"><X size={20}/></button>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="flex-1 overflow-y-auto p-8 bg-[#0d0d0d]">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {selectedAdResult.adVideos.map((v) => (
-                    <div key={v.id} className="bg-[#181818] p-6 rounded-[32px] border border-white/5 group">
+                    <div key={v.id} className="bg-[#181818] p-6 rounded-[32px] border border-white/5 group hover:border-red-600/20 transition-all">
                       <div className="flex gap-6">
                         <div className="relative shrink-0">
                           <img src={v.thumbnail} className={`rounded-xl object-cover shadow-lg ${v.isShort ? 'w-20 h-32' : 'w-32 h-20'}`} alt="" />
-                          <div className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-lg">{(v.detection.confidence * 100).toFixed(0)}%</div>
+                          <div className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">{(v.detection.confidence * 100).toFixed(0)}%</div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-black text-white line-clamp-2 leading-tight group-hover:text-red-500 transition-colors">{v.title}</div>
-                          <div className="flex items-center gap-3 mt-2 text-[10px] font-bold text-zinc-500">
-                            <span className="flex items-center gap-1.5 uppercase"><Eye size={12}/> {v.viewCount.toLocaleString()}</span>
+                          <div className="flex items-center gap-3 mt-3">
+                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 uppercase"><Eye size={12}/> {v.viewCount.toLocaleString()}</span>
                           </div>
 
-                          <div className="mt-4 space-y-2">
-                             {v.detection.signals.slice(0, 2).map((sig, idx) => (
-                               <div key={idx} className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-xl border border-white/5">
-                                 <div className="flex items-center gap-2 overflow-hidden">
-                                   <div className={`w-1 h-1 rounded-full shrink-0 ${sig.type === 'Direct' ? 'bg-red-600' : 'bg-zinc-500'}`}></div>
-                                   <div className="text-[9px] font-black text-zinc-400 truncate">{sig.note}</div>
+                          {/* Intelligence Signals */}
+                          <div className="mt-5 space-y-2">
+                             <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1 ml-1">Detection Trace</div>
+                             {v.detection.signals.slice(0, 3).map((sig, idx) => (
+                               <div key={idx} className="flex items-center justify-between bg-black/40 px-3 py-2.5 rounded-xl border border-white/5">
+                                 <div className="flex items-center gap-3 overflow-hidden">
+                                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${sig.type === 'Direct' ? 'bg-red-600 animate-pulse' : 'bg-zinc-500'}`}></div>
+                                   <div className="text-[10px] font-bold text-zinc-300 truncate">{sig.note}</div>
                                  </div>
-                                 <div className="shrink-0 flex items-center gap-1.5 px-1.5 py-0.5 bg-white/5 rounded-md">
+                                 <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/5">
                                    {getSourceIcon(sig.source)}
-                                   <span className="text-[8px] font-black text-zinc-600 uppercase">{sig.source}</span>
+                                   <span className="text-[8px] font-black text-zinc-500 uppercase">{getSourceLabel(sig.source)}</span>
                                  </div>
                                </div>
                              ))}
                           </div>
                         </div>
                       </div>
-                      <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
-                         <div className="text-[10px] font-black text-zinc-700 uppercase italic">ID: {v.id}</div>
-                         <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-white/5 hover:bg-red-600 text-white rounded-xl transition-all">
-                           <ExternalLink size={16} />
+                      <div className="mt-6 pt-5 border-t border-white/5 flex items-center justify-between">
+                         <div className="text-[10px] font-black text-zinc-700 uppercase italic">Video Hash: {v.id}</div>
+                         <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-xl transition-all">
+                           <ExternalLink size={18} />
                          </a>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Channel Detail */}
-        {selectedChannel && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-[#111111] w-full max-w-4xl h-[80vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl">
-               <div className="p-8 border-b border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-5">
-                    <img src={selectedChannel.thumbnail} className="w-14 h-14 rounded-2xl object-cover" alt="" />
-                    <h3 className="text-xl font-black text-white">{selectedChannel.channelName}</h3>
-                  </div>
-                  <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all"><X size={20}/></button>
-               </div>
-               <div className="flex-1 overflow-y-auto p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-1">Shorts Performance</h4>
-                      {selectedChannel.shortsList.slice(0, 10).map((v) => (
-                        <div key={v.id} className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all group">
-                           <img src={v.thumbnail} className="w-12 h-20 rounded-lg object-cover" alt="" />
-                           <div className="min-w-0">
-                              <div className="text-xs font-bold text-white line-clamp-1">{v.title}</div>
-                              <div className="text-[10px] font-black text-zinc-500 mt-1 uppercase tracking-wider">{v.viewCount.toLocaleString()} Views</div>
-                           </div>
-                           <ChevronRight size={14} className="ml-auto text-zinc-700 group-hover:text-red-500" />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Longform Performance</h4>
-                      {selectedChannel.longsList.slice(0, 10).map((v) => (
-                        <div key={v.id} className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all group">
-                           <img src={v.thumbnail} className="w-20 h-12 rounded-lg object-cover" alt="" />
-                           <div className="min-w-0">
-                              <div className="text-xs font-bold text-white line-clamp-1">{v.title}</div>
-                              <div className="text-[10px] font-black text-zinc-500 mt-1 uppercase tracking-wider">{v.viewCount.toLocaleString()} Views</div>
-                           </div>
-                           <ChevronRight size={14} className="ml-auto text-zinc-700 group-hover:text-red-500" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-               </div>
             </div>
           </div>
         )}

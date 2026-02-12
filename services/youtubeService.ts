@@ -22,7 +22,7 @@ interface AnalysisPayload {
 
 /**
  * [A. Collector Layer] 
- * 네트워크 응답 가로채기(시뮬레이션) -> 런타임 데이터 추출 -> 정적 Regex 순으로 시도
+ * 유튜브 영상 페이지의 HTML에서 런타임 실행 데이터를 추출합니다.
  */
 const fetchDetailedAnalysisData = async (videoId: string): Promise<AnalysisPayload> => {
   const payload: AnalysisPayload = {
@@ -33,6 +33,7 @@ const fetchDetailedAnalysisData = async (videoId: string): Promise<AnalysisPaylo
   };
 
   try {
+    // 실제 운영 시 CORS 이슈가 있을 수 있으나, 현재 환경의 axios 설정을 따름
     const response = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -44,17 +45,17 @@ const fetchDetailedAnalysisData = async (videoId: string): Promise<AnalysisPaylo
     const html = response.data;
     payload.rawHtml = html;
 
-    // 1. Runtime Data Layer (ytInitialPlayerResponse)
+    // 1. Runtime Data Layer (ytInitialPlayerResponse) - 유료 광고 플래그의 핵심 출처
     const playerRegex = /(?:var\s+|window\[['"]|window\.)ytInitialPlayerResponse\s*=\s*({.+?});/s;
     const playerMatch = html.match(playerRegex);
     if (playerMatch?.[1]) {
       try {
         payload.playerResponse = JSON.parse(playerMatch[1].trim());
-        payload.source = 'runtime_eval'; // HTML 내부의 실행 준비된 데이터
+        payload.source = 'runtime_eval'; 
       } catch (e) { payload.metadata.failReason = "JSON_PARSE_ERROR"; }
     }
 
-    // 2. Auxiliary Data (ytInitialData)
+    // 2. Auxiliary Data (ytInitialData) - 추가 UI 렌더링 정보
     const dataRegex = /(?:var\s+|window\[['"]|window\.)ytInitialData\s*=\s*({.+?});/s;
     const dataMatch = html.match(dataRegex);
     if (dataMatch?.[1]) {
@@ -70,11 +71,16 @@ const fetchDetailedAnalysisData = async (videoId: string): Promise<AnalysisPaylo
 
 /**
  * [B. Signal Extraction Layer]
- * 결정 신호군(Direct Signal Group)을 탐지합니다.
+ * 수집된 데이터 뭉치에서 '유료 광고'와 관련된 결정적 신호를 뽑아냅/니다.
  */
 export const extractSignals = (payload: AnalysisPayload): DetectionSignal[] => {
   const signals: DetectionSignal[] = [];
-  const targetPhrases = ["유료 광고 포함", "유료광고 포함", "유료 프로모션", "Includes paid promotion", "Paid promotion"];
+  // 유튜브 시스템이 사용하는 내부 문구들
+  const targetPhrases = [
+    "유료 광고 포함", "유료광고 포함", "유료 프로모션", 
+    "Includes paid promotion", "Paid promotion",
+    "제작 지원", "제작지원", "협찬사"
+  ];
 
   const scan = (obj: any, source: DataSourceType, path: string = 'root') => {
     if (!obj || typeof obj !== 'object') return;
@@ -87,7 +93,7 @@ export const extractSignals = (payload: AnalysisPayload): DetectionSignal[] => {
       const val = obj[key];
       const normKey = key.toLowerCase().replace(/[_-]/g, '');
 
-      // [Direct Signals] 결정 신호군
+      // [Direct Signals] 유튜브 시스템이 명시적으로 "이거 광고임"이라고 마킹한 경우
       const directKeys = ['ispaidpromotion', 'paidcontentoverlayrenderer', 'disclosurerenderer', 'paidpromotionbadge'];
       if (directKeys.includes(normKey)) {
         if (val === true || (typeof val === 'object' && val !== null)) {
@@ -96,43 +102,44 @@ export const extractSignals = (payload: AnalysisPayload): DetectionSignal[] => {
             source,
             path,
             key,
-            note: "유튜브 시스템 고지 데이터 확인",
-            confidence: 0.98
+            note: "유튜브 시스템 공식 유료광고 플래그 확인",
+            confidence: 0.99
           });
         }
       }
 
-      // [Strong Signals] 플레이어 응답 내부 텍스트 (설명란 아님)
-      if (typeof val === 'string' && source === 'runtime_eval') {
+      // [Strong Signals] 시스템 응답 데이터 내부에 고지 문구가 포함된 경우
+      if (typeof val === 'string' && (source === 'runtime_eval' || source === 'youtubei_player')) {
         if (targetPhrases.some(p => val.includes(p))) {
           signals.push({
             type: 'Strong',
             source,
             path,
             key,
-            note: `플레이어 내부 고지 문구 포착 (${val.substring(0, 10)}...)`,
-            confidence: 0.88
+            note: `시스템 내부 고지 문구 발견: "${val.substring(0, 15)}..."`,
+            confidence: 0.92
           });
         }
       }
 
-      if (val && typeof val === 'object' && path.split('.').length < 8) {
+      // 재귀 탐색 (너무 깊지 않게)
+      if (val && typeof val === 'object' && path.split('.').length < 10) {
         scan(val, source, `${path}.${key}`);
       }
     }
   };
 
   if (payload.playerResponse) scan(payload.playerResponse, payload.source);
-  if (payload.initialData) scan(payload.initialData, payload.source);
+  if (payload.initialData) scan(payload.initialData, 'youtubei_player');
 
-  // [UI Layer Fallback]
+  // [UI Layer Fallback] HTML 소스 내에 특정 CSS 클래스가 존재하는지 확인
   if (payload.rawHtml?.includes('ytp-paid-content-overlay-text')) {
     signals.push({
       type: 'Direct',
       source: 'ui_rendered',
       path: 'DOM',
       key: 'class',
-      note: "플레이어 오버레이 UI 렌더링 확인",
+      note: "플레이어 상단 '유료 광고 포함' 오버레이 렌더링 감지",
       confidence: 0.95
     });
   }
@@ -141,12 +148,12 @@ export const extractSignals = (payload: AnalysisPayload): DetectionSignal[] => {
 };
 
 /**
- * [C. Decision & Calibration Layer]
- * 신호들을 결합하여 최종 판정을 내립니다.
+ * [C. Decision Layer]
+ * 추출된 신호들을 종합하여 최종 판정을 내립니다.
  */
 export const combineAnalysis = (signals: DetectionSignal[], title: string, description: string): AdDetectionResult => {
-  const adPhrases = ["유료 광고", "유료광고", "광고 포함", "협찬", "sponsored", "paid promotion", "제작지원", "원고료"];
-  const negativePhrases = ["내돈내산", "광고 아님", "광고가 아닙니다"];
+  const adPhrases = ["유료 광고", "유료광고", "광고 포함", "협찬", "sponsored", "paid promotion", "제작지원", "원고료", "지원받아"];
+  const negativePhrases = ["내돈내산", "광고 아님", "광고가 아닙니다", "직접 구매"];
   
   const combinedText = `${title}\n${description}`.toLowerCase();
   const nlpMatched = adPhrases.filter(p => combinedText.includes(p.toLowerCase()));
@@ -172,15 +179,16 @@ export const combineAnalysis = (signals: DetectionSignal[], title: string, descr
     evidence.push(strongSignal.note);
   } else if (nlpMatched.length > 0) {
     is_ad = true;
-    confidence = 0.75;
+    confidence = 0.8;
     method = 'nlp';
-    evidence.push(`설명란 광고 키워드 확인 (${nlpMatched[0]})`);
+    evidence.push(`텍스트 분석: 광고 키워드 "${nlpMatched[0]}" 발견`);
   }
 
+  // 예외 처리: 내돈내산 문구가 명확하고 시스템 플래그가 없는 경우
   if (hasNegative && !directSignal) {
     is_ad = false;
     confidence = 0.95;
-    evidence.push("내돈내산(광고 아님) 고지 확인");
+    evidence.push("내돈내산 확인 (시스템 광고 플래그 없음)");
   }
 
   return {
@@ -194,12 +202,13 @@ export const combineAnalysis = (signals: DetectionSignal[], title: string, descr
   };
 };
 
-// --- 기존 YouTube API 기본 함수 유지 ---
+// --- YouTube Data API v3 기본 함수들 ---
+
 const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
   if (!API_KEY || !videoId) return [];
   try {
     const response = await axios.get(`${BASE_URL}/commentThreads`, {
-      params: { part: 'snippet', videoId, maxResults: 6, order: 'relevance', key: API_KEY },
+      params: { part: 'snippet', videoId, maxResults: 5, order: 'relevance', key: API_KEY },
     });
     return response.data.items.map((item: any) => ({
       author: item.snippet.topLevelComment.snippet.authorDisplayName,
@@ -214,15 +223,18 @@ export const getChannelInfo = async (input: string) => {
   if (!API_KEY) throw new Error('API Key Missing');
   let cleanInput = input.trim();
   let params: any = { part: 'snippet,contentDetails,statistics', key: API_KEY };
+  
   const idMatch = cleanInput.match(/UC[a-zA-Z0-9_-]{22}/);
   const handleMatch = cleanInput.match(/@([^/?\s]+)/);
+  
   if (idMatch) params.id = idMatch[0];
   else if (handleMatch) params.forHandle = `@${handleMatch[1]}`;
   else {
-    const search = await axios.get(`${BASE_URL}/search`, { params: { part: 'snippet', q: input.trim(), type: 'channel', maxResults: 1, key: API_KEY } });
+    const search = await axios.get(`${BASE_URL}/search`, { params: { part: 'snippet', q: cleanInput, type: 'channel', maxResults: 1, key: API_KEY } });
     if (!search.data.items?.length) throw new Error(`Channel not found`);
     params.id = search.data.items[0].id.channelId;
   }
+  
   const response = await axios.get(`${BASE_URL}/channels`, { params });
   const channel = response.data.items[0];
   return {
@@ -255,23 +267,36 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   return results;
 };
 
-// Fix: Corrected property names in return object to match ChannelResult interface (Found suffix added)
 export const fetchChannelStats = async (uploadsPlaylistId: string, shortsCfg: any, longsCfg: any) => {
   let shorts: VideoDetail[] = [], longs: VideoDetail[] = [], nextPageToken: string | undefined;
+  
   while (shorts.length < (shortsCfg.target || 30) || longs.length < (longsCfg.target || 10)) {
     const res = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
     const ids = res.data.items.map((i:any)=>i.contentDetails.videoId);
     const vRes = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: ids.join(','), key: API_KEY } });
+    
     for (const v of vRes.data.items) {
       const isShort = parseYtDurationSeconds(v.contentDetails.duration)! <= 180;
-      const info = { id: v.id, title: v.snippet.title, thumbnail: v.snippet.thumbnails.high?.url, publishedAt: v.snippet.publishedAt, viewCount: parseInt(v.statistics.viewCount || '0', 10), duration: v.contentDetails.duration, isShort };
-      if (isShort && shorts.length < shortsCfg.target) shorts.push(info);
-      else if (!isShort && longs.length < longsCfg.target) longs.push(info);
+      const info: VideoDetail = { 
+        id: v.id, 
+        title: v.snippet.title, 
+        thumbnail: v.snippet.thumbnails.high?.url, 
+        publishedAt: v.snippet.publishedAt, 
+        viewCount: parseInt(v.statistics.viewCount || '0', 10), 
+        duration: v.contentDetails.duration, 
+        isShort 
+      };
+      
+      if (isShort && shorts.length < shortsCfg.target && shortsCfg.enabled) shorts.push(info);
+      else if (!isShort && longs.length < longsCfg.target && longsCfg.enabled) longs.push(info);
     }
+    
     nextPageToken = res.data.nextPageToken;
     if (!nextPageToken) break;
   }
+
   const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
+  
   return { 
     avgShortsViews: calcAvg(shorts), 
     shortsCountFound: shorts.length, 
@@ -287,27 +312,40 @@ export const fetchChannelStats = async (uploadsPlaylistId: string, shortsCfg: an
 
 export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date, endDate: Date): Promise<AdVideoDetail[]> => {
   let adVideos: AdVideoDetail[] = [], nextPageToken: string | undefined;
+  
   while (true) {
     const res = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
-    const vRes = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: res.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    const videoIds = res.data.items.map((i:any)=>i.contentDetails.videoId);
+    const vRes = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: videoIds.join(','), key: API_KEY } });
+    
+    let shouldStop = false;
     for (const v of vRes.data.items) {
       const pub = new Date(v.snippet.publishedAt);
-      if (pub < startDate) { nextPageToken = undefined; break; }
+      if (pub < startDate) { shouldStop = true; break; }
       if (pub > endDate) continue;
 
+      // 동적 분석 시작
       const payload = await fetchDetailedAnalysisData(v.id);
       const signals = extractSignals(payload);
       const detection = combineAnalysis(signals, v.snippet.title, v.snippet.description || "");
 
       if (detection.is_ad) {
         adVideos.push({
-          id: v.id, title: v.snippet.title, thumbnail: v.snippet.thumbnails.high?.url, publishedAt: v.snippet.publishedAt, viewCount: parseInt(v.statistics.viewCount || '0', 10),
-          likeCount: parseInt(v.statistics.likeCount || '0', 10), commentCount: parseInt(v.statistics.commentCount || '0', 10),
-          duration: v.contentDetails.duration, isShort: parseYtDurationSeconds(v.contentDetails.duration)! <= 180,
+          id: v.id, 
+          title: v.snippet.title, 
+          thumbnail: v.snippet.thumbnails.high?.url, 
+          publishedAt: v.snippet.publishedAt, 
+          viewCount: parseInt(v.statistics.viewCount || '0', 10),
+          likeCount: parseInt(v.statistics.likeCount || '0', 10), 
+          commentCount: parseInt(v.statistics.commentCount || '0', 10),
+          duration: v.contentDetails.duration, 
+          isShort: parseYtDurationSeconds(v.contentDetails.duration)! <= 180,
           detection
         });
       }
     }
+    
+    if (shouldStop) break;
     nextPageToken = res.data.nextPageToken;
     if (!nextPageToken) break;
   }
