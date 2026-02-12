@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -809,10 +808,6 @@ const App: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2 text-red-600 font-black text-xs uppercase"><ShieldCheck size={14} /> Intelligence Detection</div>
-                      <p className="text-[11px] text-zinc-400 font-bold leading-relaxed tracking-tight">설정한 기간 내 모든 업로드 영상을 전수 조사하여 Paid Flag 및 NLP 알고리즘으로 광고 영상을 정밀 필터링합니다.</p>
                     </div>
                   </div>
                   <button onClick={handleAdStart} disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95">
