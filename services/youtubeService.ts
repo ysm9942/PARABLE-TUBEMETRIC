@@ -31,17 +31,22 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
 };
 
 /**
- * 시스템 플래그 및 라벨 텍스트 재귀 탐색 로직 (Layer A 강화)
+ * [Layer A] Paid Promotion 메타데이터 재귀 탐색 (Deep Scanner)
+ * 유튜브 내부 데이터 구조(playerResponse 등)를 모방하여 결정적 신호를 탐지합니다.
  */
 export const detectAdPaidFlag = (videoData: any): any => {
-  let paidPromotion: boolean | 'unknown' = 'unknown';
+  let paidPromotionDetected = false;
   const directHits: any[] = [];
-  const labelHits: any[] = [];
+  const labelTextHits: any[] = [];
   const softHits: any[] = [];
 
-  const targetKeys = ['ispaidpromotion', 'paidpromotion', 'paidproductplacement', 'productplacement', 'sponsorship'];
-  const strongPhrases = ["유료 광고 포함", "유료광고 포함", "유료 프로모션", "광고 포함", "includes paid promotion", "paid promotion"];
-  const softKeys = ['adplacements', 'playerads', 'adbreak'];
+  // 탐색용 토큰 및 문구 정의
+  const targetKeyTokens = ['ispaidpromotion', 'paidpromotion', 'paidproductplacement', 'productplacement', 'sponsorship'];
+  const strongPhrases = [
+    "유료 광고 포함", "유료광고 포함", "유료 프로모션", "광고 포함", 
+    "includes paid promotion", "paid promotion"
+  ];
+  const softKeyTokens = ['ad', 'ads', 'adbreak', 'adplacements', 'playerads', 'addisclosure'];
 
   const recursiveScan = (obj: any, path: string = 'root') => {
     if (!obj || typeof obj !== 'object') return;
@@ -53,83 +58,99 @@ export const detectAdPaidFlag = (videoData: any): any => {
 
     for (const key in obj) {
       const val = obj[key];
-      const lowerKey = key.toLowerCase().replace(/[_-]/g, '');
+      const normalizedKey = key.toLowerCase().replace(/[_-]/g, '');
 
-      // 1. Direct Signal: Boolean flags
-      if (targetKeys.includes(lowerKey)) {
+      // (1) Direct Flag Detection (Boolean/Number)
+      if (targetKeyTokens.some(token => normalizedKey.includes(token))) {
         if (val === true || val === 1 || val === 'true') {
-          paidPromotion = true;
-          directHits.push({ path, key, value: val, type: 'paid_flag_direct' });
+          paidPromotionDetected = true;
+          directHits.push({ 
+            path, key, value: val, 
+            type: 'paid_flag_direct',
+            note: '결정적 시스템 플래그 발견'
+          });
         }
       }
 
-      // 2. Strong Text Signal: Renderer label text
+      // (2) Renderer / Label Text Detection (String)
       if (typeof val === 'string') {
         const lowerVal = val.toLowerCase();
         if (strongPhrases.some(phrase => lowerVal.includes(phrase))) {
-          paidPromotion = true;
-          labelHits.push({ path, key, value: val, type: 'player_response_label_text' });
+          paidPromotionDetected = true;
+          labelTextHits.push({ 
+            path, key, value: val.substring(0, 50), 
+            type: 'player_response_label_text',
+            note: '좌상단 라벨 관련 고지 문구 포착'
+          });
         }
       }
 
-      // 3. Soft Signal: Ad-related structures
-      if (softKeys.includes(lowerKey)) {
+      // (3) Soft Signals (Ad-related structures)
+      if (softKeyTokens.includes(normalizedKey)) {
         softHits.push({ path, key, type: 'paid_flag_soft' });
       }
 
-      // Deep scan
-      if (typeof val === 'object') {
+      // Deep scan (재귀)
+      if (val && typeof val === 'object') {
         recursiveScan(val, `${path}.${key}`);
       }
     }
   };
 
+  // 비디오 데이터 객체 전체 스캔
   recursiveScan(videoData);
 
+  // 신뢰도 계산
   let confidence = 0.2;
   if (directHits.length > 0) confidence = 0.95;
-  else if (labelHits.length > 0) confidence = 0.92;
-  else if (softHits.length > 0) confidence = 0.4;
+  else if (labelTextHits.length > 0) confidence = 0.93;
+  else if (softHits.length > 0) confidence = 0.45;
 
   return {
-    paid_promotion: paidPromotion,
+    paid_promotion: paidPromotionDetected,
     confidence,
     directHits,
-    labelHits,
+    labelTextHits,
     softHits,
-    evidence: [...directHits, ...labelHits].slice(0, 3)
+    evidence: [...directHits, ...labelTextHits].map(h => ({
+      source: "Metadata/PlayerResponse",
+      path: h.path,
+      key: h.key,
+      value: String(h.value),
+      note: h.note
+    }))
   };
 };
 
 /**
- * NLP 텍스트 필터 보완 (Layer B 강화)
+ * [Layer B] NLP 텍스트 분석 및 오탐 방지 (Negative Override)
  */
-export const detectAdNLP = (videoId: string, title: string, description: string, pinnedComment: string = ""): any => {
-  const combinedText = `${title}\n${description}\n${pinnedComment}`;
-  const lowerText = combinedText.toLowerCase().replace(/\s+/g, ' ');
+export const detectAdNLP = (videoId: string, title: string, description: string, tags: string[] = []): any => {
+  const combinedText = `${title}\n${description}\n${tags.join(' ')}`.toLowerCase().replace(/\s+/g, ' ');
   
   let score = 0;
   const matchedPhrases: any[] = [];
   let negativeOverride = false;
 
   const weights = {
-    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "광고입니다"],
-    mid: ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십", "원고료", "제작비"],
+    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "광고입니다", "제작지원"],
+    mid: ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십", "원고료", "제작비", "공동구매"],
     low: ["affiliate", "제휴 링크", "수수료", "커미션", "gifted", "#ad", "#sponsored", "#협찬", "#광고"],
-    negative: ["광고 아님", "내돈내산", "광고가 아닙니다", "not sponsored", "no paid promotion", "유료 광고 아닙니다"]
+    negative: ["광고 아님", "내돈내산", "광고가 아닙니다", "not sponsored", "no paid promotion", "유료 광고 아닙니다", "광고 포함하지 않습니다"]
   };
 
-  weights.high.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 3; matchedPhrases.push({ phrase: p, weight: 'high' }); } });
-  weights.mid.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 2; matchedPhrases.push({ phrase: p, weight: 'mid' }); } });
-  weights.low.forEach(p => { if (lowerText.includes(p.toLowerCase())) { score += 1; matchedPhrases.push({ phrase: p, weight: 'low' }); } });
+  // 점수 합산
+  weights.high.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 3; matchedPhrases.push({ phrase: p, weight: 'high', source: 'description' }); } });
+  weights.mid.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 2; matchedPhrases.push({ phrase: p, weight: 'mid', source: 'description' }); } });
+  weights.low.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 1; matchedPhrases.push({ phrase: p, weight: 'low', source: 'description' }); } });
   
-  // 부정문 처리 강화
-  const negativeHits = weights.negative.filter(p => lowerText.includes(p.toLowerCase()));
+  // 부정문 처리 (Negative Override)
+  const negativeHits = weights.negative.filter(p => combinedText.includes(p.toLowerCase()));
   if (negativeHits.length > 0) {
-    // 실질 광고 신호(협찬/제공 등)가 없을 때만 override
-    if (score < 4) {
+    // 실질적인 광고 단서(협찬/제공 등)가 압도적으로 많지 않을 때만 부정문 인정
+    if (score < 5) {
       negativeOverride = true;
-      score -= 5;
+      score = -5; // 확정적 제외
     }
   }
 
@@ -138,7 +159,7 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
   else if (score >= 1) ad_disclosure = 'unknown';
   else ad_disclosure = false;
 
-  const confidence = ad_disclosure === true ? Math.min(0.85, 0.6 + (score * 0.05)) : 0.5;
+  const confidence = ad_disclosure === true ? Math.min(0.85, 0.65 + (score * 0.05)) : 0.5;
 
   return {
     video_id: videoId,
@@ -147,50 +168,50 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
     confidence,
     matched_phrases: matchedPhrases,
     negativeOverride,
-    reasoning: negativeOverride ? "부정문 패턴이 감지되어 광고 제외 처리되었습니다." : (ad_disclosure === true ? "강한 키워드 신호 포착" : "신호 미비")
+    reasoning: negativeOverride ? "부정문 패턴 감지(내돈내산 등)" : (ad_disclosure === true ? "광고 키워드 다수 감지" : "신호 부족"),
+    ad_type: score >= 5 ? 'paid_promotion' : (score >= 3 ? 'sponsorship' : 'unknown')
   };
 };
 
 /**
- * 최종 결합 로직 보완
+ * 최종 결합 (Combine Logic)
  */
 export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => {
   let is_ad = false;
   let method: 'paid_flag' | 'nlp' | 'both' | 'none' = 'none';
   
-  const hasDirectFlag = paidFlag.directHits.length > 0 || paidFlag.labelHits.length > 0;
-  const isNlpTrue = nlp.ad_disclosure === true;
+  const hasDirectSignal = paidFlag.directHits.length > 0 || paidFlag.labelTextHits.length > 0;
+  const isNlpPositive = nlp.ad_disclosure === true;
 
-  if (hasDirectFlag && isNlpTrue) {
+  if (hasDirectSignal && isNlpPositive) {
     is_ad = true;
     method = 'both';
-  } else if (hasDirectFlag) {
+  } else if (hasDirectSignal) {
     is_ad = true;
     method = 'paid_flag';
-  } else if (isNlpTrue) {
+  } else if (isNlpPositive) {
     is_ad = true;
     method = 'nlp';
   }
 
-  // 최종 신뢰도 산정 규칙
-  let finalConfidence = 0;
+  // 신뢰도 산정 규칙 (스펙 준수)
+  let finalConfidence = 0.3;
   if (method === 'both') finalConfidence = 0.98;
-  else if (method === 'paid_flag') finalConfidence = paidFlag.confidence;
+  else if (method === 'paid_flag') finalConfidence = paidFlag.confidence; // 0.93~0.95
   else if (method === 'nlp') finalConfidence = nlp.confidence;
-  else finalConfidence = 0.3;
 
-  const evidence: string[] = [];
-  if (paidFlag.directHits.length > 0) evidence.push("시스템 '유료 프로모션' 플래그 감지");
-  if (paidFlag.labelHits.length > 0) evidence.push("플레이어 '유료 광고 포함' 라벨 렌더링 데이터 확인");
-  if (isNlpTrue) evidence.push(`설명란 광고 키워드 확인 (${nlp.matched_phrases[0]?.phrase})`);
-  if (nlp.negativeOverride) evidence.push("광고 아님(내돈내산) 고지 확인");
+  const evidenceSummary: string[] = [];
+  if (paidFlag.directHits.length > 0) evidenceSummary.push("유료 프로모션 시스템 플래그");
+  if (paidFlag.labelTextHits.length > 0) evidenceSummary.push("좌상단 고지 라벨 텍스트 데이터");
+  if (isNlpPositive) evidenceSummary.push(`설명란 광고 키워드 확인 (${nlp.matched_phrases[0]?.phrase})`);
+  if (nlp.negativeOverride) evidenceSummary.push("부정문 패턴 감지 (광고 제외)");
 
   return {
     is_ad,
     confidence: finalConfidence,
     method,
-    evidence: evidence.slice(0, 3),
-    score: (hasDirectFlag ? 5 : 0) + (isNlpTrue ? 3 : 0),
+    evidence: evidenceSummary.slice(0, 3),
+    score: (hasDirectSignal ? 5 : 0) + (isNlpPositive ? Math.max(0, nlp.score) : 0),
     paid_flag: paidFlag,
     nlp: nlp
   };
@@ -258,14 +279,6 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   } catch (err) { throw new Error(`영상 정보 조회 실패: ${getErrorMessage(err)}`); }
 };
 
-interface FetchStatsConfig {
-  target: number;
-  period: AnalysisPeriod;
-  useDateFilter: boolean;
-  useCountFilter: boolean;
-  enabled: boolean;
-}
-
 export const fetchChannelStats = async (
   uploadsPlaylistId: string, 
   shortsCfg: FetchStatsConfig,
@@ -325,24 +338,6 @@ export const fetchChannelStats = async (
       }
     }
 
-    const shortsNeedMoreWithoutDate = shortsCfg.enabled && !shortsCfg.useDateFilter && (!shortsCfg.useCountFilter || shorts.length < shortsCfg.target);
-    const longsNeedMoreWithoutDate = longsCfg.enabled && !longsCfg.useDateFilter && (!longsCfg.useCountFilter || longs.length < longsCfg.target);
-
-    if (!shortsNeedMoreWithoutDate && !longsNeedMoreWithoutDate) {
-        const oldestCutoff = new Date(Math.min(
-          (shortsCfg.enabled && shortsCutoff) ? shortsCutoff.getTime() : Infinity,
-          (longsCfg.enabled && longsCutoff) ? longsCutoff.getTime() : Infinity
-        ));
-        
-        if (oldestCutoff.getTime() !== Infinity) {
-          const lastVideoDate = new Date(videoResponse.data.items[videoResponse.data.items.length - 1].snippet.publishedAt);
-          if (lastVideoDate < oldestCutoff) {
-            nextPageToken = undefined;
-            break;
-          }
-        }
-    }
-
     if (!nextPageToken) break;
   }
 
@@ -373,9 +368,11 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // 개선된 스캐너 적용: API 응답 객체 자체를 전달
+      // Layer A: 시스템 플래그 및 라벨 탐지
       const paidFlag = detectAdPaidFlag(video); 
-      const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "");
+      // Layer B: NLP 텍스트 분석 (태그 포함)
+      const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "", video.snippet.tags || []);
+      // Combine
       const combined = combineAdResults(paidFlag, nlp);
 
       if (combined.is_ad) {
@@ -392,3 +389,11 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
   }
   return adVideos;
 };
+
+interface FetchStatsConfig {
+  target: number;
+  period: AnalysisPeriod;
+  useDateFilter: boolean;
+  useCountFilter: boolean;
+  enabled: boolean;
+}
