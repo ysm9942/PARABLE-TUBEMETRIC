@@ -113,6 +113,18 @@ const App: React.FC = () => {
     return match ? match[1] : input.trim();
   };
 
+  const setAdDatesByPeriod = (p: AnalysisPeriod) => {
+    const end = new Date();
+    let start = new Date();
+    if (p === '7d') start.setDate(end.getDate() - 7);
+    else if (p === '30d') start.setDate(end.getDate() - 30);
+    else if (p === '90d') start.setDate(end.getDate() - 90);
+    else if (p === 'all') start = new Date('2005-01-01');
+
+    setAdStartDate(start.toISOString().split('T')[0]);
+    setAdEndDate(end.toISOString().split('T')[0]);
+  };
+
   const handleChannelStart = async () => {
     const inputs = channelInput
       .split('\n')
@@ -811,6 +823,20 @@ const App: React.FC = () => {
                   <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 space-y-8 shadow-2xl">
                     <div className="space-y-6">
                       <label className="text-[13px] font-black text-zinc-500 uppercase flex items-center gap-2 tracking-[0.2em]"><CalendarDays size={18} className="text-red-600" /> 분석 기간 설정</label>
+                      
+                      {/* Predefined Period Buttons for Ad Config */}
+                      <div className="grid grid-cols-4 gap-2">
+                        {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
+                          <button 
+                            key={p} 
+                            onClick={() => setAdDatesByPeriod(p)} 
+                            className={`py-3 text-[11px] font-black rounded-xl transition-all bg-white/5 text-white hover:bg-red-600 hover:text-white active:scale-95`}
+                          >
+                            {periodLabels[p]}
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="grid grid-cols-1 gap-4">
                         <div className="group relative bg-black/40 border-2 border-white/5 hover:border-red-600/30 rounded-3xl p-6 transition-all cursor-pointer">
                           <label className="absolute -top-3 left-6 bg-[#121212] px-3 text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">Start Date</label>
