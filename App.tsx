@@ -32,7 +32,9 @@ import {
   Megaphone,
   CalendarDays,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
@@ -46,17 +48,25 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad'>('channel');
   
-  // Filters Control
-  const [useDateFilter, setUseDateFilter] = useState<boolean>(true);
-  const [useCountFilter, setUseCountFilter] = useState<boolean>(true);
+  // Explanation Help
+  const [showHelp, setShowHelp] = useState<boolean>(false);
+
+  // Consolidated Analysis Period
+  const [useDateFilter, setUseDateFilter] = useState<boolean>(false);
+  const [period, setPeriod] = useState<AnalysisPeriod>('all');
+
+  // Individual Collection Targets
   const [useShorts, setUseShorts] = useState<boolean>(true);
-  const [useLongs, setUseLongs] = useState<boolean>(true);
+  const [targetShorts, setTargetShorts] = useState<number | string>(30);
+
+  const [useLongs, setUseLongs] = useState<boolean>(false);
+  const [targetLong, setTargetLong] = useState<number | string>(10);
+
+  // Consolidated Count Filter
+  const [useGlobalCountFilter, setUseGlobalCountFilter] = useState<boolean>(true);
   
   // Channel Analysis States
   const [channelInput, setChannelInput] = useState<string>('');
-  const [targetShorts, setTargetShorts] = useState<number | string>(30);
-  const [targetLong, setTargetLong] = useState<number | string>(10);
-  const [period, setPeriod] = useState<AnalysisPeriod>('30d');
   const [channelResults, setChannelResults] = useState<ChannelResult[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<ChannelResult | null>(null);
   
@@ -152,13 +162,20 @@ const App: React.FC = () => {
         const info = await getChannelInfo(input);
         const stats = await fetchChannelStats(
           info.uploadsPlaylistId, 
-          shortsVal, 
-          longsVal, 
-          period, 
-          useDateFilter, 
-          useCountFilter,
-          useShorts,
-          useLongs
+          { 
+            target: shortsVal, 
+            period: period, 
+            useDateFilter: useDateFilter, 
+            useCountFilter: useGlobalCountFilter, 
+            enabled: useShorts 
+          },
+          { 
+            target: longsVal, 
+            period: period, 
+            useDateFilter: useDateFilter, 
+            useCountFilter: useGlobalCountFilter, 
+            enabled: useLongs 
+          }
         );
         setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
           ...r, 
@@ -464,17 +481,11 @@ const App: React.FC = () => {
                     <span className="flex items-center gap-1.5 text-[11px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
                       <Users size={12} /> {formatNumber(selectedChannel.subscriberCount)} Subscribers
                     </span>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{periodLabels[period]} Analytics</p>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Analytics Results</p>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-6">
-                 {!useCountFilter && (
-                  <div className="bg-white/5 px-6 py-3 rounded-2xl border border-white/10 text-right">
-                    <div className="text-[10px] font-black text-zinc-500 uppercase mb-1">통합 평균 조회수</div>
-                    <div className="text-lg font-black text-white">{selectedChannel.avgTotalViews.toLocaleString()}</div>
-                  </div>
-                )}
                 <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
                   <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
                 </button>
@@ -550,147 +561,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Ad Analysis Details */}
-      {selectedAdResult && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
-              <div className="flex items-center gap-6">
-                <img src={selectedAdResult.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 object-cover" alt="" />
-                <div>
-                  <h3 className="text-2xl font-black text-white">{selectedAdResult.channelName} <span className="text-zinc-500 font-medium ml-2">Ad Archive</span></h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[10px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1.5"><Megaphone size={12} /> {selectedAdResult.totalAdCount} Ads Detected</span>
-                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{adStartDate} ~ {adEndDate}</span>
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedAdResult(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
-                <X size={24} className="group-hover:rotate-90 transition-transform" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-10 space-y-10">
-              <div className="grid grid-cols-4 gap-6">
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">총 광고 조회수</p>
-                  <p className="text-2xl font-black text-white">{selectedAdResult.totalViews.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 광고 조회수</p>
-                  <p className="text-2xl font-black text-red-500">{selectedAdResult.avgViews.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 좋아요</p>
-                  <p className="text-2xl font-black text-zinc-100">{selectedAdResult.avgLikes.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase mb-2">평균 댓글</p>
-                  <p className="text-2xl font-black text-zinc-100">{selectedAdResult.avgComments.toLocaleString()}</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <h4 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-tighter"><ShieldCheck className="text-red-600" /> Detected Ad Videos</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {selectedAdResult.adVideos.map((ad) => (
-                    <div key={ad.id} className="bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex flex-col hover:border-red-600/30 transition-all group">
-                      <div className="relative h-48 overflow-hidden">
-                        <img src={ad.thumbnail} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
-                          <div className="flex-1 min-w-0">
-                             <div className="text-[10px] font-black text-red-500 uppercase mb-1 flex items-center gap-1.5"><div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div> Verified Advertisement</div>
-                             <h5 className="text-white font-black truncate">{ad.title}</h5>
-                          </div>
-                        </div>
-                        <a href={`https://youtu.be/${ad.id}`} target="_blank" className="absolute top-4 right-4 p-3 bg-red-600 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"><ExternalLink size={18} /></a>
-                      </div>
-                      <div className="p-6 space-y-4 flex-1">
-                        <div className="flex justify-between items-center text-xs font-black uppercase">
-                          <span className="text-zinc-500">조회수 {ad.viewCount.toLocaleString()}</span>
-                          <span className="text-red-500 bg-red-600/10 px-3 py-1 rounded-full">{ad.detection.method === 'both' ? 'FLAG+NLP' : ad.detection.method.toUpperCase()}</span>
-                        </div>
-                        <div className="bg-black/40 p-4 rounded-2xl space-y-2 border border-white/5">
-                           <div className="text-[10px] font-black text-zinc-500 uppercase">Detection Evidence</div>
-                           <div className="flex flex-wrap gap-2">
-                             {ad.detection.evidence.map((ev, i) => (
-                               <span key={i} className="text-[10px] font-bold text-white bg-white/10 px-2 py-1 rounded-md flex items-center gap-1"><CheckCircle2 size={10} className="text-red-600" /> {ev}</span>
-                             ))}
-                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Video Details (Comments) */}
-      {selectedVideo && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-[#121212] w-full max-w-4xl max-h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="p-8 border-b border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <img src={selectedVideo.thumbnail} className={`rounded-xl object-cover shadow-2xl ${selectedVideo.isShort ? 'w-12 h-16' : 'w-20 h-12'}`} alt="" />
-                <div>
-                  <h3 className="text-xl font-black text-white truncate max-w-md">{selectedVideo.title}</h3>
-                  <p className="text-zinc-500 text-[12px] font-bold uppercase tracking-wider">{selectedVideo.channelTitle}</p>
-                </div>
-              </div>
-              <button onClick={() => setSelectedVideo(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all">
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-10 space-y-8">
-              <div className="grid grid-cols-3 gap-6">
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Views</p>
-                  <p className="text-2xl font-black text-white">{selectedVideo.viewCount.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Likes</p>
-                  <p className="text-2xl font-black text-red-500">{selectedVideo.likeCount.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center">
-                  <p className="text-[11px] font-black text-zinc-500 uppercase mb-2">Comments</p>
-                  <p className="text-2xl font-black text-zinc-100">{selectedVideo.commentCount.toLocaleString()}</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <h4 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-tighter">
-                  <MessageSquare size={20} className="text-red-600" /> Top 6 Comments
-                </h4>
-                <div className="space-y-4">
-                  {selectedVideo.topComments.length === 0 ? (
-                    <div className="text-center py-10 bg-white/5 rounded-3xl border border-white/5 text-zinc-500 font-bold">
-                      수집된 댓글이 없습니다. (댓글 비활성화 등)
-                    </div>
-                  ) : (
-                    selectedVideo.topComments.map((comment, idx) => (
-                      <div key={idx} className="bg-white/5 p-6 rounded-3xl border border-white/5 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[13px] font-black text-white">{comment.author}</span>
-                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-500">
-                            <ThumbsUp size={12} /> {comment.likeCount.toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-zinc-300 text-[14px] leading-relaxed" dangerouslySetInnerHTML={{ __html: comment.text }} />
-                        <p className="text-[10px] text-zinc-600 font-medium">{new Date(comment.publishedAt).toLocaleDateString()}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Sidebar Navigation */}
       <aside className="w-80 bg-[#0f0f0f] border-r border-white/5 flex flex-col shrink-0 hidden xl:flex">
         <div className="p-10">
@@ -750,43 +620,171 @@ const App: React.FC = () => {
         <div className="p-8 md:pt-10 md:pb-16 md:px-16 max-w-7xl w-full mx-auto">
           {activeTab === 'channel-config' ? (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-               <div className="flex items-center gap-4">
-                  <div className="h-10 w-2 bg-red-600 rounded-full"></div>
-                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 통합 분석</h2>
+               <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-2 bg-red-600 rounded-full"></div>
+                    <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 통합 분석</h2>
+                  </div>
+                  <button 
+                    onClick={() => setShowHelp(!showHelp)} 
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${showHelp ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-200'}`}
+                  >
+                    <Info size={16} /> 분석 가이드 {showHelp ? '닫기' : '보기'}
+                  </button>
                 </div>
+
+               {showHelp && (
+                 <div className="bg-white/5 border border-white/10 rounded-[32px] p-10 animate-in slide-in-from-top-5 duration-500">
+                    <h3 className="text-lg font-black text-white uppercase tracking-tight mb-6 flex items-center gap-3">
+                      <HelpCircle className="text-red-600" /> Analysis Guide
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      <div className="space-y-4">
+                        <h4 className="font-black text-red-500 text-sm uppercase">분석 기간 (Analysis Period)</h4>
+                        <p className="text-zinc-400 text-[13px] leading-relaxed">
+                          수집할 영상의 게시 기간을 필터링합니다. '전체' 선택 시 기간 제한 없이 최근 영상부터 수집합니다. 모든 영상 유형에 공통 적용됩니다.
+                        </p>
+                      </div>
+                      <div className="space-y-4">
+                        <h4 className="font-black text-red-500 text-sm uppercase">영상 수집 개수 (Collection Target)</h4>
+                        <p className="text-zinc-400 text-[13px] leading-relaxed">
+                          채널당 수집할 최대 영상 개수를 지정합니다. <br/>
+                          쇼츠와 롱폼에 대해 각각 다른 목표치를 설정할 수 있습니다.
+                        </p>
+                      </div>
+                    </div>
+                 </div>
+               )}
+
                <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
                   <div className="xl:col-span-3 flex flex-col space-y-6">
                     <label className="text-[14px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
                       <List size={18} className="text-red-600" /> CHANNEL LIST (UC-CODE)
                     </label>
-                    <textarea value={channelInput} onChange={(e) => setChannelInput(e.target.value)} className="w-full h-[500px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" placeholder="UC-xxxxxxxxxxxx 또는 @핸들을 입력하세요 (줄바꿈 구분)" />
+                    <textarea 
+                      value={channelInput} 
+                      onChange={(e) => setChannelInput(e.target.value)} 
+                      className="w-full h-[600px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" 
+                      placeholder="UC-xxxxxxxxxxxx 를 줄바꿈으로 입력하세요." 
+                    />
                   </div>
-                  <div className="xl:col-span-2 flex flex-col space-y-6">
-                    <div className="flex-1 bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl flex flex-col justify-between space-y-8">
-                       <div className="space-y-10">
-                         <div className="space-y-4">
-                           <div className="flex justify-between items-center"><label className="text-xs font-black uppercase text-zinc-500">분석 기간</label><button onClick={() => setUseDateFilter(!useDateFilter)} className={useDateFilter ? 'text-red-600' : 'text-zinc-800'}>{useDateFilter ? <ToggleRight size={38} /> : <ToggleLeft size={38} />}</button></div>
-                           <div className={`grid grid-cols-4 gap-2 ${!useDateFilter ? 'opacity-20 pointer-events-none' : ''}`}>
-                             {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => <button key={p} onClick={() => setPeriod(p)} className={`py-3 text-[12px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black' : 'text-white'}`}>{periodLabels[p]}</button>)}
+                  
+                  <div className="xl:col-span-2 flex flex-col space-y-8">
+                    {/* SECTION 1: 분석 기간 설정 (통합) */}
+                    <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl space-y-8">
+                        <h3 className="text-lg font-black italic tracking-tighter text-white uppercase flex items-center gap-3 pb-2 border-b border-white/10">
+                          <Calendar size={20} className="text-red-600" /> 분석 기간 설정
+                        </h3>
+                        
+                        <div className="space-y-6">
+                           <div className="flex justify-between items-center">
+                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
+                                <CalendarDays size={14} className="text-red-500" /> 전체 영상 기준 기간
+                              </label>
+                              <button 
+                                onClick={() => setUseDateFilter(!useDateFilter)} 
+                                className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useDateFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                              >
+                                {useDateFilter ? 'ENABLED' : 'DISABLED'}
+                              </button>
                            </div>
-                         </div>
-                         <div className="space-y-6">
-                           <div className="flex justify-between items-center"><label className="text-xs font-black uppercase text-zinc-500">영상 개수 타겟</label><button onClick={() => setUseCountFilter(!useCountFilter)} className={useCountFilter ? 'text-red-600' : 'text-zinc-800'}>{useCountFilter ? <ToggleRight size={38} /> : <ToggleLeft size={38} />}</button></div>
-                           <div className={`space-y-6 ${!useCountFilter ? 'opacity-20 pointer-events-none' : ''}`}>
-                              <div className="bg-black/20 p-5 rounded-2xl border border-white/5 space-y-2">
-                                 <div className="flex justify-between font-black italic"><span>SHORTS</span><span className="text-red-600">{targetShorts}</span></div>
-                                 <input type="range" min="1" max="100" value={Number(targetShorts)} onChange={(e) => setTargetShorts(Number(e.target.value))} className="w-full appearance-none bg-white/5 h-1.5 rounded-full accent-red-600" />
-                              </div>
-                              <div className="bg-black/20 p-5 rounded-2xl border border-white/5 space-y-2">
-                                 <div className="flex justify-between font-black italic"><span>LONGFORM</span><span>{targetLong}</span></div>
-                                 <input type="range" min="1" max="50" value={Number(targetLong)} onChange={(e) => setTargetLong(Number(e.target.value))} className="w-full appearance-none bg-white/5 h-1.5 rounded-full accent-white" />
+                           <div className={`grid grid-cols-4 gap-2 transition-opacity ${!useDateFilter ? 'opacity-30' : ''}`}>
+                             {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
+                               <button 
+                                 key={p} 
+                                 disabled={!useDateFilter}
+                                 onClick={() => setPeriod(p)} 
+                                 className={`py-3 text-[11px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black shadow-lg' : 'bg-white/5 text-white hover:bg-white/10'}`}
+                               >
+                                 {periodLabels[p]}
+                               </button>
+                             ))}
+                           </div>
+                           <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider text-center">설정한 기간 내의 영상만 수집 대상에 포함됩니다.</p>
+                        </div>
+                    </div>
+
+                    {/* SECTION 2: 영상 수집 개수 필터 (통합 ENABLED/DISABLED) */}
+                    <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl space-y-8">
+                        <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                          <h3 className="text-lg font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
+                            <Activity size={20} className="text-red-600" /> 영상 수집 개수 필터
+                          </h3>
+                          <button 
+                            onClick={() => setUseGlobalCountFilter(!useGlobalCountFilter)} 
+                            className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useGlobalCountFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                          >
+                            {useGlobalCountFilter ? 'ENABLED' : 'DISABLED'}
+                          </button>
+                        </div>
+
+                        {/* Shorts Count Filter */}
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center">
+                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
+                                <Radio size={14} className="text-red-500" /> Shorts Target
+                              </label>
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => setUseShorts(!useShorts)} className={useShorts ? 'text-red-600' : 'text-zinc-800'}>
+                                  {useShorts ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                </button>
                               </div>
                            </div>
-                         </div>
-                       </div>
-                       <button onClick={handleChannelStart} disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl shadow-red-600/20">
-                         {isProcessing ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={20} />} 분석 시작
-                       </button>
+                           <div className={`space-y-3 transition-opacity ${!useShorts || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
+                              <div className="flex justify-between font-black italic text-[14px]">
+                                <span className="text-zinc-500">MAX TARGET</span>
+                                <span className="text-red-600">{targetShorts}개</span>
+                              </div>
+                              <input 
+                               type="range" 
+                               min="1" 
+                               max="100" 
+                               disabled={!useShorts || !useGlobalCountFilter}
+                               value={Number(targetShorts)} 
+                               onChange={(e) => setTargetShorts(Number(e.target.value))} 
+                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-red-600" 
+                              />
+                           </div>
+                        </div>
+
+                        {/* Longform Count Filter */}
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center">
+                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
+                                <MonitorPlay size={14} className="text-white" /> Longform Target
+                              </label>
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => setUseLongs(!useLongs)} className={useLongs ? 'text-white' : 'text-zinc-800'}>
+                                  {useLongs ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                </button>
+                              </div>
+                           </div>
+                           <div className={`space-y-3 transition-opacity ${!useLongs || !useGlobalCountFilter ? 'opacity-30' : ''}`}>
+                              <div className="flex justify-between font-black italic text-[14px]">
+                                <span className="text-zinc-500">MAX TARGET</span>
+                                <span>{targetLong}개</span>
+                              </div>
+                              <input 
+                               type="range" 
+                               min="1" 
+                               max="50" 
+                               disabled={!useLongs || !useGlobalCountFilter}
+                               value={Number(targetLong)} 
+                               onChange={(e) => setTargetLong(Number(e.target.value))} 
+                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-white" 
+                              />
+                           </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-auto">
+                      <button 
+                        onClick={handleChannelStart} 
+                        disabled={isProcessing} 
+                        className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl shadow-red-600/20 disabled:opacity-50"
+                      >
+                        {isProcessing ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={20} />} 분석 시작
+                      </button>
                     </div>
                   </div>
                </div>
@@ -929,21 +927,15 @@ const App: React.FC = () => {
                           <tr>
                             <th className="px-10 py-8">Channel Information</th>
                             <th className="px-10 py-8 text-center">Subscribers</th>
-                            {useCountFilter ? (
-                              <>
-                                <th className="px-10 py-8 text-right">Shorts Avg</th>
-                                <th className="px-10 py-8 text-right">Longform Avg</th>
-                              </>
-                            ) : (
-                              <th className="px-10 py-8 text-right bg-red-600/5">Integrated Avg Views</th>
-                            )}
+                            <th className="px-10 py-8 text-right">Shorts Avg</th>
+                            <th className="px-10 py-8 text-right">Longform Avg</th>
                             <th className="px-10 py-8 text-center">Detail</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {channelResults.length === 0 ? (
                             <tr>
-                              <td colSpan={useCountFilter ? 5 : 4} className="py-40 text-center">
+                              <td colSpan={5} className="py-40 text-center">
                                 <div className="flex flex-col items-center gap-4 text-zinc-700">
                                   <LayoutDashboard size={48} strokeWidth={1} />
                                   <p className="text-lg font-bold">No channel data analyzed yet.</p>
@@ -978,26 +970,14 @@ const App: React.FC = () => {
                                     {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
                                   </span>
                                 </td>
-                                {useCountFilter ? (
-                                  <>
-                                    <td className="px-10 py-8 text-right">
-                                      <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
-                                      <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
-                                    </td>
-                                    <td className="px-10 py-8 text-right">
-                                      <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
-                                      <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
-                                    </td>
-                                  </>
-                                ) : (
-                                  <td className="px-10 py-8 text-right bg-red-600/[0.02]">
-                                    <div className="text-2xl font-black text-white flex items-center justify-end gap-3">
-                                      <Activity size={20} className="text-red-600" />
-                                      {r.avgTotalViews.toLocaleString()}
-                                    </div>
-                                    <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.totalCountFound} Total Videos Analyzed</div>
-                                  </td>
-                                )}
+                                <td className="px-10 py-8 text-right">
+                                  <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
+                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                                </td>
+                                <td className="px-10 py-8 text-right">
+                                  <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
+                                  <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                                </td>
                                 <td className="px-10 py-8 text-center">
                                   <button 
                                     disabled={r.status !== 'completed'} 

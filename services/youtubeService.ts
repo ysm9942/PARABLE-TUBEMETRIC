@@ -45,7 +45,6 @@ export const detectAdPaidFlag = (videoUrl: string, html: string, responseBodies:
   const allData = [html, ...responseBodies].join('\n');
   
   // 정규식 기반 키 탐색 (isPaidPromotion, paidPromotion, paidProductPlacement 등)
-  // 대소문자/언더스코어 허용
   const adKeys = ['paidPromotion', 'isPaidPromotion', 'paidProductPlacement', 'productPlacement'];
   
   for (const key of adKeys) {
@@ -155,7 +154,6 @@ export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => 
     method = 'nlp';
   }
 
-  // 애매한 경우 오탐 방지 (4, 5번 규칙)
   if (!isPaidTrue && !isNlpTrue) {
     is_ad = false;
     method = 'none';
@@ -246,29 +244,110 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   } catch (err) { throw new Error(`영상 정보 조회 실패: ${getErrorMessage(err)}`); }
 };
 
-export const fetchChannelStats = async (uploadsPlaylistId: string, targetShorts: number, targetLong: number, period: AnalysisPeriod, useDateFilter: boolean, useCountFilter: boolean, useShorts: boolean, useLongs: boolean) => {
+interface FetchStatsConfig {
+  target: number;
+  period: AnalysisPeriod;
+  useDateFilter: boolean;
+  useCountFilter: boolean;
+  enabled: boolean;
+}
+
+export const fetchChannelStats = async (
+  uploadsPlaylistId: string, 
+  shortsCfg: FetchStatsConfig,
+  longsCfg: FetchStatsConfig
+) => {
   let shorts: VideoDetail[] = [], longs: VideoDetail[] = [], lives: VideoDetail[] = [], nextPageToken: string | undefined, safetyCounter = 0;
-  const maxShorts = useShorts ? (useCountFilter ? targetShorts : Infinity) : 0, maxLongs = useLongs ? (useCountFilter ? targetLong : Infinity) : 0;
-  let cutoffDate: Date | null = null;
-  if (useDateFilter && period !== 'all') cutoffDate = new Date(Date.now() - (period === '7d' ? 7 : period === '30d' ? 30 : 90) * 24 * 60 * 60 * 1000);
-  while ((useCountFilter ? (shorts.length < maxShorts || longs.length < maxLongs) : true) && safetyCounter < 100) {
+  
+  const getCutoff = (cfg: FetchStatsConfig) => {
+    if (!cfg.useDateFilter || cfg.period === 'all') return null;
+    const days = cfg.period === '7d' ? 7 : cfg.period === '30d' ? 30 : 90;
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  };
+
+  const shortsCutoff = getCutoff(shortsCfg);
+  const longsCutoff = getCutoff(longsCfg);
+
+  while (safetyCounter < 100) {
     safetyCounter++;
+    
+    // 두 타입 모두 완료되었는지 확인
+    const shortsDone = !shortsCfg.enabled || (shortsCfg.useCountFilter && shorts.length >= shortsCfg.target);
+    const longsDone = !longsCfg.enabled || (longsCfg.useCountFilter && longs.length >= longsCfg.target);
+    if (shortsDone && longsDone) break;
+
     const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
+
     const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics,liveStreamingDetails', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    
     for (const video of videoResponse.data.items) {
-      if (cutoffDate && new Date(video.snippet.publishedAt) < cutoffDate) { nextPageToken = undefined; break; }
+      const publishedAt = new Date(video.snippet.publishedAt);
       const isShort = await isYouTubeShort(video.id, parseYtDurationSeconds(video.contentDetails.duration));
-      const info = { id: video.id, title: video.snippet.title, thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url, publishedAt: video.snippet.publishedAt, viewCount: parseInt(video.statistics.viewCount || '0', 10), duration: video.contentDetails.duration, isShort, isLiveStream: !!video.liveStreamingDetails };
-      if (info.isLiveStream) { if(lives.length<10) lives.push(info); }
-      else if (isShort) { if(useShorts && shorts.length < maxShorts) shorts.push(info); }
-      else { if(useLongs && longs.length < maxLongs) longs.push(info); }
+      const info: VideoDetail = { 
+        id: video.id, 
+        title: video.snippet.title, 
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url, 
+        publishedAt: video.snippet.publishedAt, 
+        viewCount: parseInt(video.statistics.viewCount || '0', 10), 
+        duration: video.contentDetails.duration, 
+        isShort, 
+        isLiveStream: !!video.liveStreamingDetails 
+      };
+
+      if (info.isLiveStream) {
+        if (lives.length < 10) lives.push(info);
+      } else if (isShort) {
+        if (shortsCfg.enabled && (!shortsCfg.useCountFilter || shorts.length < shortsCfg.target)) {
+          if (!shortsCfg.useDateFilter || (shortsCutoff && publishedAt >= shortsCutoff)) {
+            shorts.push(info);
+          }
+        }
+      } else {
+        if (longsCfg.enabled && (!longsCfg.useCountFilter || longs.length < longsCfg.target)) {
+          if (!longsCfg.useDateFilter || (longsCutoff && publishedAt >= longsCutoff)) {
+            longs.push(info);
+          }
+        }
+      }
     }
+
+    // 날짜 조기 종료 최적화: 수집해야 할 모든 타입이 설정한 컷오프를 지났다면 더 이상 루프를 돌지 않음
+    // 날짜 필터가 없는 타입이 'enabled' 되어 있고 아직 'target'에 도달하지 않았다면 계속 수집해야 함.
+    const shortsNeedMoreWithoutDate = shortsCfg.enabled && !shortsCfg.useDateFilter && (!shortsCfg.useCountFilter || shorts.length < shortsCfg.target);
+    const longsNeedMoreWithoutDate = longsCfg.enabled && !longsCfg.useDateFilter && (!longsCfg.useCountFilter || longs.length < longsCfg.target);
+
+    if (!shortsNeedMoreWithoutDate && !longsNeedMoreWithoutDate) {
+        const oldestCutoff = new Date(Math.min(
+          (shortsCfg.enabled && shortsCutoff) ? shortsCutoff.getTime() : Infinity,
+          (longsCfg.enabled && longsCutoff) ? longsCutoff.getTime() : Infinity
+        ));
+        
+        if (oldestCutoff.getTime() !== Infinity) {
+          const lastVideoDate = new Date(videoResponse.data.items[videoResponse.data.items.length - 1].snippet.publishedAt);
+          if (lastVideoDate < oldestCutoff) {
+            nextPageToken = undefined;
+            break;
+          }
+        }
+    }
+
     if (!nextPageToken) break;
   }
+
   const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
-  return { avgShortsViews: calcAvg(shorts), shortsCount: shorts.length, avgLongViews: calcAvg(longs), longCount: longs.length, avgTotalViews: calcAvg([...shorts, ...longs]), totalCount: shorts.length + longs.length, shortsList: shorts, longsList: longs, liveList: lives };
+  return { 
+    avgShortsViews: calcAvg(shorts), 
+    shortsCount: shorts.length, 
+    avgLongViews: calcAvg(longs), 
+    longCount: longs.length, 
+    avgTotalViews: calcAvg([...shorts, ...longs]), 
+    totalCount: shorts.length + longs.length, 
+    shortsList: shorts, 
+    longsList: longs, 
+    liveList: lives 
+  };
 };
 
 export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date, endDate: Date): Promise<AdVideoDetail[]> => {
@@ -284,14 +363,8 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // 1단계: Paid Flag (API에서는 HTML 크롤링이 불가하므로 unknown 처리하거나 status 파라미터 확인)
-      // 실제 브라우저에서는 이 시점에 HTML이 없으므로 NLP 위주로 동작하게 됨
       const paidFlag = detectAdPaidFlag(`https://youtu.be/${video.id}`, ""); 
-      
-      // 2단계: NLP 분석
       const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "");
-      
-      // 최종 결합
       const combined = combineAdResults(paidFlag, nlp);
 
       if (combined.is_ad) {
