@@ -15,6 +15,34 @@ const getErrorMessage = (error: any): string => {
   return error.message || '알 수 없는 오류가 발생했습니다.';
 };
 
+/**
+ * 영상의 watch 페이지 HTML을 가져와 ytInitialPlayerResponse 데이터를 추출합니다.
+ */
+const fetchVideoPlayerResponse = async (videoId: string): Promise<any | null> => {
+  try {
+    // Note: 브라우저 환경에서 직접 호출 시 CORS 문제가 발생할 수 있으나, 
+    // 사용자의 분석 도구 환경(CORS 우회 등)을 전제로 구현합니다.
+    const response = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 5000
+    });
+
+    const html = response.data;
+    const regex = /var ytInitialPlayerResponse\s*=\s*({.+?});/s;
+    const match = html.match(regex);
+    
+    if (match && match[1]) {
+      return JSON.parse(match[1]);
+    }
+    return null;
+  } catch (error) {
+    console.debug(`[HTML Parsing Failed] Video ID: ${videoId}`, error);
+    return null;
+  }
+};
+
 const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
   if (!API_KEY || !videoId) return [];
   try {
@@ -32,7 +60,6 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
 
 /**
  * [Layer A] Paid Promotion 메타데이터 재귀 탐색 (Deep Scanner)
- * 유튜브 내부 데이터 구조(playerResponse 등)를 모방하여 결정적 신호를 탐지합니다.
  */
 export const detectAdPaidFlag = (videoData: any): any => {
   let paidPromotionDetected = false;
@@ -40,7 +67,6 @@ export const detectAdPaidFlag = (videoData: any): any => {
   const labelTextHits: any[] = [];
   const softHits: any[] = [];
 
-  // 탐색용 토큰 및 문구 정의
   const targetKeyTokens = ['ispaidpromotion', 'paidpromotion', 'paidproductplacement', 'productplacement', 'sponsorship'];
   const strongPhrases = [
     "유료 광고 포함", "유료광고 포함", "유료 프로모션", "광고 포함", 
@@ -60,19 +86,17 @@ export const detectAdPaidFlag = (videoData: any): any => {
       const val = obj[key];
       const normalizedKey = key.toLowerCase().replace(/[_-]/g, '');
 
-      // (1) Direct Flag Detection (Boolean/Number)
       if (targetKeyTokens.some(token => normalizedKey.includes(token))) {
         if (val === true || val === 1 || val === 'true') {
           paidPromotionDetected = true;
           directHits.push({ 
             path, key, value: val, 
             type: 'paid_flag_direct',
-            note: '결정적 시스템 플래그 발견'
+            note: '시스템 플래그 발견'
           });
         }
       }
 
-      // (2) Renderer / Label Text Detection (String)
       if (typeof val === 'string') {
         const lowerVal = val.toLowerCase();
         if (strongPhrases.some(phrase => lowerVal.includes(phrase))) {
@@ -80,27 +104,23 @@ export const detectAdPaidFlag = (videoData: any): any => {
           labelTextHits.push({ 
             path, key, value: val.substring(0, 50), 
             type: 'player_response_label_text',
-            note: '좌상단 라벨 관련 고지 문구 포착'
+            note: '고지 라벨 텍스트 포착'
           });
         }
       }
 
-      // (3) Soft Signals (Ad-related structures)
       if (softKeyTokens.includes(normalizedKey)) {
         softHits.push({ path, key, type: 'paid_flag_soft' });
       }
 
-      // Deep scan (재귀)
       if (val && typeof val === 'object') {
         recursiveScan(val, `${path}.${key}`);
       }
     }
   };
 
-  // 비디오 데이터 객체 전체 스캔
   recursiveScan(videoData);
 
-  // 신뢰도 계산
   let confidence = 0.2;
   if (directHits.length > 0) confidence = 0.95;
   else if (labelTextHits.length > 0) confidence = 0.93;
@@ -123,7 +143,7 @@ export const detectAdPaidFlag = (videoData: any): any => {
 };
 
 /**
- * [Layer B] NLP 텍스트 분석 및 오탐 방지 (Negative Override)
+ * [Layer B] NLP 텍스트 분석 및 오탐 방지
  */
 export const detectAdNLP = (videoId: string, title: string, description: string, tags: string[] = []): any => {
   const combinedText = `${title}\n${description}\n${tags.join(' ')}`.toLowerCase().replace(/\s+/g, ' ');
@@ -139,19 +159,14 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
     negative: ["광고 아님", "내돈내산", "광고가 아닙니다", "not sponsored", "no paid promotion", "유료 광고 아닙니다", "광고 포함하지 않습니다"]
   };
 
-  // 점수 합산
   weights.high.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 3; matchedPhrases.push({ phrase: p, weight: 'high', source: 'description' }); } });
   weights.mid.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 2; matchedPhrases.push({ phrase: p, weight: 'mid', source: 'description' }); } });
   weights.low.forEach(p => { if (combinedText.includes(p.toLowerCase())) { score += 1; matchedPhrases.push({ phrase: p, weight: 'low', source: 'description' }); } });
   
-  // 부정문 처리 (Negative Override)
   const negativeHits = weights.negative.filter(p => combinedText.includes(p.toLowerCase()));
-  if (negativeHits.length > 0) {
-    // 실질적인 광고 단서(협찬/제공 등)가 압도적으로 많지 않을 때만 부정문 인정
-    if (score < 5) {
-      negativeOverride = true;
-      score = -5; // 확정적 제외
-    }
+  if (negativeHits.length > 0 && score < 5) {
+    negativeOverride = true;
+    score = -5;
   }
 
   let ad_disclosure: boolean | 'unknown' = 'unknown';
@@ -168,13 +183,12 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
     confidence,
     matched_phrases: matchedPhrases,
     negativeOverride,
-    reasoning: negativeOverride ? "부정문 패턴 감지(내돈내산 등)" : (ad_disclosure === true ? "광고 키워드 다수 감지" : "신호 부족"),
-    ad_type: score >= 5 ? 'paid_promotion' : (score >= 3 ? 'sponsorship' : 'unknown')
+    reasoning: negativeOverride ? "부정문 패턴 감지" : (ad_disclosure === true ? "광고 키워드 감지" : "신호 부족")
   };
 };
 
 /**
- * 최종 결합 (Combine Logic)
+ * 최종 결합
  */
 export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => {
   let is_ad = false;
@@ -194,17 +208,16 @@ export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => 
     method = 'nlp';
   }
 
-  // 신뢰도 산정 규칙 (스펙 준수)
   let finalConfidence = 0.3;
   if (method === 'both') finalConfidence = 0.98;
-  else if (method === 'paid_flag') finalConfidence = paidFlag.confidence; // 0.93~0.95
+  else if (method === 'paid_flag') finalConfidence = paidFlag.confidence;
   else if (method === 'nlp') finalConfidence = nlp.confidence;
 
   const evidenceSummary: string[] = [];
-  if (paidFlag.directHits.length > 0) evidenceSummary.push("유료 프로모션 시스템 플래그");
-  if (paidFlag.labelTextHits.length > 0) evidenceSummary.push("좌상단 고지 라벨 텍스트 데이터");
-  if (isNlpPositive) evidenceSummary.push(`설명란 광고 키워드 확인 (${nlp.matched_phrases[0]?.phrase})`);
-  if (nlp.negativeOverride) evidenceSummary.push("부정문 패턴 감지 (광고 제외)");
+  if (paidFlag.directHits.length > 0) evidenceSummary.push("시스템 '유료 프로모션' 플래그");
+  if (paidFlag.labelTextHits.length > 0) evidenceSummary.push("좌상단 '유료 광고 포함' 라벨 데이터");
+  if (isNlpPositive) evidenceSummary.push(`설명란 광고 키워드 (${nlp.matched_phrases[0]?.phrase})`);
+  if (nlp.negativeOverride) evidenceSummary.push("광고 아님(내돈내산) 고지");
 
   return {
     is_ad,
@@ -279,6 +292,14 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   } catch (err) { throw new Error(`영상 정보 조회 실패: ${getErrorMessage(err)}`); }
 };
 
+interface FetchStatsConfig {
+  target: number;
+  period: AnalysisPeriod;
+  useDateFilter: boolean;
+  useCountFilter: boolean;
+  enabled: boolean;
+}
+
 export const fetchChannelStats = async (
   uploadsPlaylistId: string, 
   shortsCfg: FetchStatsConfig,
@@ -297,10 +318,6 @@ export const fetchChannelStats = async (
 
   while (safetyCounter < 100) {
     safetyCounter++;
-    const shortsDone = !shortsCfg.enabled || (shortsCfg.useCountFilter && shorts.length >= shortsCfg.target);
-    const longsDone = !longsCfg.enabled || (longsCfg.useCountFilter && longs.length >= longsCfg.target);
-    if (shortsDone && longsDone) break;
-
     const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
@@ -368,9 +385,12 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // Layer A: 시스템 플래그 및 라벨 탐지
-      const paidFlag = detectAdPaidFlag(video); 
-      // Layer B: NLP 텍스트 분석 (태그 포함)
+      // [심화 분석] API 데이터만으로는 한계가 있으므로 watch HTML에서 PlayerResponse를 직접 추출 시도
+      const playerResponse = await fetchVideoPlayerResponse(video.id);
+      
+      // Layer A: 플래그 탐지 (API 데이터 + HTML 추출 데이터 통합 분석)
+      const paidFlag = detectAdPaidFlag(playerResponse || video); 
+      // Layer B: NLP 분석
       const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "", video.snippet.tags || []);
       // Combine
       const combined = combineAdResults(paidFlag, nlp);
@@ -389,11 +409,3 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
   }
   return adVideos;
 };
-
-interface FetchStatsConfig {
-  target: number;
-  period: AnalysisPeriod;
-  useDateFilter: boolean;
-  useCountFilter: boolean;
-  enabled: boolean;
-}
