@@ -9,7 +9,8 @@ export interface CommentInfo {
 export interface AdDetectionResult {
   is_ad: boolean;
   confidence: number;
-  method: 'paid_flag' | 'nlp' | 'both' | 'none';
+  // AI_GEMINI_ANALYSIS를 허용된 메서드 타입에 추가
+  method: 'paid_flag' | 'nlp' | 'both' | 'none' | 'AI_GEMINI_ANALYSIS';
   evidence: string[]; // 최종 사용자에게 보여줄 간단한 요약 리스트
   score: number;
   // 상세 분석 데이터 (내부 로직용 및 확장용)
