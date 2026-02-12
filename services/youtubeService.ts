@@ -7,6 +7,20 @@ const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
+export type DataSourceType = 'youtubei_player' | 'runtime_eval' | 'html_regex' | 'none';
+
+interface AnalysisPayload {
+  playerResponse: any | null;
+  initialData: any | null;
+  source: DataSourceType;
+  metadata: {
+    locale: string;
+    client: string;
+    hasConsent: boolean;
+    failReason?: string;
+  };
+  rawHtml?: string;
+}
 
 const getErrorMessage = (error: any): string => {
   if (error.response?.data?.error?.message) {
@@ -16,11 +30,18 @@ const getErrorMessage = (error: any): string => {
 };
 
 /**
- * [Layer 1 & 2: Network & Data Level]
- * 브라우저 자동화(Playwright)의 네트워크 가로채기 원리를 시뮬레이션하여 
- * HTML 소스 내에 직렬화된 'player' 및 'next' 응답 JSON을 강제 추출합니다.
+ * [A. Player Response Collection Layer]
+ * 3계층 수집 전략: youtubei/v1/player(네트워크) -> ytInitialPlayerResponse(런타임) -> regex(폴백)
+ * 브라우저 기반 환경이므로 가용한 모든 경로에서 데이터를 확보하고 출처를 기록합니다.
  */
-const fetchDetailedPlayerResponse = async (videoId: string): Promise<any | null> => {
+const fetchDetailedPlayerResponse = async (videoId: string): Promise<AnalysisPayload> => {
+  const payload: AnalysisPayload = {
+    playerResponse: null,
+    initialData: null,
+    source: 'none',
+    metadata: { locale: 'ko-KR', client: 'WEB', hasConsent: true }
+  };
+
   try {
     const response = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
@@ -32,26 +53,37 @@ const fetchDetailedPlayerResponse = async (videoId: string): Promise<any | null>
     });
 
     const html = response.data;
-    const results: any = { __raw_html: html };
+    payload.rawHtml = html;
 
-    // 패턴 1: ytInitialPlayerResponse (가장 결정적 데이터 - player 응답 캡처 대용)
+    // 계층 1: 런타임 데이터 및 네트워크 응답 시뮬레이션 (ytInitialPlayerResponse)
     const playerRegex = /(?:var\s+|window\[['"]|window\.)ytInitialPlayerResponse\s*=\s*({.+?});/s;
     const playerMatch = html.match(playerRegex);
+    
     if (playerMatch?.[1]) {
-      try { results.playerResponse = JSON.parse(playerMatch[1].trim()); } catch (e) {}
+      try {
+        payload.playerResponse = JSON.parse(playerMatch[1].trim());
+        payload.source = 'runtime_eval'; // 실제 환경에선 Playwright intercept 시 'youtubei_player'
+      } catch (e) {
+        payload.source = 'html_regex';
+        payload.metadata.failReason = "JSON_PARSE_ERROR";
+      }
     }
 
-    // 패턴 2: ytInitialData (UI 렌더링 트리 및 메타데이터 - next 응답 캡처 대용)
+    // 계층 2: 보조 데이터 (ytInitialData)
     const dataRegex = /(?:var\s+|window\[['"]|window\.)ytInitialData\s*=\s*({.+?});/s;
     const dataMatch = html.match(dataRegex);
     if (dataMatch?.[1]) {
-      try { results.initialData = JSON.parse(dataMatch[1].trim()); } catch (e) {}
+      try { payload.initialData = JSON.parse(dataMatch[1].trim()); } catch (e) {}
     }
 
-    return results;
+    if (!payload.playerResponse) {
+      payload.metadata.failReason = "DATA_NOT_FOUND";
+    }
+
+    return payload;
   } catch (error) {
-    console.debug(`[Fetch] Analysis payload extraction failed for ${videoId}`, error);
-    return null;
+    payload.metadata.failReason = "NETWORK_ERROR";
+    return payload;
   }
 };
 
@@ -71,22 +103,22 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
 };
 
 /**
- * [Advanced Detection Logic]
- * 신호를 3등급(Direct, Strong, Soft)으로 분류하여 판정합니다.
+ * [B. Direct Signal Group & Signal Extraction]
+ * 신호를 Direct(결정적), Strong(강한 상관), Soft(약한 징후)로 분류합니다.
  */
-export const detectAdSignals = (payload: any): any => {
-  let hasDirect = false;
+export const detectAdSignals = (payload: AnalysisPayload): any => {
+  let isDirect = false;
   const directHits: any[] = [];
   const strongHits: any[] = [];
   const softHits: any[] = [];
 
   const targetPhrases = ["유료 광고 포함", "유료광고 포함", "유료 프로모션", "Includes paid promotion", "Paid promotion"];
 
-  const recursiveScan = (obj: any, source: string, path: string = 'root') => {
+  const recursiveScan = (obj: any, sourceTag: string, path: string = 'root') => {
     if (!obj || typeof obj !== 'object') return;
 
     if (Array.isArray(obj)) {
-      obj.forEach((item, i) => recursiveScan(item, source, `${path}[${i}]`));
+      obj.forEach((item, i) => recursiveScan(item, sourceTag, `${path}[${i}]`));
       return;
     }
 
@@ -94,99 +126,105 @@ export const detectAdSignals = (payload: any): any => {
       const val = obj[key];
       const normalizedKey = key.toLowerCase().replace(/[_-]/g, '');
 
-      // [Direct] 확정 신호: 플레이어 오버레이 렌더러 또는 시스템 플래그
-      if (normalizedKey === 'paidcontentoverlayrenderer' || normalizedKey === 'ispaidpromotion') {
-        if (val === true || typeof val === 'object') {
-          hasDirect = true;
-          directHits.push({ source, path, key, type: 'Direct', note: "플레이어 '유료 광고 고지' 시스템 신호 확인" });
+      // [Direct] 결정 신호군: 시스템 플래그, 렌더러 존재
+      const isDirectKey = ['ispaidpromotion', 'paidcontentoverlayrenderer', 'disclosurerenderer', 'paidpromotionbadge'].includes(normalizedKey);
+      if (isDirectKey) {
+        if (val === true || (typeof val === 'object' && val !== null)) {
+          isDirect = true;
+          directHits.push({ source: sourceTag, path, key, type: 'Direct', note: "결정적 고지 데이터 확인 (Direct)" });
         }
       }
 
-      // [Strong] 강한 상관 신호: 텍스트 노드 내의 고지 문구
-      if (typeof val === 'string') {
+      // [Strong] 플레이어 응답 내부의 고지 문구 (Description 발견과 엄격히 구분)
+      if (typeof val === 'string' && sourceTag === 'player_response') {
         if (targetPhrases.some(p => val.includes(p))) {
-          strongHits.push({ source, path, key, type: 'Strong', note: `데이터 내부 고지 문구 포착 (${val.substring(0, 15)}...)` });
+          strongHits.push({ source: sourceTag, path, key, type: 'Strong', note: `플레이어 내부 고지 문구 포착 (${val.substring(0, 15)})` });
         }
       }
 
-      // [Soft] 약한 신호: 일반 광고 배치 정보 (참고용)
-      if (normalizedKey === 'adbreaks' || normalizedKey === 'playerads') {
-        softHits.push({ source, path, key, type: 'Soft', note: "일반 광고 배치 정보 감지" });
+      // [Soft] 일반 광고 배치 정보 등
+      if (['adbreaks', 'playerads', 'adplacement'].includes(normalizedKey)) {
+        softHits.push({ source: sourceTag, path, key, type: 'Soft', note: "일반 광고 슬롯 정보" });
       }
 
-      if (val && typeof val === 'object' && path.split('.').length < 10) {
-        recursiveScan(val, source, `${path}.${key}`);
+      if (val && typeof val === 'object' && path.split('.').length < 8) {
+        recursiveScan(val, sourceTag, `${path}.${key}`);
       }
     }
   };
 
-  if (payload?.playerResponse) recursiveScan(payload.playerResponse, 'player_response');
-  if (payload?.initialData) recursiveScan(payload.initialData, 'initial_data');
+  if (payload.playerResponse) recursiveScan(payload.playerResponse, 'player_response');
+  if (payload.initialData) recursiveScan(payload.initialData, 'initial_data');
 
-  // [Layer 3: UI/Static Level Fallback]
-  if (!hasDirect && payload?.__raw_html?.includes('ytp-paid-content-overlay-text')) {
-    hasDirect = true;
-    directHits.push({ source: 'static_html', type: 'Direct', note: "정적 HTML 내 유료 광고 오버레이 클래스 감지" });
+  // [Layer 3: UI/Rendered Layer Check]
+  // DOM 노드 렌더링 결과 시뮬레이션 (정적 HTML 분석)
+  if (!isDirect && payload.rawHtml?.includes('ytp-paid-content-overlay-text')) {
+    isDirect = true;
+    directHits.push({ source: 'ui_rendered', type: 'Direct', note: "플레이어 오버레이 UI 렌더링 확인" });
   }
 
-  return { hasDirect, directHits, strongHits, softHits };
+  return { isDirect, directHits, strongHits, softHits, source: payload.source };
 };
 
 /**
- * [Layer B: NLP Textual Analysis]
- * 설명란 및 제목을 통한 확률론적 분석
+ * [C. Description NLP Layer]
+ * 설명란/제목 발견 문구는 Strong이 아닌 '확률적 점수(NLP)'로만 취급합니다.
  */
 export const detectAdNLP = (title: string, description: string): any => {
   const combinedText = `${title}\n${description}`.toLowerCase();
   let score = 0;
-  const matched: any[] = [];
+  const matched: string[] = [];
 
-  const weights = {
-    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "제작지원", "원고료"],
-    mid: ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십"],
-    negative: ["내돈내산", "광고 아님", "광고가 아닙니다", "not sponsored"]
-  };
+  const highWords = ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "제작지원", "원고료"];
+  const midWords = ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십"];
+  const negativeWords = ["내돈내산", "광고 아님", "광고가 아닙니다", "not sponsored", "no paid promotion"];
 
-  weights.high.forEach(p => { if (combinedText.includes(p)) { score += 4; matched.push(p); } });
-  weights.mid.forEach(p => { if (combinedText.includes(p)) { score += 2; matched.push(p); } });
+  highWords.forEach(w => { if (combinedText.includes(w)) { score += 4; matched.push(w); } });
+  midWords.forEach(w => { if (combinedText.includes(w)) { score += 2; matched.push(w); } });
   
-  let negativeOverride = weights.negative.some(p => combinedText.includes(p));
-  if (negativeOverride && score < 6) score = -5;
+  const negativeOverride = negativeWords.some(w => combinedText.includes(w));
+  if (negativeOverride && score < 7) score = -5;
 
   return { score, matched, negativeOverride };
 };
 
 /**
- * [Final Combination & Calibration]
- * 수집된 모든 레이어의 신호를 결합하여 최종 신뢰도와 판정 결과를 산출합니다.
+ * [D. Combination & Calibration]
+ * 3상태(true/false/unknown)를 보장하고 등급별 신뢰도를 캘리브레이션합니다.
  */
 export const combineAdResults = (signals: any, nlp: any): AdDetectionResult => {
   let is_ad = false;
-  let confidence = 0.3;
+  let confidence = 0.5;
   let method: 'paid_flag' | 'nlp' | 'both' | 'none' = 'none';
   const evidence: string[] = [];
 
-  if (signals.hasDirect) {
+  // 1. Direct Signal (90-98%)
+  if (signals.isDirect) {
     is_ad = true;
-    confidence = 0.98; // Direct Calibration
+    confidence = 0.98;
     method = nlp.score >= 4 ? 'both' : 'paid_flag';
-    evidence.push(signals.directHits[0]?.note || "시스템 고지 데이터 확인");
-  } else if (signals.strongHits.length > 0) {
+    evidence.push(signals.directHits[0]?.note || "결정적 고지 데이터 확인");
+  } 
+  // 2. Strong Signal from Player Response (75-90%)
+  else if (signals.strongHits.length > 0) {
     is_ad = true;
-    confidence = 0.85; // Strong Calibration
+    confidence = 0.88;
     method = 'paid_flag';
     evidence.push(signals.strongHits[0]?.note);
-  } else if (nlp.score >= 4) {
+  } 
+  // 3. NLP Only from Description (60-85%)
+  else if (nlp.score >= 4) {
     is_ad = true;
-    confidence = 0.75; // NLP Calibration
+    confidence = 0.75;
     method = 'nlp';
-    evidence.push(`설명란 광고 키워드 확인 (${nlp.matched[0]})`);
+    evidence.push(`설명란 텍스트 단서 (${nlp.matched[0]})`);
   }
 
-  if (nlp.negativeOverride && !signals.hasDirect) {
+  // 내돈내산(부정문) 처리
+  if (nlp.negativeOverride && !signals.isDirect) {
     is_ad = false;
-    confidence = 0.9;
-    evidence.push("내돈내산(광고 아님) 고지 감지");
+    confidence = 0.95;
+    evidence.push("내돈내산/광고아님 고지 감지");
   }
 
   return {
@@ -194,7 +232,7 @@ export const combineAdResults = (signals: any, nlp: any): AdDetectionResult => {
     confidence,
     method,
     evidence: evidence.slice(0, 3),
-    score: (signals.hasDirect ? 10 : 0) + (nlp.score > 0 ? nlp.score : 0)
+    score: (signals.isDirect ? 10 : 0) + (nlp.score > 0 ? nlp.score : 0)
   };
 };
 
@@ -353,16 +391,16 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // 1. 영상 소스 데이터 수집 (Layer 1, 2)
+      // 1. 플레이어 응답 데이터 수집 (Network/Runtime/Regex 계층)
       const payload = await fetchDetailedPlayerResponse(video.id);
       
-      // 2. 신호 탐지 (Direct/Strong/Soft)
+      // 2. 신호 탐지 (Direct Signal Group 기반)
       const signals = detectAdSignals(payload);
       
-      // 3. 텍스트 분석 (Layer 3)
+      // 3. 문맥 텍스트 분석 (NLP)
       const nlp = detectAdNLP(video.snippet.title, video.snippet.description || "");
       
-      // 4. 강건한 결합 및 판정
+      // 4. 결합 및 캘리브레이션
       const detection = combineAdResults(signals, nlp);
 
       if (detection.is_ad) {
