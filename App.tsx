@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -85,7 +86,7 @@ const App: React.FC = () => {
     return n.toLocaleString();
   };
 
-  const extractVideoId = (input: string) => {
+  const extractVideoId = (input: string): string => {
     const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
     const match = input.match(regex);
     return match ? match[1] : input.trim();
@@ -166,8 +167,12 @@ const App: React.FC = () => {
           status: 'completed' 
         } : r));
       } catch (err: any) {
-        console.error(err);
-        setChannelResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'error', error: err.message || '오류 발생' } : r));
+        console.error('Channel analysis error:', err);
+        setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
+          ...r, 
+          status: 'error', 
+          error: err.message || '데이터를 가져오지 못했습니다.' 
+        } : r));
       }
     }
     setIsProcessing(false);
@@ -175,10 +180,11 @@ const App: React.FC = () => {
 
   const handleVideoStart = async () => {
     const lines = videoInput.split('\n').filter(l => l.trim().length > 0);
-    const videoIds = lines.map(extractVideoId);
+    // Explicitly type the Set and result array to string[] to resolve 'unknown' inference and missing 'length' property error.
+    const videoIds: string[] = Array.from(new Set<string>(lines.map(extractVideoId))).filter(id => id.length === 11);
 
     if (videoIds.length === 0) {
-      alert('분석할 영상 ID 또는 URL을 입력해주세요.');
+      alert('분석할 올바른 형식의 영상 ID 또는 URL을 입력해주세요.');
       return;
     }
 
@@ -190,19 +196,20 @@ const App: React.FC = () => {
     })));
 
     try {
-      const chunkSize = 10; // 댓글 수집이 포함되어 청크 사이즈를 줄여 안정성 확보
+      const chunkSize = 10;
       for (let i = 0; i < videoIds.length; i += chunkSize) {
         const chunk = videoIds.slice(i, i + chunkSize);
+        // chunk is now correctly inferred as string[]
         const fetched = await fetchVideosByIds(chunk);
         
         setVideoResults(prev => prev.map(p => {
           const match = fetched.find(f => f.videoId === p.videoId);
-          return match ? match : (p.status === 'processing' ? { ...p, status: 'error', error: '찾을 수 없음' } : p);
+          return match ? match : (p.status === 'processing' ? { ...p, status: 'error', error: '정보 없음' } : p);
         }));
       }
     } catch (err: any) {
-      console.error(err);
-      alert('영상 정보를 가져오는 중 오류가 발생했습니다.');
+      console.error('Video analysis error:', err);
+      alert(`영상 분석 중 오류: ${err.message}`);
     }
     setIsProcessing(false);
   };
@@ -222,7 +229,7 @@ const App: React.FC = () => {
         '쇼츠 분석 개수': r.shortsCountFound,
         '롱폼 평균 조회수': r.avgLongViews,
         '롱폼 분석 개수': r.longCountFound,
-        '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? '오류' : '대기',
+        '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, '채널 요약');
@@ -251,9 +258,8 @@ const App: React.FC = () => {
 
       XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
     } else {
-      // 영상 데이터 요약
       const data = videoResults.map((r) => ({
-        '영상 링크': r.isShort ? `https://youtube.com/shorts/${r.videoId}` : `https://youtu.be/${r.videoId}`,
+        '영상 링크': r.isShort ? `https://youtube.com/shorts/${r.videoId}` : `https://youtube.com/watch?v=${r.videoId}`,
         '영상 제목': r.title,
         '채널명': r.channelTitle,
         '유형': r.isShort ? '쇼츠' : '롱폼',
@@ -265,7 +271,6 @@ const App: React.FC = () => {
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, '영상 데이터');
 
-      // 댓글 정보를 채널별 탭으로 저장
       const channelCommentsMap: Record<string, any[]> = {};
       videoResults.forEach(v => {
         if (v.status === 'completed' && v.topComments.length > 0) {
@@ -288,7 +293,6 @@ const App: React.FC = () => {
       Object.entries(channelCommentsMap).forEach(([channelName, comments]) => {
         const wsComments = XLSX.utils.json_to_sheet(comments);
         let sheetName = channelName.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
-        // 이미 존재하는 탭 이름일 경우 처리
         let counter = 1;
         let finalSheetName = sheetName;
         while (wb.SheetNames.includes(finalSheetName)) {
@@ -818,8 +822,13 @@ const App: React.FC = () => {
                                     )}
                                   </div>
                                   <div>
-                                    <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
-                                    <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
+                                    <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors flex items-center gap-2">
+                                      {r.channelName}
+                                      {r.status === 'error' && (
+                                        <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">Error</span>
+                                      )}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-600 font-mono mt-1 max-w-[200px] truncate">{r.status === 'error' ? r.error : r.channelId}</div>
                                   </div>
                                 </td>
                                 <td className="px-10 py-8 text-center">
@@ -897,7 +906,7 @@ const App: React.FC = () => {
                                   </div>
                                   <div className="min-w-0">
                                     <div className="font-black text-zinc-100 text-[15px] group-hover:text-red-500 transition-colors truncate max-w-[300px]">{v.title}</div>
-                                    <div className="text-[10px] text-zinc-600 font-mono mt-1">{v.videoId}</div>
+                                    <div className="text-[10px] text-zinc-600 font-mono mt-1">{v.status === 'error' ? v.error : v.videoId}</div>
                                   </div>
                                 </td>
                                 <td className="px-10 py-8">
