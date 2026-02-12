@@ -16,9 +16,8 @@ const getErrorMessage = (error: any): string => {
 };
 
 /**
- * [CRITICAL] 유튜브 공식 API에서 누락된 '유료 프로모션' 정보를 찾기 위해
- * 1. 영상 페이지 HTML의 특정 클래스(ytp-paid-content-overlay-text) 존재 여부 검사
- * 2. ytInitialPlayerResponse 및 ytInitialData 객체 추출 및 병합 분석을 수행합니다.
+ * [CRITICAL] 로그인 여부나 광고 삽입 여부와 상관없이, 플레이어가 '유료 광고 포함' 라벨을 
+ * 그리기 위해 참조하는 핵심 JSON(ytInitialPlayerResponse)을 HTML 소스에서 강제 추출합니다.
  */
 const fetchDetailedPlayerResponse = async (videoId: string): Promise<any | null> => {
   try {
@@ -27,23 +26,24 @@ const fetchDetailedPlayerResponse = async (videoId: string): Promise<any | null>
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
       },
-      timeout: 7000
+      timeout: 8000
     });
 
     const html = response.data;
     
-    // (1) HTML 문자열 직접 분석: 사용자가 확인한 특정 클래스 및 텍스트 패턴 탐지
+    // (1) HTML 문자열 직접 분석: 사용자가 확인한 'ytp-paid-content-overlay-text' 클래스의 원천 데이터 탐지
     const hasHtmlAdLabel = html.includes('ytp-paid-content-overlay-text') || 
                            html.includes('유료 광고 포함') || 
                            html.includes('유료광고포함') ||
+                           html.includes('paidContentOverlayRenderer') ||
                            html.includes('"isPaidPromotion":true');
 
-    // (2) ytInitialPlayerResponse 추출
-    const playerRegex = /var ytInitialPlayerResponse\s*=\s*({.+?});/s;
+    // (2) ytInitialPlayerResponse 추출 - 다양한 패턴 대응을 위해 정규식 강화
+    const playerRegex = /var ytInitialPlayerResponse\s*=\s*({.+?});(?:\s*var\s+|$)/s;
     const playerMatch = html.match(playerRegex);
     
-    // (3) ytInitialData 추출 (Fallback 데이터)
-    const dataRegex = /var ytInitialData\s*=\s*({.+?});/s;
+    // (3) ytInitialData 추출
+    const dataRegex = /var ytInitialData\s*=\s*({.+?});(?:\s*var\s+|$)/s;
     const dataMatch = html.match(dataRegex);
     
     let combinedData: any = { 
@@ -52,15 +52,19 @@ const fetchDetailedPlayerResponse = async (videoId: string): Promise<any | null>
     
     if (playerMatch && playerMatch[1]) {
       try { 
-        const parsed = JSON.parse(playerMatch[1]);
+        // 때때로 세미콜론이나 공백이 포함될 수 있으므로 트리밍
+        const cleanJson = playerMatch[1].trim();
+        const parsed = JSON.parse(cleanJson);
         Object.assign(combinedData, parsed);
-      } catch (e) {}
+      } catch (e) {
+        console.debug("JSON Parse Error (PlayerResponse):", e);
+      }
     }
     
     if (dataMatch && dataMatch[1]) {
       try { 
-        const parsed = JSON.parse(dataMatch[1]);
-        // 중복되지 않는 깊은 경로의 데이터를 보완하기 위해 병합
+        const cleanJson = dataMatch[1].trim();
+        const parsed = JSON.parse(cleanJson);
         if (parsed.contents) combinedData.__initial_data_contents = parsed.contents;
         if (parsed.overlay) combinedData.__initial_data_overlay = parsed.overlay;
       } catch (e) {}
@@ -90,28 +94,29 @@ const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
 
 /**
  * [Layer A] Paid Promotion 메타데이터 재귀 탐색
- * HTML 직접 검출 결과와 JSON 렌더러 정보를 결합합니다.
+ * 사용자가 지목한 'ytp-paid-content-overlay-text' 요소를 트리거하는 
+ * 'paidContentOverlayRenderer' 객체를 최우선으로 찾습니다.
  */
 export const detectAdPaidFlag = (videoData: any): any => {
   let paidPromotionDetected = videoData?.__html_ad_detected || false;
   const directHits: any[] = [];
   const labelTextHits: any[] = [];
 
-  // HTML 소스에서 이미 발견된 경우
+  // 1. HTML 소스 분석 결과 선행 처리
   if (videoData?.__html_ad_detected) {
     directHits.push({ 
-      path: 'raw_html', 
-      key: 'ytp-paid-content-overlay-text', 
+      path: 'html_body', 
+      key: 'overlay_text_signal', 
       value: 'detected', 
       type: 'html_source_match',
-      note: 'HTML 소스코드에서 유료 광고 오버레이 요소 포착'
+      note: "HTML 소스 내 '유료 광고 포함' 관련 요소 발견"
     });
   }
 
   const targetKeyTokens = ['ispaidpromotion', 'paidpromotion', 'paidproductplacement', 'productplacement', 'paidcontentoverlay'];
   const strongPhrases = [
     "유료 광고 포함", "유료광고 포함", "유료 프로모션", "광고 포함", 
-    "includes paid promotion", "paid promotion", "제작 지원", "제작지원"
+    "includes paid promotion", "paid promotion", "제작 지원", "제작지원", "유료광고포함"
   ];
 
   const recursiveScan = (obj: any, path: string = 'root') => {
@@ -126,19 +131,30 @@ export const detectAdPaidFlag = (videoData: any): any => {
       const val = obj[key];
       const normalizedKey = key.toLowerCase().replace(/[_-]/g, '');
 
-      // 1. 시스템 플래그 탐지
+      // (A) 결정적 렌더러 탐지: 'paidContentOverlayRenderer'는 화면 좌상단 라벨 생성의 직접적인 증거입니다.
+      if (normalizedKey.includes('paidcontentoverlayrenderer')) {
+        paidPromotionDetected = true;
+        directHits.push({ 
+          path, 
+          key, 
+          type: 'renderer_hit', 
+          note: "플레이어 '유료 광고 고지' 렌더러 객체 확인 (확정적)" 
+        });
+      }
+
+      // (B) 시스템 플래그 탐지
       if (targetKeyTokens.some(token => normalizedKey.includes(token))) {
         if (val === true || val === 1 || val === 'true') {
           paidPromotionDetected = true;
           directHits.push({ 
             path, key, value: val, 
             type: 'system_flag',
-            note: '영상 내부 시스템 설정값 확인'
+            note: '영상 내부 프로모션 설정 플래그 확인'
           });
         }
       }
 
-      // 2. 렌더링 텍스트 탐지
+      // (C) 텍스트 노드 탐지
       if (typeof val === 'string') {
         const lowerVal = val.toLowerCase();
         if (strongPhrases.some(phrase => lowerVal.includes(phrase))) {
@@ -146,15 +162,9 @@ export const detectAdPaidFlag = (videoData: any): any => {
           labelTextHits.push({ 
             path, key, value: val.substring(0, 50), 
             type: 'label_text',
-            note: '플레이어 렌더러 내 고지 문구 포착'
+            note: "메타데이터 내 '유료 광고' 고지 텍스트 포착"
           });
         }
-      }
-
-      // 3. 특정 렌더러 구조 확인
-      if (normalizedKey.includes('paidcontentoverlayrenderer')) {
-        paidPromotionDetected = true;
-        directHits.push({ path, key, type: 'renderer_hit', note: '유료 광고 고지 전용 렌더러 존재' });
       }
 
       if (val && typeof val === 'object') {
@@ -166,8 +176,8 @@ export const detectAdPaidFlag = (videoData: any): any => {
   recursiveScan(videoData);
 
   let confidence = 0.2;
-  if (directHits.length > 0) confidence = 0.99;
-  else if (labelTextHits.length > 0) confidence = 0.96;
+  if (directHits.length > 0) confidence = 0.995;
+  else if (labelTextHits.length > 0) confidence = 0.97;
 
   return {
     paid_promotion: paidPromotionDetected,
@@ -175,7 +185,7 @@ export const detectAdPaidFlag = (videoData: any): any => {
     directHits,
     labelTextHits,
     evidence: [...directHits, ...labelTextHits].map(h => ({
-      source: "YouTubeInternal",
+      source: "YouTubeInternal/OverlayRenderer",
       path: h.path,
       key: h.key,
       value: String(h.value),
@@ -195,7 +205,7 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
   let negativeOverride = false;
 
   const weights = {
-    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "광고입니다", "제작지원", "유료광고포함", "본 영상은 광고를 포함"],
+    high: ["유료 광고", "유료광고", "광고 포함", "paid promotion", "includes paid promotion", "sponsored by", "광고입니다", "제작지원", "유료광고포함", "본 영상은 광고를 포함", "유료 프로모션"],
     mid: ["협찬", "스폰", "sponsor", "sponsorship", "제공받아", "지원받아", "파트너십", "원고료", "제작비", "공동구매"],
     low: ["affiliate", "제휴 링크", "수수료", "커미션", "gifted", "#ad", "#sponsored", "#협찬", "#광고"],
     negative: ["광고 아님", "내돈내산", "광고가 아닙니다", "not sponsored", "no paid promotion", "유료 광고 아닙니다"]
@@ -220,7 +230,7 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
     video_id: videoId,
     ad_disclosure,
     score,
-    confidence: ad_disclosure === true ? 0.85 : 0.5,
+    confidence: ad_disclosure === true ? 0.88 : 0.5,
     matched_phrases: matchedPhrases,
     negativeOverride,
     reasoning: negativeOverride ? "부정문 감지" : (ad_disclosure === true ? "광고 키워드 감지" : "신호 부족")
@@ -228,7 +238,7 @@ export const detectAdNLP = (videoId: string, title: string, description: string,
 };
 
 /**
- * 최종 결합
+ * 최종 결합 (Layer A + Layer B)
  */
 export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => {
   let is_ad = false;
@@ -249,15 +259,16 @@ export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => 
   }
 
   let finalConfidence = 0.3;
-  if (method === 'both') finalConfidence = 0.995;
+  if (method === 'both') finalConfidence = 0.998;
   else if (method === 'paid_flag') finalConfidence = paidFlag.confidence;
   else if (method === 'nlp') finalConfidence = nlp.confidence;
 
   const evidenceSummary: string[] = [];
   if (paidFlag.directHits.length > 0) evidenceSummary.push(paidFlag.directHits[0].note);
-  if (paidFlag.labelTextHits.length > 0) evidenceSummary.push("플레이어 '유료 광고' 라벨 확인");
-  if (isNlpPositive) evidenceSummary.push(`설명란 광고 키워드 확인`);
-  if (nlp.negativeOverride) evidenceSummary.push("내돈내산 고지 확인");
+  else if (paidFlag.labelTextHits.length > 0) evidenceSummary.push("플레이어 '유료 광고' 메타데이터 확인");
+  
+  if (isNlpPositive) evidenceSummary.push(`설명란 광고 키워드 확인 (${nlp.matched_phrases[0]?.phrase})`);
+  if (nlp.negativeOverride) evidenceSummary.push("내돈내산 고지(부정문) 감지");
 
   return {
     is_ad,
@@ -425,10 +436,11 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
       if (pub < startDate) { nextPageToken = undefined; break; }
       if (pub > endDate) continue;
 
-      // [핵심 보완] 공식 API를 넘어 실제 영상 watch 페이지의 HTML 소스를 직접 파싱하여 상세 분석을 수행합니다.
+      // [핵심 보완] 영상 watch 페이지의 HTML 소스를 직접 파싱하여 플레이어 내부 렌더러를 분석합니다.
+      // 이는 로그인 여부나 프레롤 광고 삽입 여부에 영향을 받지 않는 가장 근본적인 분석 방식입니다.
       const detailedData = await fetchDetailedPlayerResponse(video.id);
       
-      // Layer A: 플래그 탐지 (HTML 소스 분석 결과 포함)
+      // Layer A: 플래그 탐지 (HTML 소스 + 내부 렌더러 객체 정밀 스캔)
       const paidFlag = detectAdPaidFlag(detailedData || video); 
       // Layer B: NLP 분석 (설명란, 태그)
       const nlp = detectAdNLP(video.id, video.snippet.title, video.snippet.description || "", video.snippet.tags || []);
