@@ -91,5 +91,3 @@ export interface VideoDetail {
   isLiveStream?: boolean;
   concurrentViewers?: number;
 }
-
-export type AnalysisPeriod = '7d' | '30d' | '90d';
