@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Play, 
@@ -776,7 +777,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
                 <div className="xl:col-span-3 space-y-6">
                   <label className="text-[14px] font-black text-white uppercase flex items-center gap-3 tracking-widest"><List size={18} className="text-red-600" /> CHANNEL LIST</label>
-                  <textarea value={adChannelInput} onChange={(e) => setAdChannelInput(e.target.value)} className="w-full h-[500px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" placeholder="광고 영상을 전수 조사할 채널 ID를 입력하세요." />
+                  <textarea value={adChannelInput} onChange={(e) => setAdChannelInput(e.target.value)} className="w-full h-[500px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" placeholder="UC-xxxxxxxxxxxx 또는 @핸들을 입력하세요 (줄바꿈 구분)" />
                 </div>
                 <div className="xl:col-span-2 space-y-8 flex flex-col justify-between">
                   <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 space-y-8 shadow-2xl">
