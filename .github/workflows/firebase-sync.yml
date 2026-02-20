@@ -1,0 +1,31 @@
+name: Sync Results to Firebase
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "results/**"
+
+jobs:
+  sync:
+    name: Upload results to Firestore
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Firebase Admin SDK
+        run: pip install firebase-admin
+
+      - name: Sync JSON results to Firestore
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: python .github/scripts/sync_to_firebase.py
