@@ -1,7 +1,9 @@
 """
-결과 JSON 저장 + GitHub push 유틸리티
-로컬 git repo에 결과를 커밋하고 push한다.
-GitHub Actions가 push를 감지해 Firebase로 동기화한다.
+결과 JSON 저장 + index.json 갱신 + GitHub push 유틸리티.
+
+로컬 git repo에 결과를 커밋하고 push하면,
+Vercel의 React 앱이 raw.githubusercontent.com에서 직접 JSON을 읽는다.
+Firebase / GitHub Actions 불필요.
 """
 import json
 import os
@@ -13,16 +15,17 @@ from pathlib import Path
 
 # 프로젝트 루트 (scraper/ 의 부모)
 ROOT = Path(__file__).parent.parent
+INDEX_FILE = ROOT / "results" / "index.json"
 
 
-def _run_git(args: list[str], cwd: Path = ROOT) -> bool:
-    """git 명령 실행. 실패 시 False 반환"""
+# ──────────────────────────────────────────────
+# Git 헬퍼
+# ──────────────────────────────────────────────
+
+def _run_git(args: list[str]) -> bool:
     try:
         result = subprocess.run(
-            ["git", *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
+            ["git", *args], cwd=ROOT, capture_output=True, text=True
         )
         if result.returncode != 0:
             print(f"[git 오류] git {' '.join(args)}\n{result.stderr}", file=sys.stderr)
@@ -33,9 +36,57 @@ def _run_git(args: list[str], cwd: Path = ROOT) -> bool:
         return False
 
 
+# ──────────────────────────────────────────────
+# index.json 관리
+# ──────────────────────────────────────────────
+
+def _load_index() -> dict:
+    if INDEX_FILE.exists():
+        with open(INDEX_FILE, encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                pass
+    return {"updatedAt": "", "channels": [], "videos": [], "ads": []}
+
+
+def _save_index(index: dict):
+    index["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+    with open(INDEX_FILE, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, indent=2)
+
+
+def _upsert_index(data_type: str, entry_id: str, entry_name: str, filename: str, scraped_at: str):
+    """index.json 에 항목을 추가하거나 최신 파일로 업데이트"""
+    index = _load_index()
+    collection = index.setdefault(data_type, [])
+
+    new_entry = {
+        "id": entry_id,
+        "name": entry_name,
+        "filename": filename,
+        "scrapedAt": scraped_at,
+    }
+
+    # 같은 ID가 이미 있으면 교체, 없으면 앞에 삽입
+    for i, e in enumerate(collection):
+        if e.get("id") == entry_id:
+            collection[i] = new_entry
+            break
+    else:
+        collection.insert(0, new_entry)
+
+    _save_index(index)
+
+
+# ──────────────────────────────────────────────
+# 공개 API
+# ──────────────────────────────────────────────
+
 def save_result(data: dict, data_type: str, identifier: str) -> Path:
     """
-    결과 dict를 results/{data_type}/{identifier}_{timestamp}.json 에 저장.
+    결과 dict를 results/{data_type}/{identifier}_{timestamp}.json 에 저장하고
+    results/index.json 을 업데이트한다.
 
     data_type: "channels" | "videos" | "ads"
     identifier: channelId 또는 videoId
@@ -49,26 +100,33 @@ def save_result(data: dict, data_type: str, identifier: str) -> Path:
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-    print(f"[저장] {filename.relative_to(ROOT)}")
+    relative_path = str(filename.relative_to(ROOT)).replace("\\", "/")
+    scraped_at = data.get("scrapedAt", datetime.utcnow().isoformat() + "Z")
+
+    # index.json 갱신
+    entry_name = data.get("channelName") or data.get("title") or identifier
+    _upsert_index(data_type, identifier, entry_name, relative_path, scraped_at)
+
+    print(f"[저장] {relative_path}")
     return filename
 
 
 def push_to_github(filepath: Path, commit_msg: str = "") -> bool:
     """
-    저장된 파일을 git add → commit → push.
-    실패 시 False 반환하고 로컬 파일은 보존.
+    저장된 결과 파일 + index.json 을 git add → commit → push.
     """
-    rel = str(filepath.relative_to(ROOT))
+    rel = str(filepath.relative_to(ROOT)).replace("\\", "/")
     msg = commit_msg or f"scraper: add result {rel}"
 
     print(f"[GitHub] push 시작: {rel}")
 
-    if not _run_git(["add", rel]):
+    # 결과 파일과 index.json 을 함께 스테이징
+    if not _run_git(["add", rel, "results/index.json"]):
         return False
 
-    # 변경 사항이 없으면 commit 건너뜀
+    # 변경 사항 확인
     status = subprocess.run(
-        ["git", "status", "--porcelain", rel],
+        ["git", "status", "--porcelain"],
         cwd=ROOT, capture_output=True, text=True
     )
     if not status.stdout.strip():
@@ -81,7 +139,7 @@ def push_to_github(filepath: Path, commit_msg: str = "") -> bool:
     if not _run_git(["push"]):
         return False
 
-    print(f"[GitHub] push 완료: {rel}")
+    print(f"[GitHub] push 완료 ✓")
     return True
 
 
