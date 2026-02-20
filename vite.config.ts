@@ -6,8 +6,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Vercel에서 주입되는 API_KEY 환경 변수를 브라우저 코드에서 process.env.API_KEY로 접근할 수 있게 합니다.
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
+    // Vercel에서 주입되는 환경 변수를 브라우저 코드에서 process.env.*로 접근할 수 있게 합니다.
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    // GitHub Raw URL 기반 결과 읽기 (Firebase 불필요)
+    'process.env.GITHUB_REPO': JSON.stringify(process.env.GITHUB_REPO),
+    'process.env.GITHUB_BRANCH': JSON.stringify(process.env.GITHUB_BRANCH ?? 'main'),
   },
   build: {
     outDir: 'dist',
