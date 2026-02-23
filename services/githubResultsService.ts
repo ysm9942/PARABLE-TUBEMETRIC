@@ -102,3 +102,78 @@ export const getAllAdResults = async () => {
   const results = await Promise.all(index.ads.map(e => fetchJSON(e.filename)));
   return results.filter(Boolean);
 };
+
+// ──────────────────────────────────────────────
+// 로컬 스크래퍼 Queue (Vercel → GitHub → 로컬)
+// ──────────────────────────────────────────────
+
+const WRITE_TOKEN = process.env.GITHUB_TOKEN ?? '';
+const GH_API = `https://api.github.com/repos/${REPO}`;
+
+/**
+ * Vercel 사이트에서 로컬 스크래퍼에 작업을 요청합니다.
+ * results/queue/{requestId}.json 파일을 GitHub에 생성합니다.
+ * 로컬 local_server.py 가 이 파일을 감지하고 스크래퍼를 실행합니다.
+ */
+export const submitScrapeRequest = async (
+  handles: string[],
+  type: 'channel' | 'video' = 'channel',
+  options: { scrolls?: number; headless?: boolean } = {}
+): Promise<{ requestId: string } | null> => {
+  if (!WRITE_TOKEN || !REPO) return null;
+
+  const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const path = `results/queue/${requestId}.json`;
+  const payload = {
+    requestId,
+    type,
+    handles,
+    options: { headless: true, scrolls: 10, ...options },
+    requestedAt: new Date().toISOString(),
+  };
+
+  // base64 인코딩 (GitHub API content 필드 요건)
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+
+  const res = await fetch(`${GH_API}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${WRITE_TOKEN}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/vnd.github+json',
+    },
+    body: JSON.stringify({
+      message: `scraper: queue ${requestId}`,
+      content: encoded,
+      branch: BRANCH,
+    }),
+  });
+
+  return res.ok ? { requestId } : null;
+};
+
+/**
+ * 큐 파일이 아직 존재하면 'pending', 삭제됐으면 'done' 반환.
+ * 로컬 서버가 처리 완료 후 파일을 삭제하므로 파일 유무로 상태를 판단합니다.
+ */
+export const checkQueueStatus = async (
+  requestId: string
+): Promise<'pending' | 'done' | 'error'> => {
+  if (!WRITE_TOKEN || !REPO) return 'error';
+  try {
+    const res = await fetch(
+      `${GH_API}/contents/results/queue/${requestId}.json?ref=${BRANCH}`,
+      {
+        headers: {
+          Authorization: `Bearer ${WRITE_TOKEN}`,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    );
+    if (res.status === 200) return 'pending';
+    if (res.status === 404) return 'done';
+    return 'error';
+  } catch {
+    return 'error';
+  }
+};

@@ -11,8 +11,9 @@ from tkinter import scrolledtext, messagebox
 
 SCRIPT_DIR = Path(__file__).parent
 ROOT = SCRIPT_DIR.parent
-TARGETS_FILE = SCRIPT_DIR / "targets.txt"
+TARGETS_FILE      = SCRIPT_DIR / "targets.txt"
 REQUIREMENTS_FILE = SCRIPT_DIR / "requirements.txt"
+LOCAL_SERVER      = SCRIPT_DIR / "local_server.py"
 
 
 # ── 패키지 확인/설치 ──────────────────────────────────────────────────────────
@@ -65,10 +66,11 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("PARABLE-TUBEMETRIC  |  YouTube 채널 스크래퍼")
-        self.geometry("740x640")
-        self.minsize(600, 500)
+        self.geometry("740x700")
+        self.minsize(600, 560)
         self.configure(bg=BG)
-        self._proc = None
+        self._proc        = None   # 스크래퍼 프로세스
+        self._server_proc = None   # 로컬 서버 프로세스
         self._build_ui()
         self._load_targets()
         # 백그라운드에서 패키지 확인
@@ -147,6 +149,50 @@ class App(tk.Tk):
             bg=DARK, fg="white", relief="flat",
             padx=10, pady=7, cursor="hand2",
         ).pack(side="right")
+
+        # ── 서버 모드 구분선 ──────────────────────────────────────────────────
+        sep = tk.Frame(self, bg="#2a2a3e", height=1)
+        sep.pack(fill="x", padx=12, pady=(6, 0))
+
+        srv_row = tk.Frame(self, bg=BG)
+        srv_row.pack(fill="x", padx=12, pady=6)
+
+        tk.Label(
+            srv_row,
+            text="서버 모드  (Vercel 사이트에서 요청 수신 → 자동 스크래핑)",
+            font=("Arial", 9), fg=FG_DIM, bg=BG,
+        ).pack(side="left")
+
+        self.server_status = tk.StringVar(value="")
+        tk.Label(srv_row, textvariable=self.server_status,
+                 font=("Arial", 9, "bold"), fg="#4CAF50", bg=BG).pack(side="left", padx=6)
+
+        srv_btn_row = tk.Frame(self, bg=BG)
+        srv_btn_row.pack(fill="x", padx=12, pady=(0, 4))
+
+        self.start_srv_btn = tk.Button(
+            srv_btn_row, text="▶  서버 시작",
+            command=self._start_server,
+            bg="#1565C0", fg="white", activebackground="#0d47a1",
+            font=("Arial", 9, "bold"), relief="flat",
+            padx=12, pady=5, cursor="hand2",
+        )
+        self.start_srv_btn.pack(side="left")
+
+        self.stop_srv_btn = tk.Button(
+            srv_btn_row, text="■  서버 중지",
+            command=self._stop_server, state="disabled",
+            bg="#37474f", fg="white", activebackground="#263238",
+            font=("Arial", 9), relief="flat",
+            padx=10, pady=5, cursor="hand2",
+        )
+        self.stop_srv_btn.pack(side="left", padx=5)
+
+        tk.Label(
+            srv_btn_row,
+            text="※ GITHUB_TOKEN / GITHUB_REPO 환경변수 필요",
+            font=("Arial", 8), fg="#555577", bg=BG,
+        ).pack(side="left", padx=8)
 
         # 로그 영역
         tk.Label(self, text="실행 로그", fg=FG_DIM, bg=BG, anchor="w",
@@ -294,6 +340,62 @@ class App(tk.Tk):
         self._proc = None
         self.run_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
+
+    # ── 서버 모드 ─────────────────────────────────────────────────────────────
+
+    def _start_server(self):
+        import os
+        token = os.environ.get("GITHUB_TOKEN", "")
+        repo  = os.environ.get("GITHUB_REPO", "")
+        if not token or not repo:
+            messagebox.showwarning(
+                "환경 변수 없음",
+                "서버 모드에 필요한 환경 변수가 없습니다.\n\n"
+                "CMD에서 다음과 같이 설정 후 재실행하세요:\n\n"
+                "  set GITHUB_TOKEN=ghp_...\n"
+                "  set GITHUB_REPO=owner/repo-name\n\n"
+                "또는 launcher_gui.py 와 같은 폴더에\n"
+                ".env 파일을 만들어 값을 적어도 됩니다.",
+            )
+            return
+
+        self._server_proc = subprocess.Popen(
+            [_python(), str(LOCAL_SERVER)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=str(SCRIPT_DIR),
+            encoding="utf-8",
+            errors="replace",
+            env=os.environ.copy(),
+        )
+        self.start_srv_btn.configure(state="disabled")
+        self.stop_srv_btn.configure(state="normal")
+        self.server_status.set("● 실행 중")
+        self._log("\n" + "─" * 52 + "\n")
+        self._log("[서버] 로컬 서버 시작됨 — Vercel 요청을 기다립니다.\n")
+        self._log("─" * 52 + "\n\n")
+        threading.Thread(target=self._poll_server, daemon=True).start()
+
+    def _poll_server(self):
+        if self._server_proc is None:
+            return
+        for line in self._server_proc.stdout:
+            self._log(line)
+        # 프로세스 종료됨
+        self.after(0, self._server_done)
+
+    def _stop_server(self):
+        if self._server_proc and self._server_proc.poll() is None:
+            self._server_proc.terminate()
+            self._log("\n[서버] 중지됨.\n")
+        self._server_done()
+
+    def _server_done(self):
+        self._server_proc = None
+        self.start_srv_btn.configure(state="normal")
+        self.stop_srv_btn.configure(state="disabled")
+        self.server_status.set("")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

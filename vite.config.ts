@@ -11,6 +11,8 @@ export default defineConfig({
     // GitHub Raw URL 기반 결과 읽기 (Firebase 불필요)
     'process.env.GITHUB_REPO': JSON.stringify(process.env.GITHUB_REPO),
     'process.env.GITHUB_BRANCH': JSON.stringify(process.env.GITHUB_BRANCH ?? 'main'),
+    // 로컬 스크래퍼 Queue 방식 - GitHub API write 권한 토큰
+    'process.env.GITHUB_TOKEN': JSON.stringify(process.env.GITHUB_TOKEN ?? ''),
   },
   build: {
     outDir: 'dist',
