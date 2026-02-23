@@ -39,14 +39,15 @@ import {
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult } from './types';
+import { submitScrapeRequest, checkQueueStatus, getAllChannelResults } from './services/githubResultsService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard';
 
 const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [pinInput, setPinInput] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
-  const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad'>('channel');
+  const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
   // Explanation Help
   const [showHelp, setShowHelp] = useState<boolean>(false);
@@ -81,6 +82,13 @@ const App: React.FC = () => {
   const [videoInput, setVideoInput] = useState<string>('');
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<VideoResult | null>(null);
+
+  // 로컬 스크래퍼 Queue 상태
+  const [scraperHandles, setScraperHandles] = useState<string>('');
+  const [scraperJobId, setScraperJobId]     = useState<string | null>(null);
+  const [scraperJobStatus, setScraperJobStatus] = useState<'idle' | 'submitting' | 'pending' | 'done' | 'error'>('idle');
+  const [scraperResults, setScraperResults] = useState<ChannelResult[]>([]);
+  const [scraperResultsLoading, setScraperResultsLoading] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -220,6 +228,57 @@ const App: React.FC = () => {
     }
     setIsProcessing(false);
   };
+
+  // ── 로컬 스크래퍼 Queue 핸들러 ──────────────────────────────────────────────
+
+  const handleScraperRequest = async () => {
+    const handles = scraperHandles.split('\n').map(h => h.trim()).filter(Boolean);
+    if (!handles.length) {
+      alert('스크래핑할 채널 핸들을 입력하세요. 예: @채널핸들');
+      return;
+    }
+    setScraperJobStatus('submitting');
+    const result = await submitScrapeRequest(handles, 'channel', { headless: true, scrolls: 10 });
+    if (!result) {
+      setScraperJobStatus('error');
+      return;
+    }
+    setScraperJobId(result.requestId);
+    setScraperJobStatus('pending');
+  };
+
+  const loadScraperResults = async () => {
+    setScraperResultsLoading(true);
+    const results = await getAllChannelResults();
+    setScraperResults((results as ChannelResult[]).filter(Boolean));
+    setScraperResultsLoading(false);
+  };
+
+  // 큐 파일 폴링: pending → done 감지
+  useEffect(() => {
+    if (scraperJobStatus !== 'pending' || !scraperJobId) return;
+    const interval = setInterval(async () => {
+      const status = await checkQueueStatus(scraperJobId);
+      if (status === 'done') {
+        setScraperJobStatus('done');
+        clearInterval(interval);
+        await loadScraperResults();
+        setActiveTab('dashboard');
+        setDashboardSubTab('scraper');
+      } else if (status === 'error') {
+        setScraperJobStatus('error');
+        clearInterval(interval);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [scraperJobStatus, scraperJobId]);
+
+  // 스크래퍼 대시보드 탭 진입 시 결과 로드
+  useEffect(() => {
+    if (activeTab === 'dashboard' && dashboardSubTab === 'scraper' && scraperResults.length === 0) {
+      loadScraperResults();
+    }
+  }, [activeTab, dashboardSubTab]);
 
   const handleAdStart = async () => {
     const inputs = adChannelInput.split('\n').map(s => s.trim()).filter(s => s.length > 0);
@@ -667,6 +726,7 @@ const App: React.FC = () => {
               { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
               { id: 'video-config', label: '단일 영상 분석', icon: Video },
               { id: 'ad-config', label: '광고 영상 분석', icon: Megaphone },
+              { id: 'scraper-config', label: '로컬 스크래퍼', icon: Activity },
               { id: 'dashboard', label: '데이터 대시보드', icon: BarChart3 },
             ].map((item) => (
               <button
@@ -953,29 +1013,115 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          ) : activeTab === 'scraper-config' ? (
+            /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
+            <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-2 bg-red-600 rounded-full" />
+                <h2 className="text-5xl font-black italic text-white uppercase">로컬 스크래퍼</h2>
+              </div>
+
+              {/* 설명 */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-8 space-y-3 text-sm text-zinc-400 leading-relaxed">
+                <p className="flex items-center gap-2 font-black text-zinc-200 text-base">
+                  <Activity size={18} className="text-red-600" /> 작동 방식
+                </p>
+                <div className="space-y-1.5 text-[13px]">
+                  <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-white">요청 전송</strong>을 클릭합니다.</p>
+                  <p>② GitHub <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                  <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">undetected_chromedriver</code>로 스크래핑합니다.</p>
+                  <p>④ 완료 후 GitHub에 결과를 push → 이 사이트 대시보드에 자동 반영됩니다.</p>
+                </div>
+                <div className="border-t border-white/10 pt-4 text-[11px] text-zinc-600">
+                  로컬 서버 실행: <code className="bg-white/10 px-2 py-1 rounded text-zinc-400">launcher_gui.py</code> → 서버 모드 켜기 &nbsp;|&nbsp; 또는 <code className="bg-white/10 px-2 py-1 rounded text-zinc-400">python scraper/local_server.py</code>
+                </div>
+              </div>
+
+              {/* 채널 입력 */}
+              <div className="bg-[#121212] rounded-[40px] border border-white/5 p-10 space-y-6 shadow-2xl">
+                <label className="text-[13px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
+                  <List size={16} className="text-red-600" /> 채널 목록 (한 줄에 하나, @ 핸들 또는 URL)
+                </label>
+                <textarea
+                  value={scraperHandles}
+                  onChange={e => setScraperHandles(e.target.value)}
+                  className="w-full h-52 p-8 bg-black/50 border border-white/5 rounded-[28px] text-white font-mono text-[15px] focus:outline-none focus:border-red-600/50 resize-none"
+                  placeholder={"@채널핸들1\n@채널핸들2\nhttps://youtube.com/@handle"}
+                />
+
+                {/* 상태 표시 */}
+                {scraperJobStatus !== 'idle' && (
+                  <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold ${
+                    scraperJobStatus === 'pending'    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                    scraperJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                    scraperJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                       'bg-red-500/10 text-red-400 border border-red-500/20'
+                  }`}>
+                    {scraperJobStatus === 'submitting' && <Loader2 size={16} className="animate-spin" />}
+                    {scraperJobStatus === 'pending'    && <Loader2 size={16} className="animate-spin" />}
+                    {scraperJobStatus === 'done'       && <CheckCircle2 size={16} />}
+                    {scraperJobStatus === 'error'      && <AlertCircle size={16} />}
+                    {{
+                      submitting: '요청을 GitHub에 전송 중...',
+                      pending:    `로컬 서버가 처리 중입니다... (10초마다 확인) — Job ID: ${scraperJobId?.slice(0,12)}`,
+                      done:       '완료! 대시보드에서 결과를 확인하세요.',
+                      error:      'GITHUB_TOKEN이 설정되지 않았거나 오류가 발생했습니다.',
+                      idle:       '',
+                    }[scraperJobStatus]}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleScraperRequest}
+                  disabled={scraperJobStatus === 'submitting' || scraperJobStatus === 'pending'}
+                  className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl shadow-red-600/20"
+                >
+                  {(scraperJobStatus === 'submitting' || scraperJobStatus === 'pending')
+                    ? <Loader2 className="animate-spin" />
+                    : <Activity size={24} />
+                  }
+                  {scraperJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : '로컬 스크래퍼에 요청 전송'}
+                </button>
+              </div>
+
+              {/* 빠른 대시보드 이동 */}
+              <button
+                onClick={() => { setActiveTab('dashboard'); setDashboardSubTab('scraper'); loadScraperResults(); }}
+                className="w-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white py-5 rounded-[24px] font-black text-sm flex items-center justify-center gap-3 transition-all"
+              >
+                <BarChart3 size={18} /> 스크래퍼 결과 대시보드 보기
+              </button>
+            </div>
           ) : (
             <div className="space-y-12 animate-in fade-in duration-700">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="space-y-2">
                   <h2 className="text-4xl font-black italic uppercase text-white">Data <span className="text-red-600">Report</span></h2>
                   <div className="flex items-center gap-4 mt-4">
-                    <button 
-                      onClick={() => setDashboardSubTab('channel')} 
+                    <button
+                      onClick={() => setDashboardSubTab('channel')}
                       className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'channel' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
                     >
                       Channel Analysis
                     </button>
-                    <button 
-                      onClick={() => setDashboardSubTab('video')} 
+                    <button
+                      onClick={() => setDashboardSubTab('video')}
                       className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'video' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
                     >
                       Video Analysis
                     </button>
-                    <button 
-                      onClick={() => setDashboardSubTab('ad')} 
+                    <button
+                      onClick={() => setDashboardSubTab('ad')}
                       className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'ad' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
                     >
                       Ad Analysis
+                    </button>
+                    <button
+                      onClick={() => { setDashboardSubTab('scraper'); loadScraperResults(); }}
+                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${dashboardSubTab === 'scraper' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      <Activity size={12} /> Scraper Results
+                      {scraperJobStatus === 'pending' && <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse ml-1" />}
                     </button>
                   </div>
                 </div>
@@ -984,6 +1130,94 @@ const App: React.FC = () => {
                 </button>
               </div>
 
+              {/* ── 스크래퍼 결과 (GitHub Raw) ─────────────────────────────── */}
+              {dashboardSubTab === 'scraper' && (
+                <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
+                  <div className="px-10 py-8 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Activity size={18} className="text-red-600" />
+                      <span className="font-black text-white text-sm uppercase tracking-widest">로컬 스크래퍼 결과</span>
+                      <span className="text-[10px] text-zinc-600 font-bold uppercase">from GitHub Raw</span>
+                    </div>
+                    <button
+                      onClick={loadScraperResults}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-2xl text-[11px] font-black text-zinc-400 hover:text-white transition-all"
+                    >
+                      {scraperResultsLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      새로고침
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
+                        <tr>
+                          <th className="px-10 py-8">Channel</th>
+                          <th className="px-10 py-8 text-center">Subscribers</th>
+                          <th className="px-10 py-8 text-right">Shorts Avg</th>
+                          <th className="px-10 py-8 text-right">Longform Avg</th>
+                          <th className="px-10 py-8 text-center">Scraped At</th>
+                          <th className="px-10 py-8 text-center">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {scraperResultsLoading ? (
+                          <tr><td colSpan={6} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-zinc-600" size={32} /></td></tr>
+                        ) : scraperResults.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-40 text-center">
+                              <div className="flex flex-col items-center gap-4 text-zinc-700">
+                                <Activity size={48} strokeWidth={1} />
+                                <p className="text-lg font-bold">아직 스크래퍼 결과가 없습니다.</p>
+                                <p className="text-sm">로컬 스크래퍼 탭에서 채널을 요청하세요.</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          scraperResults.map((r, i) => (
+                            <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                              <td className="px-10 py-8 flex items-center gap-6">
+                                {r.thumbnail ? (
+                                  <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                ) : (
+                                  <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center"><Activity className="text-zinc-700" size={20} /></div>
+                                )}
+                                <div>
+                                  <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
+                                  <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
+                                </div>
+                              </td>
+                              <td className="px-10 py-8 text-center">
+                                <span className="bg-zinc-900 px-4 py-2 rounded-xl text-zinc-400 font-black text-sm border border-white/5">{formatNumber(r.subscriberCount)}</span>
+                              </td>
+                              <td className="px-10 py-8 text-right">
+                                <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
+                                <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                              </td>
+                              <td className="px-10 py-8 text-right">
+                                <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
+                                <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                              </td>
+                              <td className="px-10 py-8 text-center text-[11px] text-zinc-500 font-mono">
+                                {(r as any).scrapedAt ? new Date((r as any).scrapedAt).toLocaleDateString('ko-KR') : '—'}
+                              </td>
+                              <td className="px-10 py-8 text-center">
+                                <button
+                                  onClick={() => setSelectedChannel(r)}
+                                  className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all active:scale-90"
+                                >
+                                  <Eye size={20} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {dashboardSubTab !== 'scraper' && (
               <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -1180,6 +1414,7 @@ const App: React.FC = () => {
                   </table>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
