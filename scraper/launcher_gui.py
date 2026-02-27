@@ -289,13 +289,6 @@ class App(tk.Tk):
                                    "채널 핸들을 입력하세요.\n예: @채널핸들")
             return
 
-        cmd = [_python(), str(SCRIPT_DIR / "main.py")]
-        if self.headless.get():
-            cmd.append("--headless")
-        if self.push.get():
-            cmd.append("--push")
-        cmd += ["channel"] + channels
-
         self.run_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self._set_status("실행 중...")
@@ -305,36 +298,112 @@ class App(tk.Tk):
             self._log("[설정] GitHub push 활성화 → 완료 후 Vercel 자동 반영\n")
         self._log("─" * 52 + "\n\n")
 
-        def _worker():
-            try:
-                self._proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    cwd=str(SCRIPT_DIR),
-                    bufsize=1,
-                    encoding="utf-8",
-                    errors="replace",
-                )
-                for line in self._proc.stdout:
-                    self._log(line)
-                rc = self._proc.wait()
-                self._log(f"\n[완료] 종료 코드: {rc}\n")
-                if rc == 0:
-                    msg = "스크래핑 완료!"
-                    if self.push.get():
-                        msg += "  GitHub push 완료 → Vercel에서 결과 확인 가능"
-                    self._set_status(msg)
-                else:
-                    self._set_status("오류 발생 — 로그를 확인하세요")
-            except Exception as e:
-                self._log(f"\n[오류] {e}\n")
-                self._set_status("오류 발생")
-            finally:
-                self.after(0, self._done)
+        if getattr(sys, 'frozen', False):
+            # PyInstaller exe: subprocess 대신 인라인 실행
+            # (sys.executable 이 exe 자신이므로 subprocess 사용 시 GUI 창이 또 열림)
+            threading.Thread(
+                target=self._scrape_inline,
+                args=(channels, self.headless.get(), self.push.get()),
+                daemon=True,
+            ).start()
+        else:
+            # 개발 환경: subprocess 로 main.py 실행
+            cmd = [_python(), str(SCRIPT_DIR / "main.py")]
+            if self.headless.get():
+                cmd.append("--headless")
+            if self.push.get():
+                cmd.append("--push")
+            cmd += ["channel"] + channels
 
-        threading.Thread(target=_worker, daemon=True).start()
+            def _worker():
+                try:
+                    self._proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        cwd=str(SCRIPT_DIR),
+                        bufsize=1,
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+                    for line in self._proc.stdout:
+                        self._log(line)
+                    rc = self._proc.wait()
+                    self._log(f"\n[완료] 종료 코드: {rc}\n")
+                    if rc == 0:
+                        msg = "스크래핑 완료!"
+                        if self.push.get():
+                            msg += "  GitHub push 완료 → Vercel에서 결과 확인 가능"
+                        self._set_status(msg)
+                    else:
+                        self._set_status("오류 발생 — 로그를 확인하세요")
+                except Exception as e:
+                    self._log(f"\n[오류] {e}\n")
+                    self._set_status("오류 발생")
+                finally:
+                    self.after(0, self._done)
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+    def _scrape_inline(self, channels: list, headless: bool, do_push: bool):
+        """PyInstaller 빌드 환경: 스크래퍼를 인-프로세스로 직접 실행.
+        print() 출력을 GUI 로그로 리디렉션한다."""
+        import contextlib
+
+        class _LogWriter:
+            def __init__(self, log_fn):
+                self._log = log_fn
+                self._buf = ""
+
+            def write(self, text: str):
+                self._buf += text
+                while "\n" in self._buf:
+                    line, self._buf = self._buf.split("\n", 1)
+                    self._log(line + "\n")
+
+            def flush(self):
+                if self._buf:
+                    self._log(self._buf)
+                    self._buf = ""
+
+        writer = _LogWriter(self._log)
+        try:
+            with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
+                from browser import create_driver
+                from channel_scraper import scrape_channel
+                from uploader import save_result, save_and_push
+
+                driver = create_driver(headless=headless)
+                self._inline_driver = driver
+                try:
+                    for ch in channels:
+                        try:
+                            result = scrape_channel(driver, ch)
+                            cid = result["channelId"]
+                            if do_push:
+                                save_and_push(result, "channels", cid)
+                            else:
+                                save_result(result, "channels", cid)
+                        except Exception as e:
+                            self._log(f"[오류] {ch}: {e}\n")
+                finally:
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    self._inline_driver = None
+
+            self._log("\n[완료] 스크래핑 완료!\n")
+            msg = "스크래핑 완료!"
+            if do_push:
+                msg += "  GitHub push 완료 → Vercel에서 결과 확인 가능"
+            self._set_status(msg)
+        except Exception as e:
+            self._log(f"\n[오류] {e}\n")
+            self._set_status("오류 발생")
+        finally:
+            self.after(0, self._done)
 
     def _stop(self):
         if self._proc and self._proc.poll() is None:
