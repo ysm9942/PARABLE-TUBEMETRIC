@@ -1,0 +1,43 @@
+name: Auto Merge Claude Branch to Main
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge claude branch into main
+        run: |
+          CLAUDE_BRANCH="${{ github.ref_name }}"
+          echo "Merging $CLAUDE_BRANCH → main"
+
+          git checkout main
+          git pull origin main
+
+          git merge "origin/$CLAUDE_BRANCH" \
+            --no-ff \
+            --strategy-option=theirs \
+            -m "auto-merge: $CLAUDE_BRANCH → main [skip ci]"
+
+          git push origin main
+
+      - name: Report result
+        if: success()
+        run: echo "✅ ${{ github.ref_name }} → main 머지 완료. Vercel 프로덕션 배포 시작됨."
