@@ -14,7 +14,12 @@ from pathlib import Path
 
 
 # 프로젝트 루트 (scraper/ 의 부모)
-ROOT = Path(__file__).parent.parent
+# PyInstaller 빌드 환경에서는 __file__ 이 임시 추출 디렉터리를 가리키므로
+# exe 위치를 기준으로 루트를 결정한다.
+if getattr(sys, 'frozen', False):
+    ROOT = Path(sys.executable).parent.parent
+else:
+    ROOT = Path(__file__).parent.parent
 INDEX_FILE = ROOT / "results" / "index.json"
 
 
