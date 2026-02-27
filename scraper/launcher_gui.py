@@ -9,7 +9,12 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
 
-SCRIPT_DIR = Path(__file__).parent
+# PyInstaller 빌드 환경에서는 __file__ 이 임시 추출 디렉터리를 가리키므로
+# exe 위치를 기준으로 경로를 설정한다.
+if getattr(sys, 'frozen', False):
+    SCRIPT_DIR = Path(sys.executable).parent
+else:
+    SCRIPT_DIR = Path(__file__).parent
 ROOT = SCRIPT_DIR.parent
 TARGETS_FILE      = SCRIPT_DIR / "targets.txt"
 REQUIREMENTS_FILE = SCRIPT_DIR / "requirements.txt"
