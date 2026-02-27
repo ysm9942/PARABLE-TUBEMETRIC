@@ -28,6 +28,16 @@ import requests
 ROOT        = Path(__file__).parent.parent
 SCRAPER_DIR = Path(__file__).parent
 
+# .env 파일 자동 로드 (환경변수가 이미 설정된 경우 덮어쓰지 않음)
+try:
+    from dotenv import load_dotenv
+    _env_file = SCRAPER_DIR / ".env"
+    if _env_file.exists():
+        load_dotenv(dotenv_path=_env_file, override=False)
+        print(f"[설정] .env 파일 로드됨: {_env_file}", flush=True)
+except ImportError:
+    pass
+
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO   = os.environ.get("GITHUB_REPO", "")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
