@@ -345,6 +345,14 @@ class App(tk.Tk):
 
     def _start_server(self):
         import os
+        # .env 파일 자동 로드 (환경변수가 이미 설정된 경우 덮어쓰지 않음)
+        try:
+            from dotenv import load_dotenv
+            _env = SCRIPT_DIR / ".env"
+            if _env.exists():
+                load_dotenv(dotenv_path=_env, override=False)
+        except ImportError:
+            pass
         token = os.environ.get("GITHUB_TOKEN", "")
         repo  = os.environ.get("GITHUB_REPO", "")
         if not token or not repo:
