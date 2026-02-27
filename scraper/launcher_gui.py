@@ -74,8 +74,9 @@ class App(tk.Tk):
         self.geometry("740x700")
         self.minsize(600, 560)
         self.configure(bg=BG)
-        self._proc        = None   # 스크래퍼 프로세스
-        self._server_proc = None   # 로컬 서버 프로세스
+        self._proc          = None   # 스크래퍼 프로세스 (subprocess 모드)
+        self._inline_driver = None   # 스크래퍼 드라이버 (inline 모드)
+        self._server_proc   = None   # 로컬 서버 프로세스
         self._build_ui()
         self._load_targets()
         # 백그라운드에서 패키지 확인
