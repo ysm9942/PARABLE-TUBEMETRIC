@@ -409,6 +409,13 @@ class App(tk.Tk):
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
             self._log("\n[중지] 사용자가 중지했습니다.\n")
+        if self._inline_driver:
+            try:
+                self._inline_driver.quit()
+            except Exception:
+                pass
+            self._inline_driver = None
+            self._log("\n[중지] 사용자가 중지했습니다.\n")
         self._done()
 
     def _done(self):
