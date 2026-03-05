@@ -28,7 +28,7 @@ def create_driver(headless: bool = False) -> uc.Chrome:
         "Chrome/120.0.0.0 Safari/537.36"
     )
 
-    driver = uc.Chrome(options=options, use_subprocess=True)
+    driver = uc.Chrome(options=options, use_subprocess=True, version_main=145)
     driver.set_page_load_timeout(30)
     return driver
 

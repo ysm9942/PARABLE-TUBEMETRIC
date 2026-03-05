@@ -194,36 +194,3 @@ def scrape_video(driver, video_input: str) -> dict:
         "status": "completed",
         "scrapedAt": datetime.utcnow().isoformat() + "Z",
     }
-
-
-def scrape_channel_ad_videos(driver, channel_url: str, start_date: str, end_date: str) -> list:
-    """
-    채널의 영상 목록을 가져온 뒤 날짜 범위 내 영상에 광고 분석 실행.
-    (channel_scraper + ad_detector 조합)
-    """
-    from channel_scraper import scrape_channel
-    from ad_detector import analyze_video_for_ad
-    from datetime import datetime as dt
-
-    channel_data = scrape_channel(driver, channel_url, max_scrolls=5)
-    all_videos = channel_data.get("shortsList", []) + channel_data.get("longsList", [])
-
-    start_dt = dt.fromisoformat(start_date.replace("Z", ""))
-    end_dt = dt.fromisoformat(end_date.replace("Z", ""))
-
-    ad_videos = []
-    for v in all_videos:
-        pub_str = v.get("publishedAt", "")
-        if pub_str:
-            try:
-                pub_dt = dt.fromisoformat(pub_str.replace("Z", ""))
-                if not (start_dt <= pub_dt <= end_dt):
-                    continue
-            except Exception:
-                pass
-
-        detection = analyze_video_for_ad(driver, v["id"])
-        if detection.get("is_ad"):
-            ad_videos.append({**v, "detection": detection})
-
-    return ad_videos
