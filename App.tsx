@@ -236,6 +236,17 @@ const App: React.FC = () => {
 
   // ── 로컬 스크래퍼 Queue 핸들러 ──────────────────────────────────────────────
 
+  const setScraperDatesByPeriod = (p: AnalysisPeriod) => {
+    const end = new Date();
+    let start = new Date();
+    if (p === '7d') start.setDate(end.getDate() - 7);
+    else if (p === '30d') start.setDate(end.getDate() - 30);
+    else if (p === '90d') start.setDate(end.getDate() - 90);
+    else if (p === 'all') start = new Date('2005-01-01');
+    setScraperStartDate(start.toISOString().split('T')[0]);
+    setScraperEndDate(end.toISOString().split('T')[0]);
+  };
+
   const handleScraperRequest = async () => {
     const handles = scraperHandles.split('\n').map(h => h.trim()).filter(Boolean);
     if (!handles.length) {
@@ -243,7 +254,12 @@ const App: React.FC = () => {
       return;
     }
     setScraperJobStatus('submitting');
-    const result = await submitScrapeRequest(handles, 'channel', { headless: true, scrolls: 10 });
+    const opts: { headless: boolean; scrolls: number; start?: string; end?: string } = { headless: true, scrolls: 10 };
+    if (scraperUseDateFilter) {
+      opts.start = scraperStartDate;
+      opts.end   = scraperEndDate;
+    }
+    const result = await submitScrapeRequest(handles, 'channel', opts);
     if (!result) {
       setScraperJobStatus('error');
       return;
