@@ -9,11 +9,12 @@ PARABLE-TUBEMETRIC — 내장 인증 정보
 
 # ── 여기만 수정하면 됩니다 ─────────────────────────────────────────────────────
 
-GITHUB_TOKEN  = ""            # GitHub Personal Access Token (ghp_...)
+GITHUB_TOKEN  = "ghp_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
+"            # GitHub Personal Access Token (ghp_...)
 GITHUB_REPO   = "ysm9942/PARABLE-TUBEMETRIC"
 GITHUB_BRANCH = "main"
 
-YOUTUBE_API_KEY = ""          # YouTube Data API v3 키 (AIzaSy...)
+YOUTUBE_API_KEY = "AIzaSyDyg1ThpwHJIL2lHJW9bixqiDawMBUK2uo"          # YouTube Data API v3 키 (AIzaSy...)
 
 # ─────────────────────────────────────────────────────────────────────────────
 
