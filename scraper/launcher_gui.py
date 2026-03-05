@@ -836,15 +836,8 @@ class ScraperTab(tk.Frame):
         self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
 
 
-# ── 설정 탭 ───────────────────────────────────────────────────────────────────
-class SettingsTab(tk.Frame):
-    """YouTube API Key와 GitHub Token을 GUI에서 직접 입력·저장하는 설정 탭."""
-
-    def __init__(self, master, app):
-        super().__init__(master, bg=BG)
-        self.app = app
-        self._build()
-        self._load()
+# ── 대시보드 탭 ───────────────────────────────────────────────────────────────
+class _SettingsTabRemoved:
 
     def _build(self):
         _section_header(self, "설정",
