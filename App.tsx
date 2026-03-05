@@ -90,6 +90,11 @@ const App: React.FC = () => {
   const [scraperResults, setScraperResults] = useState<ChannelResult[]>([]);
   const [scraperResultsLoading, setScraperResultsLoading] = useState(false);
 
+  // 스크래퍼 날짜 필터
+  const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
+  const [scraperStartDate, setScraperStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [scraperEndDate, setScraperEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
 
