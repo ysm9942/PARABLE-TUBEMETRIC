@@ -746,7 +746,6 @@ const App: React.FC = () => {
             {[
               { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
               { id: 'video-config', label: '단일 영상 분석', icon: Video },
-              { id: 'ad-config', label: '광고 영상 분석', icon: Megaphone },
               { id: 'scraper-config', label: '로컬 스크래퍼', icon: Activity },
               { id: 'dashboard', label: '데이터 대시보드', icon: BarChart3 },
             ].map((item) => (
