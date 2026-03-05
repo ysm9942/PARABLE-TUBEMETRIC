@@ -414,46 +414,6 @@ const App: React.FC = () => {
       });
 
       XLSX.writeFile(wb, `TubeMetric_Report_${timestamp}.xlsx`);
-    } else if (dashboardSubTab === 'ad') {
-      const adSummary = adResults.map(r => ({
-        '채널명': r.channelName,
-        '채널 ID': r.channelId,
-        '광고 영상 수': r.totalAdCount,
-        '광고 총 조회수': r.totalViews,
-        '광고 평균 조회수': r.avgViews,
-        '광고 평균 좋아요': r.avgLikes,
-        '광고 평균 댓글': r.avgComments,
-        '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
-      }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adSummary), '광고 통합 요약');
-
-      // 광고 분석에서도 개별 채널 탭 생성
-      adResults.forEach((r) => {
-        if (r.status === 'completed' && r.adVideos.length > 0) {
-          const videoData = r.adVideos.map(v => ({
-            '영상 링크': v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`,
-            '영상 제목': v.title,
-            '영상 ID': v.id,
-            '유형': v.isShort ? '쇼츠' : '롱폼',
-            '조회수': v.viewCount,
-            '좋아요': v.likeCount,
-            '댓글': v.commentCount,
-            '판별 근거': v.detection.evidence.join(', '),
-            '판별 방식': v.detection.method,
-            '신뢰도': (v.detection.confidence * 100).toFixed(1) + '%',
-            '게시일': new Date(v.publishedAt).toLocaleDateString()
-          }));
-
-          const wsChannel = XLSX.utils.json_to_sheet(videoData);
-          let sheetName = `광고_${r.channelName}`.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
-          if (wb.SheetNames.includes(sheetName)) {
-            sheetName = `광고_${r.channelId.substring(0, 10)}`.replace(/[\\/*?:[\]]/g, '');
-          }
-          XLSX.utils.book_append_sheet(wb, wsChannel, sheetName);
-        }
-      });
-
-      XLSX.writeFile(wb, `TubeMetric_Ad_Report_${timestamp}.xlsx`);
     } else {
       const data = videoResults.map((r) => ({
         '영상 링크': r.isShort ? `https://youtube.com/shorts/${r.videoId}` : `https://youtube.com/watch?v=${r.videoId}`,
