@@ -51,28 +51,8 @@ MACHINE_INFO = {
 }
 
 
-# ── 키 파일 저장/로드 ──────────────────────────────────────────────────────────
-def _save_keys(yt_key: str, gh_token: str, gh_repo: str):
-    data = {"youtube_api_key": yt_key, "github_token": gh_token, "github_repo": gh_repo}
-    KEYS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _load_keys() -> dict:
-    if KEYS_FILE.exists():
-        try:
-            return json.loads(KEYS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {}
-
-
-# ── 인증 정보 로드 ─────────────────────────────────────────────────────────────
+# ── 인증 정보 로드 (config.py 내장값 우선) ────────────────────────────────────
 def _load_credentials():
-    # 1순위: 사용자가 GUI에서 저장한 키 파일
-    keys = _load_keys()
-    if keys.get("github_token") and keys.get("github_repo"):
-        return keys["github_token"], keys["github_repo"]
-    # 2순위: config.py 내장값
     try:
         from config import get_github_token, GITHUB_REPO
         token = get_github_token()
@@ -80,31 +60,17 @@ def _load_credentials():
             return token, GITHUB_REPO
     except ImportError:
         pass
-    # 3순위: 환경 변수
     import os
-    try:
-        from dotenv import load_dotenv
-        env = SCRIPT_DIR / ".env"
-        if env.exists():
-            load_dotenv(env)
-    except ImportError:
-        pass
     return os.environ.get("GITHUB_TOKEN", ""), os.environ.get("GITHUB_REPO", "")
 
 
 def _load_yt_api_key() -> str:
-    # 1순위: 사용자가 GUI에서 저장한 키 파일
-    keys = _load_keys()
-    if keys.get("youtube_api_key"):
-        return keys["youtube_api_key"]
-    # 2순위: config.py 내장값
     try:
         from config import YOUTUBE_API_KEY
         if YOUTUBE_API_KEY:
             return YOUTUBE_API_KEY
     except (ImportError, AttributeError):
         pass
-    # 3순위: 환경 변수
     import os
     return os.environ.get("YOUTUBE_API_KEY", "")
 
