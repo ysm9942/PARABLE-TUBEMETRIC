@@ -94,12 +94,18 @@ def _load_credentials():
 
 
 def _load_yt_api_key() -> str:
+    # 1순위: 사용자가 GUI에서 저장한 키 파일
+    keys = _load_keys()
+    if keys.get("youtube_api_key"):
+        return keys["youtube_api_key"]
+    # 2순위: config.py 내장값
     try:
         from config import YOUTUBE_API_KEY
         if YOUTUBE_API_KEY:
             return YOUTUBE_API_KEY
     except (ImportError, AttributeError):
         pass
+    # 3순위: 환경 변수
     import os
     return os.environ.get("YOUTUBE_API_KEY", "")
 
