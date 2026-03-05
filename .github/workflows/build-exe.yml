@@ -33,22 +33,23 @@ jobs:
         env:
           SCRAPER_TOKEN_B64: ${{ secrets.SCRAPER_TOKEN_B64 }}
         run: |
-          import os
+          import os, textwrap
           token_b64 = os.environ.get("SCRAPER_TOKEN_B64", "")
-          content = f'''import base64
+          content = textwrap.dedent(f"""
+              import base64
 
-_GITHUB_TOKEN_B64 = "{token_b64}"
-GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
-GITHUB_BRANCH     = "main"
+              _GITHUB_TOKEN_B64 = "{token_b64}"
+              GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
+              GITHUB_BRANCH     = "main"
 
-def get_github_token() -> str:
-    if not _GITHUB_TOKEN_B64:
-        return ""
-    try:
-        return base64.b64decode(_GITHUB_TOKEN_B64).decode()
-    except Exception:
-        return ""
-'''
+              def get_github_token() -> str:
+                  if not _GITHUB_TOKEN_B64:
+                      return ""
+                  try:
+                      return base64.b64decode(_GITHUB_TOKEN_B64).decode()
+                  except Exception:
+                      return ""
+          """).lstrip()
           with open("scraper/config.py", "w", encoding="utf-8") as f:
               f.write(content)
           print("config.py injected")
