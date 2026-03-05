@@ -17,7 +17,8 @@ a = Analysis(
         ('.env.example', '.'),
     ],
     hiddenimports=[
-        # 로컬 스크래퍼 모듈 (launcher_gui.py 에서 직접 import 하지 않으므로 명시)
+        # 로컬 스크래퍼 모듈
+        'config',
         'browser',
         'channel_scraper',
         'video_scraper',
