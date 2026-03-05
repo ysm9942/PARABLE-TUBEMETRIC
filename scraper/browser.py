@@ -1,9 +1,35 @@
 """
 Undetected ChromeDriver 브라우저 설정
 """
+import re
+import subprocess
 import undetected_chromedriver as uc
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+
+def _get_chrome_major_version() -> int | None:
+    """설치된 Chrome의 메이저 버전을 자동 감지"""
+    # Linux/Mac
+    for cmd in (["google-chrome", "--version"], ["google-chrome-stable", "--version"],
+                ["chromium-browser", "--version"], ["chromium", "--version"],
+                ["google-chrome.exe", "--version"]):
+        try:
+            out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
+            m = re.search(r"(\d+)\.", out)
+            if m:
+                return int(m.group(1))
+        except Exception:
+            continue
+    # Windows 레지스트리
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon")
+        ver, _ = winreg.QueryValueEx(key, "version")
+        return int(ver.split(".")[0])
+    except Exception:
+        pass
+    return None
 
 
 def create_driver(headless: bool = False) -> uc.Chrome:
