@@ -31,32 +31,37 @@ def cmd_channel(args):
                 result = scrape_channel(driver, channel_input, max_scrolls=args.scrolls)
                 channel_id = result["channelId"]
 
-                if args.ad:
-                    all_videos = result.get("shortsList", []) + result.get("longsList", [])
+                # 날짜 필터 (--start/--end 지정 시 shortsList/longsList 모두 필터링)
+                if args.start and args.end:
+                    start_dt = datetime.fromisoformat(args.start)
+                    end_dt = datetime.fromisoformat(args.end)
 
-                    # 날짜 필터 (--start/--end 지정 시)
-                    if args.start and args.end:
-                        start_dt = datetime.fromisoformat(args.start)
-                        end_dt = datetime.fromisoformat(args.end)
-                        filtered = []
-                        for v in all_videos:
+                    def _date_filter(videos):
+                        out = []
+                        for v in videos:
                             pub_str = v.get("publishedAt", "")
                             if pub_str:
                                 try:
                                     pub_dt = datetime.fromisoformat(pub_str.replace("Z", ""))
                                     if start_dt <= pub_dt <= end_dt:
-                                        filtered.append(v)
+                                        out.append(v)
                                 except Exception:
-                                    filtered.append(v)
+                                    out.append(v)
                             else:
-                                filtered.append(v)
-                    else:
-                        filtered = all_videos
+                                out.append(v)
+                        return out
 
-                    print(f"  → 광고 분석 대상: {len(filtered)}개")
+                    result["shortsList"] = _date_filter(result.get("shortsList", []))
+                    result["longsList"] = _date_filter(result.get("longsList", []))
+                    result["liveList"] = _date_filter(result.get("liveList", []))
+                    print(f"  → 날짜 필터 적용: Shorts {len(result['shortsList'])}개, 롱폼 {len(result['longsList'])}개")
+
+                if args.ad:
+                    all_videos = result.get("shortsList", []) + result.get("longsList", [])
+                    print(f"  → 광고 분석 대상: {len(all_videos)}개")
 
                     ad_videos = []
-                    for v in filtered:
+                    for v in all_videos:
                         detection = analyze_video_for_ad(driver, v["id"])
                         v["detection"] = detection
                         if detection.get("is_ad"):
