@@ -128,6 +128,9 @@ def _run_scraper(job: dict) -> bool:
     if job_type == "channel" and opts.get("scrolls"):
         cmd += ["--scrolls", str(opts["scrolls"])]
 
+    if opts.get("start") and opts.get("end"):
+        cmd += ["--start", opts["start"], "--end", opts["end"]]
+
     log(f"[실행] {' '.join(cmd)}")
     try:
         proc = subprocess.run(
