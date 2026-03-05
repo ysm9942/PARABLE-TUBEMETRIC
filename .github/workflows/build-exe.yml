@@ -26,30 +26,24 @@ jobs:
           pip install pyinstaller
           pip install -r scraper/requirements.txt
 
-      - name: Inject token into config.py
-        # SCRAPER_TOKEN_B64 시크릿: base64 인코딩된 GitHub PAT
-        # 만드는 법: python -c "import base64; print(base64.b64encode(b'ghp_토큰').decode())"
+      - name: Inject secrets into config.py
         shell: python
         env:
-          SCRAPER_TOKEN_B64: ${{ secrets.SCRAPER_TOKEN_B64 }}
+          SCRAPER_GITHUB_TOKEN: ${{ secrets.SCRAPER_GITHUB_TOKEN }}
+          SCRAPER_YOUTUBE_API_KEY: ${{ secrets.SCRAPER_YOUTUBE_API_KEY }}
         run: |
           import os, textwrap
-          token_b64 = os.environ.get("SCRAPER_TOKEN_B64", "")
-          content = textwrap.dedent(f"""
-              import base64
-
-              _GITHUB_TOKEN_B64 = "{token_b64}"
-              GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
-              GITHUB_BRANCH     = "main"
+          gh_token  = os.environ.get("SCRAPER_GITHUB_TOKEN", "")
+          yt_key    = os.environ.get("SCRAPER_YOUTUBE_API_KEY", "")
+          content = textwrap.dedent(f'''
+              GITHUB_TOKEN    = "{gh_token}"
+              GITHUB_REPO     = "ysm9942/PARABLE-TUBEMETRIC"
+              GITHUB_BRANCH   = "main"
+              YOUTUBE_API_KEY = "{yt_key}"
 
               def get_github_token() -> str:
-                  if not _GITHUB_TOKEN_B64:
-                      return ""
-                  try:
-                      return base64.b64decode(_GITHUB_TOKEN_B64).decode()
-                  except Exception:
-                      return ""
-          """).lstrip()
+                  return GITHUB_TOKEN
+          ''').lstrip()
           with open("scraper/config.py", "w", encoding="utf-8") as f:
               f.write(content)
           print("config.py injected")
