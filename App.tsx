@@ -1235,49 +1235,7 @@ const App: React.FC = () => {
               <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    {dashboardSubTab === 'ad' ? (
-                      <>
-                        <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-widest">
-                          <tr>
-                            <th className="px-10 py-8">Channel Information</th>
-                            <th className="px-10 py-8 text-center">Ads Found</th>
-                            <th className="px-10 py-8 text-right">Avg Views</th>
-                            <th className="px-10 py-8 text-right">Avg Likes</th>
-                            <th className="px-10 py-8 text-center">Detail</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {adResults.length === 0 ? (
-                            <tr><td colSpan={5} className="py-40 text-center font-bold text-zinc-700">분석된 광고 데이터가 없습니다.</td></tr>
-                          ) : (
-                            adResults.map((r, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                                <td className="px-10 py-8 flex items-center gap-6">
-                                  {r.thumbnail ? (
-                                    <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
-                                  ) : (
-                                    <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center"><Loader2 className="animate-spin text-zinc-700" size={16} /></div>
-                                  )}
-                                  <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
-                                </td>
-                                <td className="px-10 py-8 text-center"><span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-black text-sm">{r.totalAdCount}</span></td>
-                                <td className="px-10 py-8 text-right font-black text-xl">{r.avgViews.toLocaleString()}</td>
-                                <td className="px-10 py-8 text-right font-black text-red-500">{r.avgLikes.toLocaleString()}</td>
-                                <td className="px-10 py-8 text-center">
-                                  <button 
-                                    disabled={r.status !== 'completed'}
-                                    onClick={() => setSelectedAdResult(r)}
-                                    className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all disabled:opacity-20"
-                                  >
-                                    <Eye size={20} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </>
-                    ) : dashboardSubTab === 'channel' ? (
+                    {dashboardSubTab === 'channel' ? (
                       <>
                         <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
                           <tr>
