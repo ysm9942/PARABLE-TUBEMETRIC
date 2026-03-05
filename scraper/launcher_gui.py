@@ -1546,6 +1546,7 @@ class MainApp(tk.Frame):
             "ad":        AdTab(self.content, self),
             "scraper":   ScraperTab(self.content, self),
             "dashboard": self.dashboard,
+            "settings":  SettingsTab(self.content, self),
         }
         self.switch_tab("channel")
 
