@@ -52,6 +52,21 @@ MACHINE_INFO = {
 }
 
 
+# ── 키 파일 저장/로드 ──────────────────────────────────────────────────────────
+def _save_keys(yt_key: str, gh_token: str, gh_repo: str):
+    data = {"youtube_api_key": yt_key, "github_token": gh_token, "github_repo": gh_repo}
+    KEYS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_keys() -> dict:
+    if KEYS_FILE.exists():
+        try:
+            return json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
 # ── 인증 정보 로드 ─────────────────────────────────────────────────────────────
 def _load_credentials():
     try:
