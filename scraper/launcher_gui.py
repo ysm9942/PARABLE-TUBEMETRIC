@@ -26,6 +26,7 @@ else:
     SCRIPT_DIR = Path(__file__).parent
 
 TARGETS_FILE = SCRIPT_DIR / "targets.txt"
+KEYS_FILE    = SCRIPT_DIR / "tubemetric_keys.json"
 
 # ── 색상 팔레트 ────────────────────────────────────────────────────────────────
 BG      = "#0a0a0a"
