@@ -969,6 +969,65 @@ const App: React.FC = () => {
                   placeholder={"@채널핸들1\n@채널핸들2\nhttps://youtube.com/@handle"}
                 />
 
+                {/* 날짜 범위 설정 */}
+                <div className="space-y-5 border-t border-white/5 pt-6">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
+                      <CalendarDays size={14} className="text-red-500" /> 수집 기간 설정
+                    </label>
+                    <button
+                      onClick={() => setScraperUseDateFilter(!scraperUseDateFilter)}
+                      className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${scraperUseDateFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                    >
+                      {scraperUseDateFilter ? 'ENABLED' : 'DISABLED'}
+                    </button>
+                  </div>
+
+                  <div className={`space-y-4 transition-opacity ${!scraperUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
+                    {/* 프리셋 버튼 */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setScraperDatesByPeriod(p)}
+                          className="py-2.5 text-[11px] font-black rounded-xl bg-white/5 text-white hover:bg-red-600 hover:text-white transition-all active:scale-95"
+                        >
+                          {periodLabels[p]}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 직접 날짜 입력 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="group relative bg-black/40 border border-white/5 hover:border-red-600/30 rounded-2xl p-4 transition-all">
+                        <label className="absolute -top-2.5 left-4 bg-[#121212] px-2 text-[9px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">Start</label>
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-red-600 shrink-0" />
+                          <input
+                            type="date"
+                            value={scraperStartDate}
+                            onChange={e => setScraperStartDate(e.target.value)}
+                            className="w-full bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                          />
+                        </div>
+                      </div>
+                      <div className="group relative bg-black/40 border border-white/5 hover:border-red-600/30 rounded-2xl p-4 transition-all">
+                        <label className="absolute -top-2.5 left-4 bg-[#121212] px-2 text-[9px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">End</label>
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-red-600 shrink-0" />
+                          <input
+                            type="date"
+                            value={scraperEndDate}
+                            onChange={e => setScraperEndDate(e.target.value)}
+                            className="w-full bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
+                  </div>
+                </div>
+
                 {/* 상태 표시 */}
                 {scraperJobStatus !== 'idle' && (
                   <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold ${
