@@ -18,6 +18,8 @@ _GITHUB_TOKEN_B64 = "ghp_github_pat_11BZNT3NI09oCdBuYsOZb1_KAcDZcTLzzTEmpUjYUs8X
 GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
 GITHUB_BRANCH     = "main"
 
+YOUTUBE_API_KEY   = ""            # YouTube Data API v3 키
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 
