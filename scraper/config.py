@@ -18,6 +18,8 @@ _GITHUB_TOKEN_B64 = ""            # base64 인코딩된 GitHub 토큰
 GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
 GITHUB_BRANCH     = "main"
 
+YOUTUBE_API_KEY   = ""            # YouTube Data API v3 키
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 
