@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 환경 변수 (토큰 등 민감 정보 — 절대 커밋하지 않음)
+.env
+.env.*
+!.env.example
+scraper/.env
+scraper/.env.*
+!scraper/.env.example
+
+# PyInstaller 빌드 산출물
+scraper/build/
+scraper/dist/
+scraper/__pycache__/
