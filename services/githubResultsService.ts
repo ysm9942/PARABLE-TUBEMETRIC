@@ -118,7 +118,7 @@ const GH_API = `https://api.github.com/repos/${REPO}`;
 export const submitScrapeRequest = async (
   handles: string[],
   type: 'channel' | 'video' = 'channel',
-  options: { scrolls?: number; headless?: boolean } = {}
+  options: { scrolls?: number; headless?: boolean; start?: string; end?: string } = {}
 ): Promise<{ requestId: string } | null> => {
   if (!WRITE_TOKEN || !REPO) return null;
 
