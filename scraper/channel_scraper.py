@@ -337,7 +337,11 @@ def scrape_channel(driver, channel_input: str, max_scrolls: int = 10) -> dict:
     # 채널 ID는 URL에서 추출
     current_url = driver.current_url
     cid_match = re.search(r"channel/(UC[a-zA-Z0-9_-]{22})", current_url)
-    channel_id = cid_match.group(1) if cid_match else channel_input.replace("@", "")
+    if cid_match:
+        channel_id = cid_match.group(1)
+    else:
+        handle_match = re.search(r"/@([^/?&#]+)", channel_input)
+        channel_id = handle_match.group(1) if handle_match else channel_input.lstrip("@")
 
     # 채널 아이콘 (ytInitialData > header > avatar)
     thumbnail = ""
