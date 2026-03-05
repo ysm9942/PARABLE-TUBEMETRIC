@@ -14,7 +14,7 @@ import base64
 
 # ── 여기만 수정하면 됩니다 ─────────────────────────────────────────────────────
 
-_GITHUB_TOKEN_B64 = ""            # base64 인코딩된 GitHub 토큰
+_GITHUB_TOKEN_B64 = "ghp_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"            # base64 인코딩된 GitHub 토큰
 GITHUB_REPO       = "ysm9942/PARABLE-TUBEMETRIC"
 GITHUB_BRANCH     = "main"
 
