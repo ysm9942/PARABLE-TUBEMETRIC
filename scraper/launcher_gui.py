@@ -69,6 +69,11 @@ def _load_keys() -> dict:
 
 # ── 인증 정보 로드 ─────────────────────────────────────────────────────────────
 def _load_credentials():
+    # 1순위: 사용자가 GUI에서 저장한 키 파일
+    keys = _load_keys()
+    if keys.get("github_token") and keys.get("github_repo"):
+        return keys["github_token"], keys["github_repo"]
+    # 2순위: config.py 내장값
     try:
         from config import get_github_token, GITHUB_REPO
         token = get_github_token()
@@ -76,6 +81,7 @@ def _load_credentials():
             return token, GITHUB_REPO
     except ImportError:
         pass
+    # 3순위: 환경 변수
     import os
     try:
         from dotenv import load_dotenv
