@@ -112,7 +112,8 @@ def save_result(data: dict, data_type: str, identifier: str) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filepath = out_dir / f"{identifier}_{timestamp}.json"
+    safe_id = re.sub(r'[<>:"/\\|?*]', "_", identifier)
+    filepath = out_dir / f"{safe_id}_{timestamp}.json"
     filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     rel_path = f"results/{data_type}/{filepath.name}"
