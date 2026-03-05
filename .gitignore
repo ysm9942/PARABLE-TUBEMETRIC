@@ -23,13 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
-# 환경 변수 (토큰 등 민감 정보 — 절대 커밋하지 않음)
+# 환경 변수 및 내장 인증 정보 (절대 커밋하지 않음)
 .env
 .env.*
 !.env.example
 scraper/.env
 scraper/.env.*
 !scraper/.env.example
+scraper/config.py
 
 # PyInstaller 빌드 산출물
 scraper/build/
