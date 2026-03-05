@@ -1,258 +1,394 @@
 """
-PARABLE-TUBEMETRIC GUI 런처
-더블클릭 → 자동 패키지 설치 → 채널 스크래핑 → GitHub push → Vercel 자동 반영
+PARABLE-TUBEMETRIC — Local Scraper Launcher
+
+Vercel 대시보드와 동일한 UI/UX:
+  - 검정 배경 + 레드 액센트
+  - PIN 잠금 화면
+  - 스크래핑 시작 시 CMD 스타일 콘솔 팝업 (완료 후 자동 닫힘)
+  - 머신 정보(운영자/PC명) 자동 포함
 """
 import sys
-import subprocess
 import threading
+import socket
+import getpass
+import platform
 from pathlib import Path
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
 
-# PyInstaller 빌드 환경에서는 __file__ 이 임시 추출 디렉터리를 가리키므로
-# exe 위치를 기준으로 경로를 설정한다.
+# PyInstaller frozen path fix
 if getattr(sys, 'frozen', False):
     SCRIPT_DIR = Path(sys.executable).parent
 else:
     SCRIPT_DIR = Path(__file__).parent
-ROOT = SCRIPT_DIR.parent
-TARGETS_FILE      = SCRIPT_DIR / "targets.txt"
-REQUIREMENTS_FILE = SCRIPT_DIR / "requirements.txt"
-LOCAL_SERVER      = SCRIPT_DIR / "local_server.py"
+
+TARGETS_FILE = SCRIPT_DIR / "targets.txt"
+
+# ── 색상 팔레트 (Vercel 대시보드 스타일) ─────────────────────────────────────
+BG      = "#0a0a0a"
+BG2     = "#111111"
+BG3     = "#1a1a1a"
+BORDER  = "#222222"
+FG      = "#f4f4f5"
+FG_DIM  = "#71717a"
+ACCENT  = "#dc2626"
+ACCENT2 = "#ef4444"
+GREEN   = "#22c55e"
+
+PIN_CORRECT = "5350"
+
+MACHINE_INFO = {
+    "operator": getpass.getuser(),
+    "hostname": socket.gethostname(),
+    "os": f"{platform.system()} {platform.release()}",
+}
 
 
-# ── 패키지 확인/설치 ──────────────────────────────────────────────────────────
-
-def _python() -> str:
-    return sys.executable
-
-
-def _pkgs_ok() -> bool:
+# ── 인증 정보 로드 ─────────────────────────────────────────────────────────────
+def _load_credentials() -> tuple[str, str]:
+    """(token, repo) 로드. config.py → .env → 환경변수 순."""
     try:
-        import undetected_chromedriver  # noqa
-        import selenium               # noqa
-        import requests               # noqa
-        return True
+        from config import get_github_token, GITHUB_REPO
+        token = get_github_token()
+        if token:
+            return token, GITHUB_REPO
     except ImportError:
-        return False
+        pass
+    import os
+    try:
+        from dotenv import load_dotenv
+        env = SCRIPT_DIR / ".env"
+        if env.exists():
+            load_dotenv(env)
+    except ImportError:
+        pass
+    return os.environ.get("GITHUB_TOKEN", ""), os.environ.get("GITHUB_REPO", "")
 
 
-def _install_pkgs(log_fn) -> bool:
-    log_fn("[설치] 필요한 패키지를 설치합니다... (최초 1회, 1~3분 소요)\n")
-    proc = subprocess.run(
-        [_python(), "-m", "pip", "install", "--upgrade", "pip", "-q"],
-        capture_output=True, text=True,
-    )
-    proc = subprocess.run(
-        [_python(), "-m", "pip", "install", "-r", str(REQUIREMENTS_FILE)],
-        capture_output=True, text=True, cwd=str(SCRIPT_DIR),
-    )
-    if proc.returncode == 0:
-        log_fn("[설치] 완료! 모든 패키지가 준비되었습니다.\n\n")
-        return True
-    log_fn(f"[오류] 설치 실패:\n{proc.stderr}\n")
-    return False
+# ── ConsoleWindow (CMD 스타일 팝업) ───────────────────────────────────────────
+class ConsoleWindow(tk.Toplevel):
+    """스크래핑 시작 시 팝업, 완료 후 5초 뒤 자동 닫힘."""
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("PARABLE-TUBEMETRIC  |  스크래핑 실행 중")
+        self.geometry("760x460")
+        self.configure(bg="#0c0c0c")
+        self.resizable(True, True)
+        self._closed = False
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # 제목 바
+        bar = tk.Frame(self, bg="#161616")
+        bar.pack(fill="x")
+        tk.Label(
+            bar,
+            text="  ■  PARABLE-TUBEMETRIC  —  스크래핑 실행 중",
+            font=("Consolas", 9, "bold"),
+            bg="#161616", fg="#555", pady=7, anchor="w",
+        ).pack(fill="x", padx=4)
+
+        # 로그 영역
+        self.log = scrolledtext.ScrolledText(
+            self, font=("Consolas", 10),
+            bg="#0c0c0c", fg="#cccccc",
+            insertbackground="white",
+            relief="flat", padx=14, pady=10,
+            state="disabled",
+        )
+        self.log.pack(fill="both", expand=True)
+        self.log.tag_configure("ok",    foreground="#4ade80")
+        self.log.tag_configure("err",   foreground="#f87171")
+        self.log.tag_configure("info",  foreground="#60a5fa")
+        self.log.tag_configure("done",  foreground="#4ade80", font=("Consolas", 10, "bold"))
+
+    def append(self, text: str):
+        def _do():
+            self.log.configure(state="normal")
+            tag = ""
+            low = text.lower()
+            if any(k in low for k in ["완료", "✓", "push 완료", "done"]):
+                tag = "ok"
+            elif any(k in low for k in ["오류", "error", "fail", "✗"]):
+                tag = "err"
+            elif text.startswith("["):
+                tag = "info"
+            self.log.insert("end", text, tag or "")
+            self.log.see("end")
+            self.log.configure(state="disabled")
+        self.after(0, _do)
+
+    def finish(self, success: bool = True):
+        """완료 메시지 출력 후 5초 뒤 자동 닫기."""
+        if success:
+            msg = "\n✓  스크래핑 완료  —  5초 후 창이 닫힙니다.\n"
+        else:
+            msg = "\n✗  오류 발생  —  5초 후 창이 닫힙니다.\n"
+        self.append(msg)
+        if not self._closed:
+            self.after(5000, self._safe_destroy)
+
+    def _safe_destroy(self):
+        if not self._closed:
+            self.destroy()
+
+    def _on_close(self):
+        self._closed = True
+        self.destroy()
 
 
-# ── GUI ───────────────────────────────────────────────────────────────────────
+# ── PIN 화면 ──────────────────────────────────────────────────────────────────
+class PinScreen(tk.Frame):
+    """Vercel 잠금 화면과 동일한 스타일."""
 
-BG       = "#0f0f1a"
-BG2      = "#1a1a2e"
-BG3      = "#1e1e30"
-FG       = "#d4d4d4"
-FG_DIM   = "#888aaa"
-ACCENT   = "#7c83fd"
-GREEN    = "#4CAF50"
-RED      = "#e53935"
-DARK     = "#37474f"
+    def __init__(self, master, on_success):
+        super().__init__(master, bg=BG)
+        self.on_success = on_success
+        self._build()
+
+    def _build(self):
+        center = tk.Frame(self, bg=BG)
+        center.place(relx=0.5, rely=0.5, anchor="center")
+
+        # 아이콘
+        icon = tk.Frame(center, bg=ACCENT, width=78, height=78)
+        icon.pack_propagate(False)
+        icon.pack(pady=(0, 18))
+        tk.Label(icon, text="🔒", font=("Arial", 30), bg=ACCENT, fg="white").pack(expand=True)
+
+        # 제목
+        tk.Label(center, text="PARABLE-", font=("Arial", 26, "bold"),
+                 bg=BG, fg=FG).pack()
+        tk.Label(center, text="TUBEMETRIC", font=("Arial", 26, "bold"),
+                 bg=BG, fg=ACCENT).pack()
+        tk.Label(center, text="SYSTEM  LOCKED", font=("Arial", 8, "bold"),
+                 bg=BG, fg=FG_DIM, pady=6).pack()
+
+        tk.Frame(center, height=16, bg=BG).pack()
+
+        # 입력 필드
+        border = tk.Frame(center, bg=BORDER, padx=1, pady=1)
+        border.pack(fill="x", pady=(0, 10))
+        self._pin = tk.StringVar()
+        self._entry = tk.Entry(
+            border, textvariable=self._pin,
+            show="●", font=("Consolas", 24, "bold"),
+            bg=BG3, fg=FG, insertbackground=ACCENT,
+            relief="flat", justify="center", width=11,
+        )
+        self._entry.pack(ipady=14, ipadx=20)
+        self._entry.bind("<Return>", lambda _: self._submit())
+        self._entry.focus()
+
+        # 버튼
+        tk.Button(
+            center, text="UNLOCK  →",
+            command=self._submit,
+            bg=ACCENT, fg="white", activebackground=ACCENT2,
+            font=("Arial", 11, "bold"), relief="flat",
+            cursor="hand2", pady=12,
+        ).pack(fill="x")
+
+        tk.Label(center, text="AUTHORIZED ACCESS ONLY",
+                 font=("Arial", 7, "bold"), bg=BG, fg="#27272a",
+                 pady=14).pack()
+
+    def _submit(self):
+        if self._pin.get() == PIN_CORRECT:
+            self.on_success()
+        else:
+            self._entry.configure(bg="#2d0a0a")
+            self.after(500, lambda: self._entry.configure(bg=BG3))
+            self._pin.set("")
 
 
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("PARABLE-TUBEMETRIC  |  YouTube 채널 스크래퍼")
-        self.geometry("740x700")
-        self.minsize(600, 560)
-        self.configure(bg=BG)
-        self._proc          = None   # 스크래퍼 프로세스 (subprocess 모드)
-        self._inline_driver = None   # 스크래퍼 드라이버 (inline 모드)
-        self._server_proc   = None   # 로컬 서버 프로세스
+# ── 메인 앱 ──────────────────────────────────────────────────────────────────
+class MainApp(tk.Frame):
+
+    def __init__(self, master):
+        super().__init__(master, bg=BG)
+        self._inline_driver = None
+        self._console_win: ConsoleWindow | None = None
         self._build_ui()
         self._load_targets()
-        # 백그라운드에서 패키지 확인
-        threading.Thread(target=self._check_pkgs, daemon=True).start()
+        self._refresh_cred_status()
 
     # ── UI 빌드 ───────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        # 헤더
-        hdr = tk.Frame(self, bg=BG2, pady=14)
-        hdr.pack(fill="x")
-        tk.Label(hdr, text="PARABLE-TUBEMETRIC",
-                 font=("Arial", 15, "bold"), fg=ACCENT, bg=BG2).pack()
-        tk.Label(hdr,
-                 text="YouTube 채널 스크래퍼  →  GitHub push  →  Vercel 자동 반영",
-                 font=("Arial", 9), fg=FG_DIM, bg=BG2).pack()
+        # 사이드바
+        sidebar = tk.Frame(self, bg=BG2, width=192)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
 
-        # 채널 입력
-        ch_wrap = tk.Frame(self, bg=BG)
-        ch_wrap.pack(fill="x", padx=12, pady=(10, 0))
-        tk.Label(ch_wrap, text="채널 목록  (한 줄에 하나, # 은 주석)",
-                 fg=FG_DIM, bg=BG, anchor="w").pack(fill="x")
-        ch_border = tk.Frame(ch_wrap, bg=ACCENT, bd=1)
-        ch_border.pack(fill="x", pady=(3, 0))
+        # 로고
+        logo = tk.Frame(sidebar, bg=BG2, pady=22)
+        logo.pack(fill="x")
+        tk.Label(logo, text="⬤", font=("Arial", 14), bg=BG2, fg=ACCENT).pack()
+        tk.Label(logo, text="TubeMetric", font=("Arial", 12, "bold"),
+                 bg=BG2, fg=FG).pack()
+        tk.Label(logo, text=f"@{MACHINE_INFO['operator']}",
+                 font=("Arial", 8), bg=BG2, fg=FG_DIM).pack()
+
+        tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x")
+
+        # 네비 버튼
+        self._tab_btns: dict[str, tk.Button] = {}
+        for key, icon, label in [
+            ("scraper", "⚙", " 로컬 스크래퍼"),
+        ]:
+            btn = tk.Button(
+                sidebar, text=f"  {icon}  {label}",
+                command=lambda k=key: self._switch_tab(k),
+                bg=BG2, fg=FG_DIM, activebackground=BG3,
+                font=("Arial", 10), relief="flat",
+                anchor="w", padx=14, pady=13, cursor="hand2",
+            )
+            btn.pack(fill="x")
+            self._tab_btns[key] = btn
+
+        # 머신 정보 (하단)
+        mf = tk.Frame(sidebar, bg=BG2)
+        mf.pack(side="bottom", fill="x", padx=14, pady=12)
+        tk.Frame(mf, bg=BORDER, height=1).pack(fill="x", pady=(0, 8))
+        tk.Label(mf, text=MACHINE_INFO["hostname"],
+                 font=("Consolas", 8, "bold"), bg=BG2, fg=FG_DIM).pack(anchor="w")
+        tk.Label(mf, text=MACHINE_INFO["os"].split()[0],
+                 font=("Arial", 7), bg=BG2, fg="#3f3f46").pack(anchor="w")
+
+        # 콘텐츠 영역
+        self.content = tk.Frame(self, bg=BG)
+        self.content.pack(side="left", fill="both", expand=True)
+
+        self._pages: dict[str, tk.Frame] = {
+            "scraper": self._build_scraper_page(),
+        }
+        self._switch_tab("scraper")
+
+    def _switch_tab(self, key: str):
+        for k, btn in self._tab_btns.items():
+            active = k == key
+            btn.configure(
+                bg=BG3 if active else BG2,
+                fg=FG if active else FG_DIM,
+                font=("Arial", 10, "bold") if active else ("Arial", 10),
+            )
+        for k, page in self._pages.items():
+            page.pack(fill="both", expand=True) if k == key else page.pack_forget()
+
+    def _section_header(self, parent, title: str, subtitle: str = "") -> tk.Frame:
+        f = tk.Frame(parent, bg=BG, pady=20, padx=28)
+        f.pack(fill="x")
+        tk.Label(f, text=title, font=("Arial", 17, "bold"),
+                 bg=BG, fg=FG, anchor="w").pack(fill="x")
+        if subtitle:
+            tk.Label(f, text=subtitle, font=("Arial", 9),
+                     bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(2, 0))
+        tk.Frame(parent, bg=BORDER, height=1).pack(fill="x")
+        return f
+
+    def _build_scraper_page(self) -> tk.Frame:
+        page = tk.Frame(self.content, bg=BG)
+        self._section_header(
+            page, "로컬 스크래퍼",
+            "undetected-chromedriver  →  GitHub push  →  대시보드 반영"
+        )
+
+        wrap = tk.Frame(page, bg=BG, padx=28)
+        wrap.pack(fill="both", expand=True)
+
+        # 채널 목록 입력
+        tk.Label(wrap, text="채널 목록  (한 줄에 하나, # 은 주석)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG,
+                 anchor="w").pack(fill="x", pady=(18, 5))
+
+        border = tk.Frame(wrap, bg=ACCENT, padx=1, pady=1)
+        border.pack(fill="x")
         self.ch_txt = tk.Text(
-            ch_border, height=5, font=("Consolas", 10),
-            bg=BG3, fg=FG, insertbackground="white",
-            relief="flat", padx=8, pady=6,
+            border, height=6, font=("Consolas", 10),
+            bg=BG3, fg=FG, insertbackground=ACCENT,
+            relief="flat", padx=10, pady=8,
         )
         self.ch_txt.pack(fill="both")
 
         # 옵션
-        opt = tk.Frame(self, bg=BG)
-        opt.pack(fill="x", padx=12, pady=8)
-        self.headless = tk.BooleanVar(value=False)
-        self.push     = tk.BooleanVar(value=True)
-        for var, label, tip in [
-            (self.headless, "헤드리스 모드", "Chrome 창 없이 백그라운드 실행"),
-            (self.push,     "자동 push",     "GitHub push → Vercel 자동 반영"),
+        opt = tk.Frame(wrap, bg=BG, pady=10)
+        opt.pack(fill="x")
+        self.headless   = tk.BooleanVar(value=False)
+        self.auto_push  = tk.BooleanVar(value=True)
+
+        for var, label in [
+            (self.headless,  "헤드리스  (Chrome 창 없이 백그라운드 실행)"),
+            (self.auto_push, "완료 후 GitHub push"),
         ]:
             f = tk.Frame(opt, bg=BG)
-            f.pack(side="left", padx=(0, 18))
+            f.pack(side="left", padx=(0, 22))
             tk.Checkbutton(
                 f, text=label, variable=var,
-                fg=FG, bg=BG, activebackground=BG, activeforeground="white",
+                fg=FG_DIM, bg=BG, activebackground=BG,
                 selectcolor=BG3, font=("Arial", 9),
+                activeforeground=FG,
             ).pack(side="left")
-            tk.Label(f, text=f"({tip})", font=("Arial", 8),
-                     fg=FG_DIM, bg=BG).pack(side="left")
 
         # 버튼 행
-        btn_row = tk.Frame(self, bg=BG)
-        btn_row.pack(fill="x", padx=12, pady=(0, 8))
+        btn_row = tk.Frame(wrap, bg=BG, pady=4)
+        btn_row.pack(fill="x")
 
         self.run_btn = tk.Button(
             btn_row, text="▶  스크래핑 시작",
             command=self._run,
-            bg=GREEN, fg="white", activebackground="#45a049",
-            font=("Arial", 10, "bold"), relief="flat",
-            padx=16, pady=7, cursor="hand2",
+            bg=ACCENT, fg="white", activebackground=ACCENT2,
+            font=("Arial", 11, "bold"), relief="flat",
+            padx=20, pady=10, cursor="hand2",
         )
         self.run_btn.pack(side="left")
 
         self.stop_btn = tk.Button(
             btn_row, text="■  중지",
             command=self._stop, state="disabled",
-            bg=RED, fg="white", activebackground="#c62828",
+            bg=BG3, fg=FG_DIM, activebackground="#27272a",
             font=("Arial", 10), relief="flat",
-            padx=12, pady=7, cursor="hand2",
+            padx=14, pady=10, cursor="hand2",
         )
-        self.stop_btn.pack(side="left", padx=6)
+        self.stop_btn.pack(side="left", padx=8)
 
         tk.Button(
             btn_row, text="채널 목록 저장",
             command=self._save_targets,
-            bg=DARK, fg="white", relief="flat",
-            padx=10, pady=7, cursor="hand2",
+            bg=BG3, fg=FG_DIM, activebackground="#27272a",
+            font=("Arial", 9), relief="flat",
+            padx=12, pady=10, cursor="hand2",
         ).pack(side="right")
 
-        # ── 서버 모드 구분선 ──────────────────────────────────────────────────
-        sep = tk.Frame(self, bg="#2a2a3e", height=1)
-        sep.pack(fill="x", padx=12, pady=(6, 0))
+        # 상태 표시줄
+        status_bar = tk.Frame(wrap, bg=BG3, padx=14, pady=8)
+        status_bar.pack(fill="x", pady=(10, 4))
 
-        srv_row = tk.Frame(self, bg=BG)
-        srv_row.pack(fill="x", padx=12, pady=6)
+        self._status = tk.StringVar(value="대기 중")
+        tk.Label(status_bar, text="상태", font=("Arial", 8, "bold"),
+                 bg=BG3, fg=FG_DIM).pack(side="left")
+        tk.Label(status_bar, textvariable=self._status,
+                 font=("Consolas", 9, "bold"), bg=BG3, fg=ACCENT).pack(side="left", padx=8)
+        tk.Label(status_bar, text=f"PC: {MACHINE_INFO['hostname']}",
+                 font=("Consolas", 8), bg=BG3, fg="#3f3f46").pack(side="right")
 
-        tk.Label(
-            srv_row,
-            text="서버 모드  (Vercel 사이트에서 요청 수신 → 자동 스크래핑)",
-            font=("Arial", 9), fg=FG_DIM, bg=BG,
-        ).pack(side="left")
+        # 자격증명 상태
+        self._cred_var = tk.StringVar()
+        tk.Label(wrap, textvariable=self._cred_var,
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(4, 0))
 
-        self.server_status = tk.StringVar(value="")
-        tk.Label(srv_row, textvariable=self.server_status,
-                 font=("Arial", 9, "bold"), fg="#4CAF50", bg=BG).pack(side="left", padx=6)
-
-        srv_btn_row = tk.Frame(self, bg=BG)
-        srv_btn_row.pack(fill="x", padx=12, pady=(0, 4))
-
-        self.start_srv_btn = tk.Button(
-            srv_btn_row, text="▶  서버 시작",
-            command=self._start_server,
-            bg="#1565C0", fg="white", activebackground="#0d47a1",
-            font=("Arial", 9, "bold"), relief="flat",
-            padx=12, pady=5, cursor="hand2",
-        )
-        self.start_srv_btn.pack(side="left")
-
-        self.stop_srv_btn = tk.Button(
-            srv_btn_row, text="■  서버 중지",
-            command=self._stop_server, state="disabled",
-            bg="#37474f", fg="white", activebackground="#263238",
-            font=("Arial", 9), relief="flat",
-            padx=10, pady=5, cursor="hand2",
-        )
-        self.stop_srv_btn.pack(side="left", padx=5)
-
-        tk.Label(
-            srv_btn_row,
-            text="※ GITHUB_TOKEN / GITHUB_REPO 환경변수 필요",
-            font=("Arial", 8), fg="#555577", bg=BG,
-        ).pack(side="left", padx=8)
-
-        # 로그 영역
-        tk.Label(self, text="실행 로그", fg=FG_DIM, bg=BG, anchor="w",
-                 padx=12).pack(fill="x")
-        self.log = scrolledtext.ScrolledText(
-            self, font=("Consolas", 9),
-            bg="#121212", fg=FG, insertbackground="white",
-            relief="flat", padx=8, pady=6, state="disabled",
-        )
-        self.log.pack(fill="both", expand=True, padx=12, pady=(2, 0))
-
-        # 상태바
-        self.status = tk.StringVar(value="초기화 중...")
-        tk.Label(
-            self, textvariable=self.status,
-            relief="flat", anchor="w", padx=10, pady=5,
-            bg=BG2, fg=FG_DIM,
-        ).pack(fill="x", side="bottom")
+        return page
 
     # ── 헬퍼 ─────────────────────────────────────────────────────────────────
 
-    def _log(self, text: str):
-        def _do():
-            self.log.configure(state="normal")
-            self.log.insert("end", text)
-            self.log.see("end")
-            self.log.configure(state="disabled")
-        self.after(0, _do)
-
-    def _set_status(self, text: str):
-        self.after(0, lambda: self.status.set(text))
-
-    # ── 패키지 자동 설치 ──────────────────────────────────────────────────────
-
-    def _check_pkgs(self):
-        self._set_status("패키지 확인 중...")
-        if not _pkgs_ok():
-            ok = _install_pkgs(self._log)
-            if ok:
-                self._set_status("준비 완료  ✓  (패키지 자동 설치 완료)")
-            else:
-                self._set_status("패키지 설치 실패 — 로그를 확인하세요")
-                self.after(0, lambda: messagebox.showerror(
-                    "설치 오류",
-                    "패키지 설치에 실패했습니다.\n\n"
-                    "인터넷 연결을 확인하거나\n"
-                    "CMD에서 다음 명령을 실행하세요:\n\n"
-                    f"  pip install -r scraper\\requirements.txt",
-                ))
+    def _refresh_cred_status(self):
+        token, repo = _load_credentials()
+        if token and repo:
+            self._cred_var.set(f"✓  GitHub 인증 확인됨  —  {repo}")
+        elif token:
+            self._cred_var.set("⚠  GITHUB_REPO 설정이 없습니다")
         else:
-            self._set_status("준비 완료")
-            self._log("[준비] 모든 패키지가 설치되어 있습니다.\n")
-
-    # ── targets.txt ──────────────────────────────────────────────────────────
+            self._cred_var.set("✗  GitHub 토큰 없음  —  config.py 에 토큰을 설정하고 exe를 재빌드하세요")
 
     def _load_targets(self):
         if not TARGETS_FILE.exists():
@@ -285,73 +421,33 @@ class App(tk.Tk):
     def _run(self):
         channels = self._get_channels()
         if not channels:
-            messagebox.showwarning("채널 없음",
-                                   "채널 핸들을 입력하세요.\n예: @채널핸들")
+            messagebox.showwarning("채널 없음", "채널 핸들을 입력하세요.\n예: @채널핸들")
             return
 
         self.run_btn.configure(state="disabled")
-        self.stop_btn.configure(state="normal")
-        self._set_status("실행 중...")
-        self._log("\n" + "─" * 52 + "\n")
-        self._log(f"[시작] 대상 채널: {', '.join(channels)}\n")
-        if self.push.get():
-            self._log("[설정] GitHub push 활성화 → 완료 후 Vercel 자동 반영\n")
-        self._log("─" * 52 + "\n\n")
+        self.stop_btn.configure(state="normal", bg=ACCENT, fg="white")
+        self._status.set("실행 중...")
 
-        if getattr(sys, 'frozen', False):
-            # PyInstaller exe: subprocess 대신 인라인 실행
-            # (sys.executable 이 exe 자신이므로 subprocess 사용 시 GUI 창이 또 열림)
-            threading.Thread(
-                target=self._scrape_inline,
-                args=(channels, self.headless.get(), self.push.get()),
-                daemon=True,
-            ).start()
-        else:
-            # 개발 환경: subprocess 로 main.py 실행
-            cmd = [_python(), str(SCRIPT_DIR / "main.py")]
-            if self.headless.get():
-                cmd.append("--headless")
-            if self.push.get():
-                cmd.append("--push")
-            cmd += ["channel"] + channels
+        # 콘솔 팝업 오픈
+        win = ConsoleWindow(self.winfo_toplevel())
+        self._console_win = win
+        win.append(f"[시작] 채널: {', '.join(channels)}\n")
+        win.append(f"[머신] {MACHINE_INFO['hostname']} / {MACHINE_INFO['operator']}\n")
+        win.append("─" * 62 + "\n\n")
 
-            def _worker():
-                try:
-                    self._proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        cwd=str(SCRIPT_DIR),
-                        bufsize=1,
-                        encoding="utf-8",
-                        errors="replace",
-                    )
-                    for line in self._proc.stdout:
-                        self._log(line)
-                    rc = self._proc.wait()
-                    self._log(f"\n[완료] 종료 코드: {rc}\n")
-                    if rc == 0:
-                        msg = "스크래핑 완료!"
-                        if self.push.get():
-                            msg += "  GitHub push 완료 → Vercel에서 결과 확인 가능"
-                        self._set_status(msg)
-                    else:
-                        self._set_status("오류 발생 — 로그를 확인하세요")
-                except Exception as e:
-                    self._log(f"\n[오류] {e}\n")
-                    self._set_status("오류 발생")
-                finally:
-                    self.after(0, self._done)
+        threading.Thread(
+            target=self._scrape_inline,
+            args=(channels, self.headless.get(), self.auto_push.get()),
+            daemon=True,
+        ).start()
 
-            threading.Thread(target=_worker, daemon=True).start()
-
-    def _scrape_inline(self, channels: list, headless: bool, do_push: bool):
-        """PyInstaller 빌드 환경: 스크래퍼를 인-프로세스로 직접 실행.
-        print() 출력을 GUI 로그로 리디렉션한다."""
+    def _scrape_inline(self, channels: list[str], headless: bool, do_push: bool):
+        """스크래퍼를 인-프로세스로 실행. print() 출력을 콘솔 팝업으로 연결."""
         import contextlib
 
-        class _LogWriter:
+        win = self._console_win
+
+        class _Writer:
             def __init__(self, log_fn):
                 self._log = log_fn
                 self._buf = ""
@@ -367,7 +463,10 @@ class App(tk.Tk):
                     self._log(self._buf)
                     self._buf = ""
 
-        writer = _LogWriter(self._log)
+        log = win.append if (win and not win._closed) else print
+        writer = _Writer(log)
+        success = False
+
         try:
             with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
                 from browser import create_driver
@@ -380,13 +479,14 @@ class App(tk.Tk):
                     for ch in channels:
                         try:
                             result = scrape_channel(driver, ch)
+                            result["scrapedBy"] = MACHINE_INFO   # 머신 정보 포함
                             cid = result["channelId"]
                             if do_push:
                                 save_and_push(result, "channels", cid)
                             else:
                                 save_result(result, "channels", cid)
                         except Exception as e:
-                            self._log(f"[오류] {ch}: {e}\n")
+                            log(f"[오류] {ch}: {e}\n")
                 finally:
                     try:
                         driver.quit()
@@ -394,102 +494,55 @@ class App(tk.Tk):
                         pass
                     self._inline_driver = None
 
-            self._log("\n[완료] 스크래핑 완료!\n")
-            msg = "스크래핑 완료!"
-            if do_push:
-                msg += "  GitHub push 완료 → Vercel에서 결과 확인 가능"
-            self._set_status(msg)
+            success = True
+            self.after(0, lambda: self._status.set("완료 ✓"))
         except Exception as e:
-            self._log(f"\n[오류] {e}\n")
-            self._set_status("오류 발생")
+            log(f"\n[오류] {e}\n")
+            self.after(0, lambda: self._status.set("오류 발생"))
         finally:
+            if win and not win._closed:
+                win.finish(success)
             self.after(0, self._done)
 
     def _stop(self):
-        if self._proc and self._proc.poll() is None:
-            self._proc.terminate()
-            self._log("\n[중지] 사용자가 중지했습니다.\n")
         if self._inline_driver:
             try:
                 self._inline_driver.quit()
             except Exception:
                 pass
             self._inline_driver = None
-            self._log("\n[중지] 사용자가 중지했습니다.\n")
+        if self._console_win and not self._console_win._closed:
+            self._console_win.append("\n[중지] 사용자가 중지했습니다.\n")
+            self._console_win.after(1500, self._console_win._safe_destroy)
         self._done()
 
     def _done(self):
-        self._proc = None
+        self._inline_driver = None
+        self._console_win = None
         self.run_btn.configure(state="normal")
-        self.stop_btn.configure(state="disabled")
-
-    # ── 서버 모드 ─────────────────────────────────────────────────────────────
-
-    def _start_server(self):
-        import os
-        # .env 파일 자동 로드 (환경변수가 이미 설정된 경우 덮어쓰지 않음)
-        try:
-            from dotenv import load_dotenv
-            _env = SCRIPT_DIR / ".env"
-            if _env.exists():
-                load_dotenv(dotenv_path=_env, override=False)
-        except ImportError:
-            pass
-        token = os.environ.get("GITHUB_TOKEN", "")
-        repo  = os.environ.get("GITHUB_REPO", "")
-        if not token or not repo:
-            messagebox.showwarning(
-                "환경 변수 없음",
-                "서버 모드에 필요한 환경 변수가 없습니다.\n\n"
-                "CMD에서 다음과 같이 설정 후 재실행하세요:\n\n"
-                "  set GITHUB_TOKEN=ghp_...\n"
-                "  set GITHUB_REPO=owner/repo-name\n\n"
-                "또는 launcher_gui.py 와 같은 폴더에\n"
-                ".env 파일을 만들어 값을 적어도 됩니다.",
-            )
-            return
-
-        self._server_proc = subprocess.Popen(
-            [_python(), str(LOCAL_SERVER)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=str(SCRIPT_DIR),
-            encoding="utf-8",
-            errors="replace",
-            env=os.environ.copy(),
-        )
-        self.start_srv_btn.configure(state="disabled")
-        self.stop_srv_btn.configure(state="normal")
-        self.server_status.set("● 실행 중")
-        self._log("\n" + "─" * 52 + "\n")
-        self._log("[서버] 로컬 서버 시작됨 — Vercel 요청을 기다립니다.\n")
-        self._log("─" * 52 + "\n\n")
-        threading.Thread(target=self._poll_server, daemon=True).start()
-
-    def _poll_server(self):
-        if self._server_proc is None:
-            return
-        for line in self._server_proc.stdout:
-            self._log(line)
-        # 프로세스 종료됨
-        self.after(0, self._server_done)
-
-    def _stop_server(self):
-        if self._server_proc and self._server_proc.poll() is None:
-            self._server_proc.terminate()
-            self._log("\n[서버] 중지됨.\n")
-        self._server_done()
-
-    def _server_done(self):
-        self._server_proc = None
-        self.start_srv_btn.configure(state="normal")
-        self.stop_srv_btn.configure(state="disabled")
-        self.server_status.set("")
+        self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ── App (PIN → Main) ──────────────────────────────────────────────────────────
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("PARABLE-TUBEMETRIC")
+        self.geometry("900x580")
+        self.minsize(720, 480)
+        self.configure(bg=BG)
+        self._show_pin()
+
+    def _show_pin(self):
+        for w in self.winfo_children():
+            w.destroy()
+        PinScreen(self, on_success=self._show_main).pack(fill="both", expand=True)
+
+    def _show_main(self):
+        for w in self.winfo_children():
+            w.destroy()
+        MainApp(self).pack(fill="both", expand=True)
+
 
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    App().mainloop()
