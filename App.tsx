@@ -1131,12 +1131,6 @@ const App: React.FC = () => {
                       Video Analysis
                     </button>
                     <button
-                      onClick={() => setDashboardSubTab('ad')}
-                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'ad' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
-                    >
-                      Ad Analysis
-                    </button>
-                    <button
                       onClick={() => { setDashboardSubTab('scraper'); loadScraperResults(); }}
                       className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${dashboardSubTab === 'scraper' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
                     >
