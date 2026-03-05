@@ -1514,6 +1514,7 @@ class MainApp(tk.Frame):
             ("ad",       "📢", " 광고 영상 분석"),
             ("scraper",  "⚙",  " 로컬 스크래퍼"),
             ("dashboard","📋", " 데이터 대시보드"),
+            ("settings", "🔑", " 설정 (API 키)"),
         ]:
             btn = tk.Button(
                 sidebar, text=f"  {icon}{label}",
@@ -1545,6 +1546,7 @@ class MainApp(tk.Frame):
             "ad":        AdTab(self.content, self),
             "scraper":   ScraperTab(self.content, self),
             "dashboard": self.dashboard,
+            "settings":  SettingsTab(self.content, self),
         }
         self.switch_tab("channel")
 
