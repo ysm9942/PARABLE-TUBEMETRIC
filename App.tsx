@@ -973,66 +973,6 @@ const App: React.FC = () => {
                 </button>
               </div>
             </div>
-          ) : activeTab === 'ad-config' ? (
-            <div className="space-y-10 animate-in fade-in slide-in-from-right-10 duration-1000">
-              <div className="flex items-center gap-4"><div className="h-10 w-2 bg-red-600 rounded-full"></div><h2 className="text-5xl font-black italic text-white uppercase">광고 영상 분석</h2></div>
-              <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
-                <div className="xl:col-span-3 space-y-6">
-                  <label className="text-[14px] font-black text-white uppercase flex items-center gap-3 tracking-widest"><List size={18} className="text-red-600" /> CHANNEL LIST</label>
-                  <textarea value={adChannelInput} onChange={(e) => setAdChannelInput(e.target.value)} className="w-full h-[500px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" placeholder="UC-xxxxxxxxxxxx 또는 @핸들을 입력하세요 (줄바꿈 구분)" />
-                </div>
-                <div className="xl:col-span-2 space-y-8 flex flex-col justify-between">
-                  <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 space-y-8 shadow-2xl">
-                    <div className="space-y-6">
-                      <label className="text-[13px] font-black text-zinc-500 uppercase flex items-center gap-2 tracking-[0.2em]"><CalendarDays size={18} className="text-red-600" /> 분석 기간 설정</label>
-                      
-                      {/* Predefined Period Buttons for Ad Config */}
-                      <div className="grid grid-cols-4 gap-2">
-                        {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
-                          <button 
-                            key={p} 
-                            onClick={() => setAdDatesByPeriod(p)} 
-                            className={`py-3 text-[11px] font-black rounded-xl transition-all bg-white/5 text-white hover:bg-red-600 hover:text-white active:scale-95`}
-                          >
-                            {periodLabels[p]}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="group relative bg-black/40 border-2 border-white/5 hover:border-red-600/30 rounded-3xl p-6 transition-all cursor-pointer">
-                          <label className="absolute -top-3 left-6 bg-[#121212] px-3 text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">Start Date</label>
-                          <div className="flex items-center gap-4">
-                            <Calendar size={20} className="text-red-600" />
-                            <input 
-                              type="date" 
-                              value={adStartDate} 
-                              onChange={(e) => setAdStartDate(e.target.value)} 
-                              className="w-full bg-transparent border-none text-white font-black text-lg focus:ring-0 cursor-pointer outline-none [color-scheme:dark]" 
-                            />
-                          </div>
-                        </div>
-                        <div className="group relative bg-black/40 border-2 border-white/5 hover:border-red-600/30 rounded-3xl p-6 transition-all cursor-pointer">
-                          <label className="absolute -top-3 left-6 bg-[#121212] px-3 text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">End Date</label>
-                          <div className="flex items-center gap-4">
-                            <Calendar size={20} className="text-red-600" />
-                            <input 
-                              type="date" 
-                              value={adEndDate} 
-                              onChange={(e) => setAdEndDate(e.target.value)} 
-                              className="w-full bg-transparent border-none text-white font-black text-lg focus:ring-0 cursor-pointer outline-none [color-scheme:dark]" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <button onClick={handleAdStart} disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-red-600/20 active:scale-95">
-                    {isProcessing ? <Loader2 className="animate-spin" /> : <Megaphone size={24} />} 광고 전수 분석
-                  </button>
-                </div>
-              </div>
-            </div>
           ) : activeTab === 'scraper-config' ? (
             /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
             <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
