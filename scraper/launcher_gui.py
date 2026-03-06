@@ -1284,7 +1284,6 @@ class LiveMetricsTab(tk.Frame):
     # ── 중지 ──────────────────────────────────────────────────────────────
     def _stop(self):
         self._stop_event.set()
-        self._log("\n[중지] 중지 요청됨 — 현재 작업 완료 후 종료합니다.\n", "err")
         self._done()
 
     def _done(self):
