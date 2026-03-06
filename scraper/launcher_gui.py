@@ -207,15 +207,20 @@ class PinScreen(tk.Frame):
 
 # ── 공통 UI 헬퍼 ──────────────────────────────────────────────────────────────
 def _section_header(parent, title: str, subtitle: str = ""):
-    f = tk.Frame(parent, bg=BG, pady=18, padx=28)
-    f.pack(fill="x")
-    tk.Label(f, text=title, font=("Arial", 17, "bold"),
-             bg=BG, fg=FG, anchor="w").pack(fill="x")
+    strip = tk.Frame(parent, bg=BG2)
+    strip.pack(fill="x")
+    inner = tk.Frame(strip, bg=BG2, padx=28, pady=16)
+    inner.pack(fill="x")
+    tk.Frame(inner, bg=ACCENT, width=3).pack(side="left", fill="y", padx=(0, 14))
+    text_f = tk.Frame(inner, bg=BG2)
+    text_f.pack(side="left", fill="x", expand=True)
+    tk.Label(text_f, text=title, font=("Arial", 15, "bold"),
+             bg=BG2, fg=FG, anchor="w").pack(fill="x")
     if subtitle:
-        tk.Label(f, text=subtitle, font=("Arial", 9),
-                 bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(2, 0))
+        tk.Label(text_f, text=subtitle, font=("Arial", 9),
+                 bg=BG2, fg=FG_DIM, anchor="w").pack(fill="x", pady=(3, 0))
     tk.Frame(parent, bg=BORDER, height=1).pack(fill="x")
-    return f
+    return strip
 
 
 def _btn(parent, text, command, bg=BG3, fg=FG_DIM, bold=False, **kw):
