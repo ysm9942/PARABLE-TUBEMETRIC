@@ -766,7 +766,7 @@ def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
             retry = 0
             last_count = len(links)
         driver.execute_script("window.scrollBy(0, 1400);")
-        _ig_sleep(1.5, 2.5)
+        _ig_sleep(1.0, 1.6)
     return list(links)[:max_reels]
 
 def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
