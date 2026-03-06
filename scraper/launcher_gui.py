@@ -769,6 +769,105 @@ def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
         _ig_sleep(1.0, 1.6)
     return list(links)[:max_reels]
 
+def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> list:
+    """릴스 탭 그리드에서 개별 페이지 방문 없이 지표 수집.
+    - 조회수: 그리드에서 항상 노출되는 span[dir] 내부 숫자
+    - 좋아요·댓글: 썸네일에 마우스오버 시 나타나는 숫자 (순서: 좋아요, 댓글)
+    """
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.action_chains import ActionChains
+
+    _ig_open_reels_tab(driver, username)
+    _ig_dismiss_popups(driver)
+
+    results: dict = {}  # url -> row (삽입 순서 = 최신순)
+    retry = last_count = 0
+    actions = ActionChains(driver)
+
+    while len(results) < max_reels and retry < 6:
+        anchors = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+        for a in anchors:
+            if len(results) >= max_reels:
+                break
+            href = a.get_attribute("href")
+            if not href or "/reel/" not in href:
+                continue
+            url = _ig_normalize_url(href)
+            if url in results:
+                continue
+
+            # 조회수 — dir="auto" wrapper 내부 span (항상 노출)
+            view_count = None
+            try:
+                vspan = a.find_element(
+                    By.XPATH, ".//span[@dir]/span[contains(@class,'html-span')]"
+                )
+                view_count = _ig_parse_number(vspan.text.strip())
+            except Exception:
+                pass
+
+            # 썸네일
+            thumbnail_url = ""
+            try:
+                img = a.find_element(By.TAG_NAME, "img")
+                thumbnail_url = img.get_attribute("src") or ""
+            except Exception:
+                pass
+
+            # 마우스오버 → 좋아요·댓글 (dir 없는 html-span)
+            like_count = comment_count = None
+            try:
+                driver.execute_script(
+                    "arguments[0].scrollIntoView({block:'center',behavior:'instant'});", a
+                )
+                _ig_sleep(0.15, 0.3)
+                actions.move_to_element(a).perform()
+                _ig_sleep(0.5, 0.9)
+                hover_spans = a.find_elements(
+                    By.XPATH,
+                    ".//span[contains(@class,'html-span')"
+                    " and not(ancestor::span[@dir])]",
+                )
+                nums = []
+                for s in hover_spans:
+                    t = s.text.strip()
+                    if t and re.fullmatch(r"[\d,\.]+", t):
+                        nums.append(_ig_parse_number(t))
+                if len(nums) >= 2:
+                    like_count, comment_count = nums[0], nums[1]
+                elif len(nums) == 1:
+                    like_count = nums[0]
+            except Exception:
+                pass
+
+            results[url] = {
+                "account":        username,
+                "reel_url":       url,
+                "caption":        "",
+                "thumbnail_url":  thumbnail_url,
+                "video_url":      "",
+                "like_count":     like_count,
+                "like_raw":       str(like_count) if like_count is not None else "",
+                "view_count":     view_count,
+                "view_raw":       str(view_count) if view_count is not None else "",
+                "comment_count":  comment_count,
+                "comment_raw":    str(comment_count) if comment_count is not None else "",
+                "posted_at":      "",
+                "scraped_at":     datetime.now().isoformat(),
+            }
+
+        if len(results) == last_count:
+            retry += 1
+        else:
+            retry = 0
+            last_count = len(results)
+        if len(results) < max_reels:
+            driver.execute_script("window.scrollBy(0, 1400);")
+            _ig_sleep(1.0, 1.6)
+
+    return list(results.values())[:max_reels]
+
+
 def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
