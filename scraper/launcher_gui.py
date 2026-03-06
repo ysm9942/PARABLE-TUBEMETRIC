@@ -1822,18 +1822,24 @@ class DashboardTab(tk.Frame):
                    "아직 라이브 지표 수집 결과가 없습니다.\n라이브 지표 분석 탭에서 수집을 실행하세요.",
                    font_size=10, color=FG_DIM).pack(expand=True)
             return
-        cols = ("플랫폼", "방송 제목", "카테고리",
-                "최고 시청자", "평균 시청자", "날짜", "방송시간(분)")
-        tree, _ = self._make_tree(cols, widths=(55, 220, 110, 80, 80, 85, 70))
+
+        # ── 플랫폼별 집계 ─────────────────────────────────────────────────
+        from collections import defaultdict
+        plat_rows: dict = defaultdict(list)
         for r in results:
+            plat_rows[r.get("platform", "?").upper()].append(r)
+
+        cols = ("플랫폼", "방송 수", "총 최고 시청자", "평균 최고 시청자", "평균 시청자")
+        tree, _ = self._make_tree(cols, widths=(80, 70, 120, 120, 100), height=8)
+        for plat, rows in sorted(plat_rows.items()):
+            peaks = [r.get("peak_viewers", 0) for r in rows]
+            avgs  = [r.get("avg_viewers",  0) for r in rows]
             tree.insert("", "end", values=(
-                r.get("platform",     ""),
-                r.get("title",        "")[:50],
-                r.get("category",     ""),
-                fmt_num(r.get("peak_viewers", 0)),
-                fmt_num(r.get("avg_viewers",  0)),
-                r.get("date",         ""),
-                r.get("duration_min", 0),
+                plat,
+                len(rows),
+                fmt_num(sum(peaks)),
+                fmt_num(round(sum(peaks) / len(peaks))) if peaks else 0,
+                fmt_num(round(sum(avgs)  / len(avgs)))  if avgs  else 0,
             ))
 
     def refresh_live(self):
