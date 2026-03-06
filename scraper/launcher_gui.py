@@ -2161,13 +2161,14 @@ class MainApp(tk.Frame):
         self.switch_tab("channel")
 
     def switch_tab(self, key: str):
-        for k, btn in self._tab_btns.items():
+        for k, items in self._tab_items.items():
             active = k == key
-            btn.configure(
+            items["btn"].configure(
                 bg=BG3 if active else BG2,
-                fg=FG if active else FG_DIM,
+                fg=FG  if active else FG_DIM,
                 font=("Arial", 10, "bold") if active else ("Arial", 10),
             )
+            items["ind"].configure(bg=ACCENT if active else BG2)
         for k, page in self._pages.items():
             if k == key:
                 page.pack(fill="both", expand=True)
