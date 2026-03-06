@@ -2075,40 +2075,6 @@ class DashboardTab(tk.Frame):
                            r.get("commentCount",0), r.get("publishedAt","")[:10]])
             _style_header(ws)
 
-        elif sub == "ad":
-            ws = wb.active
-            ws.title = "광고 요약"
-            headers = ["채널명","채널 ID","광고 수","총 조회수","평균 조회수","평균 좋아요","상태"]
-            ws.append(headers)
-            for r in self.app.ad_results:
-                ws.append([
-                    r.get("title",""), r.get("id",""),
-                    r.get("totalAdCount",0), r.get("totalViews",0),
-                    r.get("avgViews",0), r.get("avgLikes",0),
-                    "완료" if r.get("status")=="completed" else "오류",
-                ])
-            _style_header(ws)
-
-            for r in self.app.ad_results:
-                if not r.get("adVideos"):
-                    continue
-                name = f"광고_{r.get('title','')[:24]}".replace("/","_")
-                ws2 = wb.create_sheet(title=name[:28])
-                ws2.append(["영상 링크","영상 제목","유형","조회수","좋아요","판별 근거","신뢰도","게시일"])
-                for v in r["adVideos"]:
-                    url = (f"https://youtube.com/shorts/{v['id']}"
-                           if v.get("isShort") else f"https://youtu.be/{v['id']}")
-                    det = v.get("detection",{})
-                    ws2.append([
-                        url, v.get("title",""),
-                        "쇼츠" if v.get("isShort") else "롱폼",
-                        v.get("viewCount",0), v.get("likeCount",0),
-                        " / ".join(det.get("evidence",[])),
-                        f"{det.get('confidence',0)*100:.0f}%",
-                        v.get("publishedAt","")[:10],
-                    ])
-                _style_header(ws2)
-
         elif sub == "live":
             from collections import defaultdict
             live_tab = self.app._pages.get("live")
