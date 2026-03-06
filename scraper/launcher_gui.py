@@ -686,16 +686,69 @@ def _ig_ensure_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
         return
     _ig_login(driver, ig_id, ig_pw, cookie_path)
 
-def _ig_collect_post_links(driver, username: str, max_posts: int = 10) -> list:
+def _ig_open_reels_tab(driver, username: str) -> None:
+    """릴스 탭으로 이동. /username/reels/ 직접 이동 → 실패 시 프로필에서 탭 클릭."""
     from selenium.webdriver.common.by import By
-    driver.get(f"https://www.instagram.com/{username}/")
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    reels_url = f"https://www.instagram.com/{username}/reels/"
+    driver.get(reels_url)
     _ig_sleep(2, 3)
+    _ig_dismiss_popups(driver)
+    if f"/{username.lower()}/reels" in driver.current_url.lower():
+        return
+
+    # 백업: 프로필 진입 후 릴스 탭 클릭
+    driver.get(f"https://www.instagram.com/{username}/")
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.TAG_NAME, "header"))
+    )
+    _ig_sleep(2, 3)
+    css_selectors = [
+        f"a[href='/{username}/reels/']",
+        f"a[href='/{username.lower()}/reels/']",
+        "a[href$='/reels/']",
+    ]
+    for sel in css_selectors:
+        try:
+            el = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, sel))
+            )
+            try:
+                el.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", el)
+            _ig_sleep(2, 3)
+            return
+        except Exception:
+            pass
+    # XPath 백업
+    try:
+        el = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((
+            By.XPATH,
+            "//a[contains(@href, '/reels/') and (@role='link' or @tabindex='0')]",
+        )))
+        try:
+            el.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", el)
+        _ig_sleep(2, 3)
+    except Exception:
+        driver.get(reels_url)
+        _ig_sleep(2, 3)
+
+
+def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
+    """/username/reels/ 탭으로 이동 후 /reel/ 링크만 수집."""
+    from selenium.webdriver.common.by import By
+    _ig_open_reels_tab(driver, username)
     links: set = set()
     retry = last_count = 0
-    while len(links) < max_posts and retry < 6:
-        for elem in driver.find_elements(By.CSS_SELECTOR, "a[href*='/p/'], a[href*='/reel/']"):
+    while len(links) < max_reels and retry < 6:
+        for elem in driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']"):
             href = elem.get_attribute("href")
-            if href and ("/p/" in href or "/reel/" in href):
+            if href and "/reel/" in href:
                 links.add(_ig_normalize_url(href))
         if len(links) == last_count:
             retry += 1
@@ -704,7 +757,7 @@ def _ig_collect_post_links(driver, username: str, max_posts: int = 10) -> list:
             last_count = len(links)
         driver.execute_script("window.scrollBy(0, 1400);")
         _ig_sleep(1.5, 2.5)
-    return list(links)[:max_posts]
+    return list(links)[:max_reels]
 
 def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
     from selenium.webdriver.common.by import By
