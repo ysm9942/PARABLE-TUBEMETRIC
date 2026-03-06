@@ -1878,6 +1878,18 @@ class DashboardTab(tk.Frame):
             tree.heading(col, text=col)
             tree.column(col, width=w, minwidth=40, anchor="w")
 
+        # 줄무늬 행 (홀/짝 배경색 구분)
+        tree.tag_configure("odd",  background=BG3)
+        tree.tag_configure("even", background=BG5)
+        _row = [0]
+        _real_insert = tree.insert
+        def _striped(*args, **kw):
+            kw["tags"] = list(kw.get("tags", ())) + ["odd" if _row[0] % 2 == 0 else "even"]
+            r = _real_insert(*args, **kw)
+            _row[0] += 1
+            return r
+        tree.insert = _striped
+
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
