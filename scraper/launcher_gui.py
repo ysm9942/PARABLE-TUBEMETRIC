@@ -867,8 +867,8 @@ def _crawl_creator(platform: str, creator_id: str,
             progress_cb(msg)
 
     BASE = "https://viewership.softc.one"
-    PLAT_PATH = {"chzzk": "chzzk", "soop": "soop"}.get(platform, "chzzk")
-    url_base = f"{BASE}/{PLAT_PATH}/{creator_id}"
+    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
+    url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
 
     session = requests.Session()
     session.headers.update({
