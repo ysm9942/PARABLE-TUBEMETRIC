@@ -807,13 +807,14 @@ def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
             video_url = src
             break
 
-    # 좋아요 / 조회수
-    like_count = view_count = None
-    like_raw = view_raw = ""
+    # 좋아요 / 조회수 / 댓글수
+    like_count = view_count = comment_count = None
+    like_raw = view_raw = comment_raw = ""
     candidates = driver.find_elements(
         By.XPATH,
         "//*[contains(text(),'좋아요') or contains(text(),'likes') "
-        "or contains(text(),'조회') or contains(text(),'views')]",
+        "or contains(text(),'조회') or contains(text(),'views') "
+        "or contains(text(),'댓글') or contains(text(),'comments')]",
     )
     for el in candidates:
         txt = (el.text or "").strip()
@@ -825,26 +826,26 @@ def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
         if view_count is None and ("조회" in txt or "view" in txt.lower()):
             view_raw   = txt
             view_count = _ig_parse_number(txt)
+        if comment_count is None and ("댓글" in txt or "comment" in txt.lower()):
+            comment_raw   = txt
+            comment_count = _ig_parse_number(txt)
 
-    post_type  = "reel" if "/reel/" in post_url else ("video" if video_url else "post")
     is_carousel = len(all_image_urls) >= 2
 
     return {
-        "account":       account,
-        "post_url":      post_url,
-        "post_type":     post_type,
-        "caption":       caption[:200],
-        "thumbnail_url": all_image_urls[0] if all_image_urls else "",
-        "all_image_urls": json.dumps(all_image_urls, ensure_ascii=False),
-        "image_count":   len(all_image_urls),
-        "video_url":     video_url,
-        "is_carousel":   is_carousel,
-        "like_count":    like_count,
-        "like_raw":      like_raw,
-        "view_count":    view_count,
-        "view_raw":      view_raw,
-        "posted_at":     posted_at,
-        "scraped_at":    datetime.now().isoformat(),
+        "account":        account,
+        "reel_url":       post_url,
+        "caption":        caption[:200],
+        "thumbnail_url":  all_image_urls[0] if all_image_urls else "",
+        "video_url":      video_url,
+        "like_count":     like_count,
+        "like_raw":       like_raw,
+        "view_count":     view_count,
+        "view_raw":       view_raw,
+        "comment_count":  comment_count,
+        "comment_raw":    comment_raw,
+        "posted_at":      posted_at,
+        "scraped_at":     datetime.now().isoformat(),
     }
 
 
