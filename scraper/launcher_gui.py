@@ -1996,8 +1996,6 @@ class DashboardTab(tk.Frame):
         default_name = {
             "channel": f"TubeMetric_Channel_{ts}.xlsx",
             "video":   f"TubeMetric_Video_{ts}.xlsx",
-            "ad":      f"TubeMetric_Ad_{ts}.xlsx",
-            "scraper": f"TubeMetric_Scraper_{ts}.xlsx",
             "live":    f"TubeMetric_Live_{ts}.xlsx",
         }.get(sub, f"TubeMetric_{ts}.xlsx")
 
