@@ -1981,6 +1981,7 @@ class MainApp(tk.Frame):
             "video":     VideoTab(self.content, self),
             "ad":        AdTab(self.content, self),
             "scraper":   ScraperTab(self.content, self),
+            "live":      LiveMetricsTab(self.content, self),
             "dashboard": self.dashboard,
         }
         self.switch_tab("channel")
