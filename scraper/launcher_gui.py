@@ -1675,11 +1675,10 @@ class InstagramTab(tk.Frame):
         ws.title = "Instagram"
         HDR_FILL = PatternFill("solid", fgColor="1A1A1A")
         headers = [
-            ("account","계정"), ("post_url","URL"), ("post_type","유형"),
-            ("caption","캡션"), ("thumbnail_url","썸네일URL"),
-            ("image_count","이미지수"), ("video_url","비디오URL"),
-            ("is_carousel","캐러셀"), ("like_count","좋아요"),
-            ("view_count","조회수"), ("posted_at","게시일"), ("scraped_at","수집일시"),
+            ("account","계정"), ("reel_url","릴스URL"),
+            ("caption","캡션"), ("thumbnail_url","썸네일URL"), ("video_url","비디오URL"),
+            ("like_count","좋아요"), ("view_count","조회수"), ("comment_count","댓글수"),
+            ("posted_at","게시일"), ("scraped_at","수집일시"),
         ]
         for ci, (_, hdr) in enumerate(headers, 1):
             cell = ws.cell(row=1, column=ci, value=hdr)
