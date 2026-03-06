@@ -2607,6 +2607,7 @@ class MainApp(tk.Frame):
             ("ad",        "▸", "광고 영상 분석"),
             ("scraper",   "▸", "로컬 스크래퍼"),
             ("live",      "▸", "라이브 지표 분석"),
+            ("instagram", "▸", "Instagram 분석"),
             ("dashboard", "▸", "데이터 대시보드"),
         ]:
             row = tk.Frame(sidebar, bg=BG2)
