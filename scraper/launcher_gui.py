@@ -235,16 +235,24 @@ def _card(parent, **kw):
 
 # ── Treeview 스타일 ────────────────────────────────────────────────────────────
 def _apply_treeview_style():
+    # 한글이 깨지지 않는 폰트 선택 (Windows → Malgun Gothic, 기타 → TkDefaultFont)
+    import tkinter.font as _tkfont
+    _available = _tkfont.families()
+    _cell_font = ("Malgun Gothic", 9) if "Malgun Gothic" in _available else \
+                 ("Apple SD Gothic Neo", 9) if "Apple SD Gothic Neo" in _available else \
+                 ("TkDefaultFont", 9)
+    _head_font = (_cell_font[0], 9, "bold")
+
     style = ttk.Style()
     style.theme_use("default")
     style.configure("Dark.Treeview",
         background=BG3, foreground=FG, fieldbackground=BG3,
-        rowheight=28, font=("Consolas", 9),
+        rowheight=28, font=_cell_font,
         borderwidth=0, relief="flat",
     )
     style.configure("Dark.Treeview.Heading",
         background=BG2, foreground=FG_DIM,
-        font=("Arial", 9, "bold"), relief="flat",
+        font=_head_font, relief="flat",
         borderwidth=0,
     )
     style.map("Dark.Treeview",
