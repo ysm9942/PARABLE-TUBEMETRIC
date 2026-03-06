@@ -62,7 +62,11 @@ def create_driver(headless: bool = False) -> uc.Chrome:
     )
 
     version = _get_chrome_major_version()
-    driver = uc.Chrome(options=options, use_subprocess=True, version_main=version)
+    print(f"🔎 감지된 Chrome major version: {version if version else '자동감지'}")
+    if version:
+        driver = uc.Chrome(options=options, version_main=version)
+    else:
+        driver = uc.Chrome(options=options)
     driver.set_page_load_timeout(30)
     return driver
 
