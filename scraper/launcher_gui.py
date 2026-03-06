@@ -1098,16 +1098,8 @@ class LiveMetricsTab(tk.Frame):
         _section_header(self, "라이브 지표 분석",
                          "CHZZK / SOOP 방송 시청자 지표 수집  ·  viewership.softc.one")
 
-        # ── 2단 레이아웃 ──────────────────────────────────────────────────────
-        body = tk.Frame(self, bg=BG)
-        body.pack(fill="both", expand=True)
-
-        left = tk.Frame(body, bg=BG, padx=28)
-        left.pack(side="left", fill="both", expand=True)
-
-        right = tk.Frame(body, bg=BG, padx=14, pady=0, width=260)
-        right.pack(side="right", fill="y")
-        right.pack_propagate(False)
+        left = tk.Frame(self, bg=BG, padx=28)
+        left.pack(fill="both", expand=True)
 
         # ── 크리에이터 ID 입력 ─────────────────────────────────────────────
         tk.Label(left, text="크리에이터 ID 목록  (한 줄에 하나)",
