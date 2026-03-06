@@ -2353,8 +2353,6 @@ class MainApp(tk.Frame):
         self._pages = {
             "channel":   ChannelTab(self.content, self),
             "video":     VideoTab(self.content, self),
-            "ad":        AdTab(self.content, self),
-            "scraper":   ScraperTab(self.content, self),
             "live":      LiveMetricsTab(self.content, self),
             "instagram": InstagramTab(self.content, self),
             "dashboard": self.dashboard,
