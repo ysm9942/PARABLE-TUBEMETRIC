@@ -176,10 +176,99 @@ def detect_nlp(video_id: str, title: str, description: str, pinned_comment: str 
 
 
 # ──────────────────────────────────────────────
-# 3단계: 결합 판정
+# 3단계: DOM 직접 감지 (가장 신뢰도 높은 신호)
 # ──────────────────────────────────────────────
 
-def combine_results(paid_flag: dict, nlp: dict) -> dict:
+_SKIP_SELECTORS = [
+    ".ytp-skip-ad-button",
+    ".ytp-ad-skip-button-modern",
+    ".ytp-ad-skip-button",
+    "button.ytp-ad-skip-button",
+    ".ytp-ad-skip-button-container button",
+]
+
+_AD_PLAYING_SELECTORS = [
+    ".ytp-ad-text",
+    ".ytp-ad-preview-container",
+    ".ytp-ad-player-overlay",
+]
+
+
+def _skip_ads(driver, max_wait: int = 35) -> None:
+    """
+    프리롤 광고 스킵 버튼을 클릭하거나, 광고가 자연 종료될 때까지 대기.
+    """
+    deadline = time.time() + max_wait
+    while time.time() < deadline:
+        # 스킵 버튼 있으면 클릭
+        for sel in _SKIP_SELECTORS:
+            try:
+                btn = driver.find_element(By.CSS_SELECTOR, sel)
+                if btn.is_displayed():
+                    btn.click()
+                    time.sleep(1.5)
+                    # 클릭 후 광고가 또 있을 수 있으므로 루프 계속
+                    break
+            except Exception:
+                pass
+
+        # 광고 재생 중인지 확인
+        ad_playing = False
+        for sel in _AD_PLAYING_SELECTORS:
+            try:
+                el = driver.find_element(By.CSS_SELECTOR, sel)
+                if el.is_displayed():
+                    ad_playing = True
+                    break
+            except Exception:
+                pass
+
+        if not ad_playing:
+            return  # 광고 없음 또는 종료됨
+
+        time.sleep(1)
+
+
+def _detect_paid_overlay(driver, wait_sec: int = 8) -> bool:
+    """
+    'ytp-paid-content-overlay-text' DOM 요소에서 '유료 광고 포함' 확인.
+    광고 스킵 직후 오버레이가 나타날 때까지 최대 wait_sec 초 대기.
+    페이지 소스 문자열도 병행 탐색.
+    """
+    PAID_TEXTS = ["유료 광고 포함", "includes paid promotion", "paid promotion"]
+    deadline = time.time() + wait_sec
+
+    while time.time() < deadline:
+        # DOM 요소 탐색
+        try:
+            els = driver.find_elements(By.CSS_SELECTOR, ".ytp-paid-content-overlay-text")
+            for el in els:
+                txt = el.text.strip().lower()
+                if any(p in txt for p in PAID_TEXTS):
+                    return True
+        except Exception:
+            pass
+
+        # 현재 렌더링된 HTML 탐색 (execute_script로 live DOM 획득)
+        try:
+            html = driver.execute_script("return document.documentElement.outerHTML") or ""
+            if "ytp-paid-content-overlay-text" in html:
+                lower_html = html.lower()
+                if any(p in lower_html for p in PAID_TEXTS):
+                    return True
+        except Exception:
+            pass
+
+        time.sleep(1)
+
+    return False
+
+
+# ──────────────────────────────────────────────
+# 결합 판정
+# ──────────────────────────────────────────────
+
+def combine_results(paid_flag: dict, nlp: dict, dom_paid: bool = False) -> dict:
     """paid_flag + nlp 결과를 결합해 최종 광고 판정"""
     is_paid = paid_flag["paid_promotion"] is True
     is_nlp = nlp["ad_disclosure"] is True
