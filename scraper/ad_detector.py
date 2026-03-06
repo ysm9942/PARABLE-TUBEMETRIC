@@ -269,9 +269,27 @@ def _detect_paid_overlay(driver, wait_sec: int = 8) -> bool:
 # ──────────────────────────────────────────────
 
 def combine_results(paid_flag: dict, nlp: dict, dom_paid: bool = False) -> dict:
-    """paid_flag + nlp 결과를 결합해 최종 광고 판정"""
+    """
+    DOM 오버레이(최우선) + paid_flag + nlp 결과를 결합해 최종 광고 판정.
+    dom_paid=True 이면 신뢰도 0.97로 즉시 광고 확정.
+    """
     is_paid = paid_flag["paid_promotion"] is True
     is_nlp = nlp["ad_disclosure"] is True
+
+    # DOM 오버레이 감지 — 가장 신뢰도 높은 신호
+    if dom_paid:
+        evidence = ["DOM 오버레이 감지 (유료 광고 포함 배너)"]
+        if is_nlp and nlp["matched_phrases"]:
+            evidence.append(f"설명란 키워드 확인 ({nlp['matched_phrases'][0]['phrase']})")
+        return {
+            "is_ad": True,
+            "confidence": 0.97,
+            "method": "dom_overlay",
+            "evidence": evidence[:2],
+            "score": 10,
+            "paid_flag": paid_flag,
+            "nlp": nlp,
+        }
 
     if is_paid and is_nlp:
         is_ad, method = True, "both"
