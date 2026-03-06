@@ -2116,7 +2116,6 @@ class MainApp(tk.Frame):
         super().__init__(master, bg=BG)
         self.channel_results = []
         self.video_results = []
-        self.ad_results = []
         self.instagram_results = []
         self._build_ui()
 
