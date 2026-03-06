@@ -852,11 +852,15 @@ def _crawl_creator(platform: str, creator_id: str,
                    stop_event, progress_cb=None) -> list:
     """
     viewership.softc.one에서 크리에이터의 방송 지표를 수집.
+    undetected_chromedriver로 실제 브라우저를 사용해 봇 차단을 우회.
 
     platform  : 'chzzk' 또는 'soop'
     creator_id: 크리에이터 채널 ID / 닉네임
     """
-    import requests
+    try:
+        import undetected_chromedriver as uc
+    except ImportError:
+        raise RuntimeError("undetected_chromedriver 가 설치되어 있지 않습니다.\npip install undetected-chromedriver")
     try:
         from bs4 import BeautifulSoup
     except ImportError:
@@ -870,33 +874,48 @@ def _crawl_creator(platform: str, creator_id: str,
     PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
     url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
 
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
-        "Referer": BASE,
-    })
+    # ── Chrome 드라이버 초기화 ─────────────────────────────────────────────
+    opts = uc.ChromeOptions()
+    if headless:
+        opts.add_argument("--headless=new")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--lang=ko-KR")
+
+    driver = uc.Chrome(options=opts, use_subprocess=True)
+    driver.set_page_load_timeout(30)
+
+    def _get_soup(url: str) -> "BeautifulSoup":
+        for attempt in range(3):
+            try:
+                driver.get(url)
+                # 페이지 로드 완료 대기 (최대 15초)
+                import selenium.webdriver.support.ui as ui
+                import selenium.webdriver.support.expected_conditions as EC
+                import selenium.webdriver.common.by as By
+                ui.WebDriverWait(driver, 15).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+                return BeautifulSoup(driver.page_source, "html.parser")
+            except Exception as exc:
+                if attempt == 2:
+                    raise RuntimeError(f"페이지 로드 실패 ({url}): {exc}")
+                time.sleep(2 ** attempt)
 
     results = []
     page = 1
     consecutive_old = 0
     MAX_CONSECUTIVE_OLD = 10
 
-    while not stop_event.is_set():
+    try:
+      while not stop_event.is_set():
         page_url = f"{url_base}?page={page}" if page > 1 else url_base
         _log(f"    페이지 {page}: {page_url}\n")
 
-        # 재시도 로직
         soup = None
         for attempt in range(3):
             try:
-                resp = session.get(page_url, timeout=20)
-                resp.raise_for_status()
-                soup = BeautifulSoup(resp.text, "html.parser")
+                soup = _get_soup(page_url)
                 break
             except Exception as exc:
                 if attempt == 2:
