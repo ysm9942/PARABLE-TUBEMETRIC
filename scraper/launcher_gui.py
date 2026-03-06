@@ -858,6 +858,242 @@ class ScraperTab(tk.Frame):
         self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
 
 
+# ── Instagram 스크래퍼 (모듈 레벨) ────────────────────────────────────────────────
+
+def _ig_sleep(a: float = 1.3, b: float = 2.8) -> None:
+    time.sleep(random.uniform(a, b))
+
+def _ig_normalize_url(url: str) -> str:
+    return url.split("?")[0].rstrip("/") + "/"
+
+def _ig_parse_number(text) -> "int | None":
+    if not text:
+        return None
+    compact = str(text).replace(",", "").replace(" ", "").upper()
+    for unit, mul in [("억", 100_000_000), ("만", 10_000), ("천", 1_000)]:
+        m = re.search(rf"(\d+(?:\.\d+)?){unit}", compact)
+        if m:
+            try:
+                return int(float(m.group(1)) * mul)
+            except ValueError:
+                return None
+    m = re.search(r"(\d+(?:\.\d+)?)([KMB])\b", compact)
+    if m:
+        mul_map = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}
+        try:
+            return int(float(m.group(1)) * mul_map[m.group(2)])
+        except ValueError:
+            return None
+    m = re.search(r"(\d+)", compact)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+def _ig_create_driver(headless: bool = False):
+    import undetected_chromedriver as uc
+    options = uc.ChromeOptions()
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--lang=ko-KR")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    )
+    return uc.Chrome(options=options, headless=headless)
+
+def _ig_save_cookies(driver, path: str) -> None:
+    with open(path, "wb") as f:
+        pickle.dump(driver.get_cookies(), f)
+
+def _ig_load_cookies(driver, path: str) -> bool:
+    import os
+    if not os.path.exists(path):
+        return False
+    try:
+        driver.get("https://www.instagram.com/")
+        _ig_sleep(2, 3)
+        with open(path, "rb") as f:
+            cookies = pickle.load(f)
+        for cookie in cookies:
+            c = cookie.copy()
+            if "sameSite" in c and c["sameSite"] not in ("Strict", "Lax", "None"):
+                c.pop("sameSite", None)
+            try:
+                driver.add_cookie(c)
+            except Exception:
+                continue
+        driver.get("https://www.instagram.com/")
+        _ig_sleep(3, 4)
+        return True
+    except Exception:
+        return False
+
+def _ig_is_logged_in(driver) -> bool:
+    try:
+        driver.get("https://www.instagram.com/")
+        _ig_sleep(2, 3)
+        return "accounts/login" not in driver.current_url.lower()
+    except Exception:
+        return False
+
+def _ig_dismiss_popups(driver) -> None:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    for txt in ["나중에 하기", "나중에", "취소", "Not Now", "Cancel"]:
+        try:
+            btn = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((
+                By.XPATH,
+                f"//button[normalize-space()='{txt}'] | "
+                f"//div[@role='button' and normalize-space()='{txt}']",
+            )))
+            try:
+                btn.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", btn)
+            _ig_sleep(0.8, 1.5)
+        except Exception:
+            pass
+
+def _ig_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    driver.get("https://www.instagram.com/accounts/login/")
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.NAME, "username"))
+    )
+    user_el = driver.find_element(By.NAME, "username")
+    pw_el   = driver.find_element(By.NAME, "password")
+    user_el.clear(); user_el.send_keys(ig_id)
+    _ig_sleep(0.5, 1.0)
+    pw_el.clear(); pw_el.send_keys(ig_pw)
+    _ig_sleep(0.5, 1.0)
+    pw_el.send_keys(Keys.ENTER)
+    time.sleep(6)
+    _ig_dismiss_popups(driver)
+    if not _ig_is_logged_in(driver):
+        raise RuntimeError("Instagram 로그인 실패 — ID/PW 확인 또는 2FA 비활성화 필요")
+    _ig_save_cookies(driver, cookie_path)
+
+def _ig_ensure_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
+    if _ig_load_cookies(driver, cookie_path) and _ig_is_logged_in(driver):
+        return
+    _ig_login(driver, ig_id, ig_pw, cookie_path)
+
+def _ig_collect_post_links(driver, username: str, max_posts: int = 10) -> list:
+    from selenium.webdriver.common.by import By
+    driver.get(f"https://www.instagram.com/{username}/")
+    _ig_sleep(2, 3)
+    links: set = set()
+    retry = last_count = 0
+    while len(links) < max_posts and retry < 6:
+        for elem in driver.find_elements(By.CSS_SELECTOR, "a[href*='/p/'], a[href*='/reel/']"):
+            href = elem.get_attribute("href")
+            if href and ("/p/" in href or "/reel/" in href):
+                links.add(_ig_normalize_url(href))
+        if len(links) == last_count:
+            retry += 1
+        else:
+            retry = 0
+            last_count = len(links)
+        driver.execute_script("window.scrollBy(0, 1400);")
+        _ig_sleep(1.5, 2.5)
+    return list(links)[:max_posts]
+
+def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    driver.get(post_url)
+    _ig_sleep(2.0, 3.5)
+    _ig_dismiss_popups(driver)
+
+    # 날짜
+    posted_at = ""
+    try:
+        tel = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "time[datetime]"))
+        )
+        posted_at = (tel.get_attribute("datetime") or "")[:10]
+    except Exception:
+        pass
+
+    # 캡션
+    caption = ""
+    for sel in ["h1", "article h1", "div[role='dialog'] h1"]:
+        try:
+            caption = driver.find_element(By.CSS_SELECTOR, sel).text.strip()
+            if caption:
+                break
+        except Exception:
+            pass
+    if not caption:
+        try:
+            caption = driver.find_element(By.TAG_NAME, "article").text.strip()[:500]
+        except Exception:
+            pass
+
+    # 이미지 / 비디오
+    all_image_urls: list = []
+    seen: set = set()
+    for img in driver.find_elements(By.CSS_SELECTOR, "article img, img"):
+        src = img.get_attribute("src")
+        if src and src.startswith("http") and src not in seen:
+            seen.add(src)
+            all_image_urls.append(src)
+    video_url = ""
+    for v in driver.find_elements(By.CSS_SELECTOR, "video"):
+        src = v.get_attribute("src")
+        if src and src.startswith("http"):
+            video_url = src
+            break
+
+    # 좋아요 / 조회수
+    like_count = view_count = None
+    like_raw = view_raw = ""
+    candidates = driver.find_elements(
+        By.XPATH,
+        "//*[contains(text(),'좋아요') or contains(text(),'likes') "
+        "or contains(text(),'조회') or contains(text(),'views')]",
+    )
+    for el in candidates:
+        txt = (el.text or "").strip()
+        if not txt:
+            continue
+        if like_count is None and ("좋아요" in txt or "like" in txt.lower()):
+            like_raw   = txt
+            like_count = _ig_parse_number(txt)
+        if view_count is None and ("조회" in txt or "view" in txt.lower()):
+            view_raw   = txt
+            view_count = _ig_parse_number(txt)
+
+    post_type  = "reel" if "/reel/" in post_url else ("video" if video_url else "post")
+    is_carousel = len(all_image_urls) >= 2
+
+    return {
+        "account":       account,
+        "post_url":      post_url,
+        "post_type":     post_type,
+        "caption":       caption[:200],
+        "thumbnail_url": all_image_urls[0] if all_image_urls else "",
+        "all_image_urls": json.dumps(all_image_urls, ensure_ascii=False),
+        "image_count":   len(all_image_urls),
+        "video_url":     video_url,
+        "is_carousel":   is_carousel,
+        "like_count":    like_count,
+        "like_raw":      like_raw,
+        "view_count":    view_count,
+        "view_raw":      view_raw,
+        "posted_at":     posted_at,
+        "scraped_at":    datetime.now().isoformat(),
+    }
+
+
 # ── 라이브 지표 크롤러 (모듈 레벨) ───────────────────────────────────────────────
 
 def _parse_viewer_num(s: str) -> int:
