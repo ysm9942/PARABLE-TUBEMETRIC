@@ -1974,6 +1974,20 @@ class DashboardTab(tk.Frame):
                     ])
                 _style_header(ws2)
 
+        elif sub == "live":
+            live_tab = self.app._pages.get("live")
+            results = live_tab.live_results if live_tab else []
+            ws = wb.active
+            ws.title = "방송 목록"
+            ws.append(["플랫폼","방송 제목","카테고리","최고 시청자","평균 시청자","방송 날짜","방송 시간(분)"])
+            for r in results:
+                ws.append([
+                    r.get("platform",""), r.get("title",""), r.get("category",""),
+                    r.get("peak_viewers",0), r.get("avg_viewers",0),
+                    r.get("date",""), r.get("duration_min",0),
+                ])
+            _style_header(ws)
+
         wb.save(path)
         messagebox.showinfo("저장 완료", f"Excel 파일이 저장되었습니다.\n{path}")
 
