@@ -1368,7 +1368,6 @@ class LiveMetricsTab(tk.Frame):
                 for row in rows:
                     self.after(0, lambda r=row: self.result_tree.insert(
                         "", "end", values=(
-                            r.get("creator",      ""),
                             r.get("platform",     ""),
                             r.get("title",        "")[:50],
                             r.get("category",     ""),
