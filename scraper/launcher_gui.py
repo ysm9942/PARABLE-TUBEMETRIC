@@ -1029,7 +1029,13 @@ def _crawl_creator(platform: str, creator_id: str,
             break
 
         page += 1
-        time.sleep(1.2)  # 서버 부하 방지
+        time.sleep(1.5)  # 서버 부하 방지
+
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
     return results
 
