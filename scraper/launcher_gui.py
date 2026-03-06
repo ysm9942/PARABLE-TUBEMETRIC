@@ -1436,11 +1436,10 @@ class LiveMetricsTab(tk.Frame):
         # ── 방송 목록 시트 ────────────────────────────────────────────────
         ws = wb.active
         ws.title = "방송 목록"
-        ws.append(["크리에이터", "플랫폼", "방송 제목", "카테고리",
+        ws.append(["플랫폼", "방송 제목", "카테고리",
                    "최고 시청자", "평균 시청자", "방송 날짜", "방송 시간(분)"])
         for r in self.live_results:
             ws.append([
-                r.get("creator",      ""),
                 r.get("platform",     ""),
                 r.get("title",        ""),
                 r.get("category",     ""),
