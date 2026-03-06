@@ -21,12 +21,21 @@ def _get_chrome_major_version() -> int | None:
                 return int(m.group(1))
         except Exception:
             continue
-    # Windows 레지스트리
+    # Windows 레지스트리 (여러 경로 시도)
     try:
         import winreg
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon")
-        ver, _ = winreg.QueryValueEx(key, "version")
-        return int(ver.split(".")[0])
+        reg_paths = [
+            (winreg.HKEY_CURRENT_USER,  r"Software\Google\Chrome\BLBeacon"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Google\Chrome\BLBeacon"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Google\Chrome\BLBeacon"),
+        ]
+        for hive, path in reg_paths:
+            try:
+                key = winreg.OpenKey(hive, path)
+                ver, _ = winreg.QueryValueEx(key, "version")
+                return int(ver.split(".")[0])
+            except Exception:
+                continue
     except Exception:
         pass
     return None
