@@ -1298,14 +1298,13 @@ class LiveMetricsTab(tk.Frame):
         for idx, (platform, creator_id) in enumerate(creators, 1):
             if self._stop_event.is_set():
                 break
-            self._log(f"\n[{idx}/{total}]  {platform.upper()}:{creator_id}\n", "info")
+            self.after(0, lambda i=idx, t=total: self._status_var.set(f"수집 중... ({i}/{t})"))
             try:
                 rows = _crawl_creator(
                     platform, creator_id, start_dt, end_dt,
-                    categories, self._stop_event, progress_cb=self._log,
+                    categories, self._stop_event, progress_cb=None,
                 )
                 all_results.extend(rows)
-                self._log(f"  ✓  {len(rows)}건 수집\n", "ok")
 
                 for row in rows:
                     self.after(0, lambda r=row: self.result_tree.insert(
@@ -1319,27 +1318,11 @@ class LiveMetricsTab(tk.Frame):
                             r.get("duration_min", 0),
                         )
                     ))
-            except Exception as exc:
-                self._log(f"  ✗  오류: {exc}\n", "err")
+            except Exception:
+                pass
 
         self.live_results = all_results
         count = len(all_results)
-
-        # 요약
-        if all_results:
-            peak_avg = round(sum(r.get("peak_viewers", 0) for r in all_results) / count)
-            avg_avg  = round(sum(r.get("avg_viewers",  0) for r in all_results) / count)
-            cats     = [r.get("category", "") for r in all_results if r.get("category")]
-            top_cat  = max(set(cats), key=cats.count) if cats else "-"
-            summary  = (
-                f"총 {count}건\n"
-                f"평균 최고 시청자: {fmt_num(peak_avg)}\n"
-                f"평균 시청자: {fmt_num(avg_avg)}\n"
-                f"주요 카테고리: {top_cat}"
-            )
-            self.after(0, lambda: self._summary_var.set(summary))
-
-        self._log(f"\n[완료]  총 {count}건 수집 완료\n", "ok")
         self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
         self.after(0, self._done)
         # 대시보드 라이브 지표 탭 갱신
