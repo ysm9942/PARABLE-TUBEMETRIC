@@ -1528,7 +1528,8 @@ class DashboardTab(tk.Frame):
         sub_bar.pack(fill="x")
         self._sub_btns = {}
         for key, lbl in [("channel","채널 분석"), ("video","영상 분석"),
-                         ("ad","광고 분석"), ("scraper","로컬 스크래퍼")]:
+                         ("ad","광고 분석"), ("scraper","로컬 스크래퍼"),
+                         ("live","라이브 지표")]:
             btn = tk.Button(
                 sub_bar, text=lbl,
                 command=lambda k=key: self._switch_sub(k),
