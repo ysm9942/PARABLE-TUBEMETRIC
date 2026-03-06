@@ -1958,7 +1958,7 @@ class DashboardTab(tk.Frame):
         self._sub_btns = {}
         for key, lbl in [("channel","채널 분석"), ("video","영상 분석"),
                          ("ad","광고 분석"), ("scraper","로컬 스크래퍼"),
-                         ("live","라이브 지표")]:
+                         ("live","라이브 지표"), ("instagram","Instagram")]:
             tab_f = tk.Frame(sub_bar, bg=BG)
             tab_f.pack(side="left")
             btn = tk.Button(
