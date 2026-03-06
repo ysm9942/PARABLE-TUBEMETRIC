@@ -990,11 +990,18 @@ def _ig_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     driver.get("https://www.instagram.com/accounts/login/")
+    # Instagram은 name 속성이 "username"/"password" 또는 "email"/"pass" 로 변경될 수 있음
     WebDriverWait(driver, 15).until(
-        EC.presence_of_element_located((By.NAME, "username"))
+        lambda d: d.find_elements(By.CSS_SELECTOR, "input[name='username'], input[name='email']")
     )
-    user_el = driver.find_element(By.NAME, "username")
-    pw_el   = driver.find_element(By.NAME, "password")
+    user_el = (
+        driver.find_elements(By.NAME, "username") or
+        driver.find_elements(By.NAME, "email")
+    )[0]
+    pw_el = (
+        driver.find_elements(By.NAME, "password") or
+        driver.find_elements(By.NAME, "pass")
+    )[0]
     user_el.clear(); user_el.send_keys(ig_id)
     _ig_sleep(0.5, 1.0)
     pw_el.clear(); pw_el.send_keys(ig_pw)
