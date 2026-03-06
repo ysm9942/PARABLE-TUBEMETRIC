@@ -860,6 +860,7 @@ def _crawl_creator(platform: str, creator_id: str,
     import re as _re
     import time as _time
     import random as _rnd
+    import subprocess as _sp
     from urllib.parse import quote as _q
     from datetime import timedelta as _td
     from bs4 import BeautifulSoup as _BS
@@ -876,10 +877,27 @@ def _crawl_creator(platform: str, creator_id: str,
         if progress_cb:
             progress_cb(msg)
 
+    # ── Chrome 버전 감지 (reg query 방식 — winreg보다 Windows에서 안정적) ─────
+    def _get_chrome_ver():
+        cmds = [
+            r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version',
+            r'reg query "HKEY_LOCAL_MACHINE\Software\Google\Chrome\BLBeacon" /v version',
+            r'reg query "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Google\Chrome\BLBeacon" /v version',
+        ]
+        for cmd in cmds:
+            try:
+                out = _sp.check_output(cmd, shell=True, text=True, encoding="utf-8", errors="ignore")
+                m = _re.search(r"(\d+)\.\d+\.\d+\.\d+", out)
+                if m:
+                    return int(m.group(1))
+            except Exception:
+                continue
+        return None
+
     # ── URL (KST → UTC -9h, 날짜 쿼리 파라미터 포함) ─────────────────────────
     BASE      = "https://viewership.softc.one"
     PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca"}.get(platform, platform)
-    start_utc = (start_dt.replace(hour=0,  minute=0,  second=0,  microsecond=0)   - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    start_utc = (start_dt.replace(hour=0,  minute=0,  second=0,  microsecond=0)    - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     end_utc   = (end_dt.replace(  hour=14, minute=59, second=59, microsecond=999000) - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.999Z")
     url = f"{BASE}/channel/{PLAT_PATH}/{creator_id}/streams?startDateTime={_q(start_utc)}&endDateTime={_q(end_utc)}"
 
@@ -889,8 +907,10 @@ def _crawl_creator(platform: str, creator_id: str,
                     ".rounded-lg.px-6.transition-all")
     PAGE_BTN_SEL = "button.font-inter.text-xs.w-8.h-8"
 
-    # ── 드라이버 (use_subprocess 없이 UC 자체 감지) ───────────────────────────
+    # ── 드라이버 (버전 감지 성공 시 version_main 전달, 실패 시 UC 자체 감지) ──
     _log("    드라이버 시작 중...\n")
+    chrome_major = _get_chrome_ver()
+    _log(f"    감지된 Chrome major: {chrome_major if chrome_major else '자동감지'}\n")
     opts = _uc.ChromeOptions()
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
@@ -898,7 +918,10 @@ def _crawl_creator(platform: str, creator_id: str,
     opts.add_argument("--start-maximized")
     opts.add_argument("--disable-blink-features=AutomationControlled")
     try:
-        driver = _uc.Chrome(options=opts)
+        if chrome_major:
+            driver = _uc.Chrome(options=opts, version_main=chrome_major)
+        else:
+            driver = _uc.Chrome(options=opts)
         driver.implicitly_wait(3)
     except Exception as _e:
         import traceback as _tb
