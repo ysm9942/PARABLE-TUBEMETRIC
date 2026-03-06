@@ -872,7 +872,14 @@ def _crawl_creator(platform: str, creator_id: str,
     url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
 
     # 로컬 스크래퍼와 동일한 create_driver() 사용 (버전 자동감지 + 봇 우회 옵션 포함)
-    driver = create_driver(headless=False)
+    _log("    드라이버 시작 중...\n")
+    try:
+        driver = create_driver(headless=False)
+    except Exception as _e:
+        import traceback as _tb
+        _log(f"    [드라이버 오류] {_e}\n{_tb.format_exc()}\n")
+        raise
+    _log("    드라이버 준비 완료\n")
 
     def _get_soup(url: str) -> "BeautifulSoup":
         for attempt in range(3):
