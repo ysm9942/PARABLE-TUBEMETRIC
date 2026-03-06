@@ -695,17 +695,22 @@ def _ig_open_reels_tab(driver, username: str) -> None:
 
     reels_url = f"https://www.instagram.com/{username}/reels/"
     driver.get(reels_url)
-    _ig_sleep(2, 3)
     _ig_dismiss_popups(driver)
-    if f"/{username.lower()}/reels" in driver.current_url.lower():
-        return
+    # 릴스 링크가 1개라도 나타나면 바로 진행 (최대 6s 대기)
+    try:
+        WebDriverWait(driver, 6).until(
+            lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+        )
+        if f"/{username.lower()}/reels" in driver.current_url.lower():
+            return
+    except Exception:
+        pass
 
     # 백업: 프로필 진입 후 릴스 탭 클릭
     driver.get(f"https://www.instagram.com/{username}/")
-    WebDriverWait(driver, 15).until(
+    WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.TAG_NAME, "header"))
     )
-    _ig_sleep(2, 3)
     css_selectors = [
         f"a[href='/{username}/reels/']",
         f"a[href='/{username.lower()}/reels/']",
@@ -713,20 +718,22 @@ def _ig_open_reels_tab(driver, username: str) -> None:
     ]
     for sel in css_selectors:
         try:
-            el = WebDriverWait(driver, 5).until(
+            el = WebDriverWait(driver, 4).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, sel))
             )
             try:
                 el.click()
             except Exception:
                 driver.execute_script("arguments[0].click();", el)
-            _ig_sleep(2, 3)
+            WebDriverWait(driver, 6).until(
+                lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+            )
             return
         except Exception:
             pass
     # XPath 백업
     try:
-        el = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((
+        el = WebDriverWait(driver, 4).until(EC.element_to_be_clickable((
             By.XPATH,
             "//a[contains(@href, '/reels/') and (@role='link' or @tabindex='0')]",
         )))
@@ -734,7 +741,9 @@ def _ig_open_reels_tab(driver, username: str) -> None:
             el.click()
         except Exception:
             driver.execute_script("arguments[0].click();", el)
-        _ig_sleep(2, 3)
+        WebDriverWait(driver, 6).until(
+            lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+        )
     except Exception:
         driver.get(reels_url)
         _ig_sleep(2, 3)
