@@ -1203,58 +1203,6 @@ class LiveMetricsTab(tk.Frame):
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        # ── 우측: 카테고리 필터 + 로그 ────────────────────────────────────
-        tk.Label(right, text="카테고리 필터",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
-        tk.Label(right, text="(비워 두면 전체 수집)",
-                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
-
-        cat_border = tk.Frame(right, bg=BORDER, padx=1, pady=1)
-        cat_border.pack(fill="x")
-        self.cat_txt = tk.Text(cat_border, height=5, font=("Consolas", 10),
-                               bg=BG3, fg=FG, insertbackground=ACCENT,
-                               relief="flat", padx=8, pady=6)
-        self.cat_txt.pack(fill="both")
-
-        tk.Label(right, text="실행 로그",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(14, 4))
-        self.log_box = scrolledtext.ScrolledText(
-            right, height=12, font=("Consolas", 9),
-            bg="#0c0c0c", fg="#cccccc", insertbackground="white",
-            relief="flat", padx=8, pady=6, state="disabled",
-        )
-        self.log_box.pack(fill="both", expand=True)
-        self.log_box.tag_configure("ok",   foreground="#4ade80")
-        self.log_box.tag_configure("err",  foreground="#f87171")
-        self.log_box.tag_configure("info", foreground="#60a5fa")
-        self.log_box.tag_configure("dim",  foreground="#555555")
-
-        # 요약 통계 라벨
-        self._summary_var = tk.StringVar(value="")
-        tk.Label(right, textvariable=self._summary_var,
-                 font=("Consolas", 8), bg=BG, fg=FG_DIM,
-                 anchor="w", wraplength=240, justify="left").pack(fill="x", pady=(6, 0))
-
-    # ── 로그 출력 ──────────────────────────────────────────────────────────
-    def _log(self, msg: str, tag: str = ""):
-        def _do():
-            self.log_box.configure(state="normal")
-            if not tag:
-                low = msg.lower()
-                if any(k in low for k in ["✓", "완료", "done"]):
-                    t = "ok"
-                elif any(k in low for k in ["✗", "오류", "error", "fail"]):
-                    t = "err"
-                elif msg.startswith("["):
-                    t = "info"
-                else:
-                    t = "dim"
-            else:
-                t = tag
-            self.log_box.insert("end", msg, t)
-            self.log_box.see("end")
-            self.log_box.configure(state="disabled")
-        self.after(0, _do)
 
     # ── 입력 파싱 ──────────────────────────────────────────────────────────
     def _parse_ids(self) -> list:
