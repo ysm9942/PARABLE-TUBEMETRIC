@@ -1437,8 +1437,8 @@ class InstagramTab(tk.Frame):
         self._build()
 
     def _build(self):
-        _section_header(self, "Instagram 분석",
-                        "undetected-chromedriver  →  계정 게시물 크롤링  →  지표 수집")
+        _section_header(self, "Instagram 릴스 분석",
+                        "undetected-chromedriver  →  릴스 탭(/reels/)  →  지표 수집")
 
         wrap = tk.Frame(self, bg=BG, padx=28)
         wrap.pack(fill="both", expand=True)
