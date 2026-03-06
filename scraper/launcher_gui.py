@@ -2314,8 +2314,6 @@ class MainApp(tk.Frame):
         for key, icon, label in [
             ("channel",   "▸", "채널 통합 분석"),
             ("video",     "▸", "단일 영상 분석"),
-            ("ad",        "▸", "광고 영상 분석"),
-            ("scraper",   "▸", "로컬 스크래퍼"),
             ("live",      "▸", "라이브 지표 분석"),
             ("instagram", "▸", "Instagram 분석"),
             ("dashboard", "▸", "데이터 대시보드"),
