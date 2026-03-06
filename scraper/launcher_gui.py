@@ -774,18 +774,17 @@ def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     driver.get(post_url)
-    _ig_sleep(2.0, 3.5)
     _ig_dismiss_popups(driver)
 
-    # 날짜
+    # 날짜 — 페이지 핵심 요소 로드 대기 겸용
     posted_at = ""
     try:
-        tel = WebDriverWait(driver, 10).until(
+        tel = WebDriverWait(driver, 8).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "time[datetime]"))
         )
         posted_at = (tel.get_attribute("datetime") or "")[:10]
     except Exception:
-        pass
+        _ig_sleep(1.0, 1.8)  # time 태그 없으면 최소 대기
 
     # 캡션
     caption = ""
