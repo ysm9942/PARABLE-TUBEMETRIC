@@ -1709,9 +1709,6 @@ class DashboardTab(tk.Frame):
     def show_video(self):
         self._switch_sub("video")
 
-    def show_ad(self):
-        self._switch_sub("ad")
-
     def show_instagram(self):
         self._switch_sub("instagram")
 
