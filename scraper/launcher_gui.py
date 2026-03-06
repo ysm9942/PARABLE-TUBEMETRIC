@@ -1264,33 +1264,19 @@ class LiveMetricsTab(tk.Frame):
             messagebox.showerror("날짜 오류", "시작일이 종료일보다 늦습니다.")
             return
 
-        categories = [
-            ln.strip() for ln in self.cat_txt.get("1.0", "end").splitlines()
-            if ln.strip()
-        ]
-
         # 초기화
         self.run_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal", bg=ACCENT, fg="white")
         self._status_var.set("수집 중...")
         self._stop_event.clear()
         self.live_results = []
-        self._summary_var.set("")
 
         for row in self.result_tree.get_children():
             self.result_tree.delete(row)
 
-        self._log(
-            f"[시작] 크리에이터 {len(creators)}명  "
-            f"{self.start_date.get()} ~ {self.end_date.get()}\n",
-            "info",
-        )
-        if categories:
-            self._log(f"[필터] 카테고리: {', '.join(categories)}\n", "info")
-
         self._thread = threading.Thread(
             target=self._crawl_thread,
-            args=(creators, start_dt, end_dt, categories),
+            args=(creators, start_dt, end_dt, []),
             daemon=True,
         )
         self._thread.start()
