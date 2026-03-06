@@ -1849,6 +1849,11 @@ class DashboardTab(tk.Frame):
         if sub == "ad" and not self.app.ad_results:
             messagebox.showwarning("데이터 없음", "광고 분석 결과가 없습니다.")
             return
+        if sub == "live":
+            live_tab = self.app._pages.get("live")
+            if not live_tab or not live_tab.live_results:
+                messagebox.showwarning("데이터 없음", "라이브 지표 수집 결과가 없습니다.")
+                return
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         default_name = {
@@ -1856,6 +1861,7 @@ class DashboardTab(tk.Frame):
             "video":   f"TubeMetric_Video_{ts}.xlsx",
             "ad":      f"TubeMetric_Ad_{ts}.xlsx",
             "scraper": f"TubeMetric_Scraper_{ts}.xlsx",
+            "live":    f"TubeMetric_Live_{ts}.xlsx",
         }.get(sub, f"TubeMetric_{ts}.xlsx")
 
         path = filedialog.asksaveasfilename(
