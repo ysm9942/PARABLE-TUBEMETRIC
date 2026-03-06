@@ -2648,6 +2648,7 @@ class MainApp(tk.Frame):
             "ad":        AdTab(self.content, self),
             "scraper":   ScraperTab(self.content, self),
             "live":      LiveMetricsTab(self.content, self),
+            "instagram": InstagramTab(self.content, self),
             "dashboard": self.dashboard,
         }
         self.switch_tab("channel")
