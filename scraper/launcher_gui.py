@@ -1809,8 +1809,17 @@ class InstagramTab(tk.Frame):
 
     # ── 수집 실행 ─────────────────────────────────────────────────────────────
     def _run(self):
+        def _parse_account(raw: str) -> str:
+            s = raw.strip().lstrip("@")
+            # URL 형식이면 경로에서 첫 세그먼트 추출
+            # e.g. https://www.instagram.com/eia_asmr/  →  eia_asmr
+            m = re.search(r"instagram\.com/([^/?#]+)", s)
+            if m:
+                return m.group(1).strip("/")
+            return s
+
         accounts = [
-            ln.strip().lstrip("@")
+            _parse_account(ln)
             for ln in self.acc_txt.get("1.0", "end").splitlines()
             if ln.strip() and not ln.strip().startswith("#")
         ]
