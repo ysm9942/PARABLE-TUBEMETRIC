@@ -2003,6 +2003,9 @@ class DashboardTab(tk.Frame):
     def show_ad(self):
         self._switch_sub("ad")
 
+    def show_instagram(self):
+        self._switch_sub("instagram")
+
     # ── 채널 결과 ────────────────────────────────────────────────────────────
     def _build_channel(self):
         results = self.app.channel_results
