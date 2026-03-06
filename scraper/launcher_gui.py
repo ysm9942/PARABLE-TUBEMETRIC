@@ -1574,11 +1574,13 @@ class DashboardTab(tk.Frame):
 
     def _switch_sub(self, key: str):
         self._current_sub = key
-        for k, btn in self._sub_btns.items():
-            if k == key:
-                btn.configure(bg=ACCENT, fg="white")
-            else:
-                btn.configure(bg=BG2, fg=FG_DIM)
+        for k, items in self._sub_btns.items():
+            active = k == key
+            items["btn"].configure(
+                fg=FG if active else FG_DIM,
+                font=("Arial", 9, "bold") if active else ("Arial", 9),
+            )
+            items["ind"].configure(bg=ACCENT if active else BG)
         for w in self._content.winfo_children():
             w.destroy()
         getattr(self, f"_build_{key}")()
