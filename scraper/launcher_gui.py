@@ -852,182 +852,188 @@ def _crawl_creator(platform: str, creator_id: str,
                    progress_cb=None) -> list:
     """
     viewership.softc.one에서 크리에이터의 방송 지표를 수집.
-    undetected_chromedriver로 실제 브라우저를 사용해 봇 차단을 우회.
+    날짜 쿼리 파라미터 URL + CSS 셀렉터 기반 SPA 파싱.
 
     platform  : 'chzzk' 또는 'soop'
-    creator_id: 크리에이터 채널 ID / 닉네임
+    creator_id: 크리에이터 채널 ID
     """
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        raise RuntimeError("beautifulsoup4 가 설치되어 있지 않습니다.\npip install beautifulsoup4")
-    from browser import create_driver
+    import re as _re
+    import time as _time
+    import random as _rnd
+    from urllib.parse import quote as _q
+    from datetime import timedelta as _td
+    from bs4 import BeautifulSoup as _BS
+    import undetected_chromedriver as _uc
+    from selenium.webdriver.common.by import By as _By
+    from selenium.webdriver.support.ui import WebDriverWait as _Wait
+    from selenium.webdriver.support import expected_conditions as _EC
+    from selenium.common.exceptions import (
+        TimeoutException as _TE,
+        StaleElementReferenceException as _SRE,
+    )
 
     def _log(msg):
         if progress_cb:
             progress_cb(msg)
 
-    BASE = "https://viewership.softc.one"
-    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
-    url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}/streams"
+    # ── URL (KST → UTC -9h, 날짜 쿼리 파라미터 포함) ─────────────────────────
+    BASE      = "https://viewership.softc.one"
+    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca"}.get(platform, platform)
+    start_utc = (start_dt.replace(hour=0,  minute=0,  second=0,  microsecond=0)   - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    end_utc   = (end_dt.replace(  hour=14, minute=59, second=59, microsecond=999000) - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.999Z")
+    url = f"{BASE}/channel/{PLAT_PATH}/{creator_id}/streams?startDateTime={_q(start_utc)}&endDateTime={_q(end_utc)}"
 
-    # 로컬 스크래퍼와 동일한 create_driver() 사용 (버전 자동감지 + 봇 우회 옵션 포함)
+    # ── CSS 셀렉터 ────────────────────────────────────────────────────────────
+    STREAM_SEL   = ("a[href*='/streams/'] > button.min-h-11.py-2.hidden.lg\\:flex"
+                    ".gap-4.text-xs.items-center.font-medium.leading-none"
+                    ".rounded-lg.px-6.transition-all")
+    PAGE_BTN_SEL = "button.font-inter.text-xs.w-8.h-8"
+
+    # ── 드라이버 (use_subprocess 없이 UC 자체 감지) ───────────────────────────
     _log("    드라이버 시작 중...\n")
+    opts = _uc.ChromeOptions()
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--start-maximized")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
     try:
-        driver = create_driver(headless=False)
+        driver = _uc.Chrome(options=opts)
+        driver.implicitly_wait(3)
     except Exception as _e:
         import traceback as _tb
         _log(f"    [드라이버 오류] {_e}\n{_tb.format_exc()}\n")
         raise
     _log("    드라이버 준비 완료\n")
 
-    def _get_soup(url: str) -> "BeautifulSoup":
-        for attempt in range(3):
-            try:
-                driver.get(url)
-                # 페이지 로드 완료 대기 (최대 15초)
-                import selenium.webdriver.support.ui as ui
-                import selenium.webdriver.support.expected_conditions as EC
-                import selenium.webdriver.common.by as By
-                ui.WebDriverWait(driver, 15).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-                return BeautifulSoup(driver.page_source, "html.parser")
-            except Exception as exc:
-                if attempt == 2:
-                    raise RuntimeError(f"페이지 로드 실패 ({url}): {exc}")
-                time.sleep(2 ** attempt)
+    # ── 페이지네이션 헬퍼 ─────────────────────────────────────────────────────
+    def _num_page_btns():
+        btns = driver.find_elements(_By.CSS_SELECTOR, PAGE_BTN_SEL)
+        return [b for b in btns if (b.text or "").strip().isdigit()]
 
+    def _click_page(target: str, timeout=5.0) -> bool:
+        end_t = _time.time() + timeout
+        while _time.time() < end_t:
+            btns = _num_page_btns()
+            btn  = next((b for b in btns if (b.text or "").strip() == target), None)
+            if btn:
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+                    _time.sleep(0.2)
+                    btn.click()
+                    return True
+                except (_SRE, Exception):
+                    pass
+            _time.sleep(0.2)
+        return False
+
+    def _wait_page_change(before_text: str, timeout=7.0) -> bool:
+        end_t = _time.time() + timeout
+        while _time.time() < end_t:
+            try:
+                elems = driver.find_elements(_By.CSS_SELECTOR, STREAM_SEL)
+                after = (elems[0].text or "").strip() if elems else ""
+                if after and after != before_text:
+                    return True
+            except Exception:
+                pass
+            _time.sleep(0.2)
+        return False
+
+    # ── 페이지 파싱 ───────────────────────────────────────────────────────────
+    def _parse_page() -> list:
+        soup = _BS(driver.page_source, "html.parser")
+        rows = []
+        for a in soup.select("a[href*='/streams/']"):
+            btn = a.find("button")
+            if not btn:
+                continue
+            cols = btn.find_all("div", recursive=False)
+            if not cols:
+                cols = btn.find_all("div")
+
+            def _t(el):
+                return el.get_text(strip=True) if el else ""
+
+            def _n(el):
+                s = _re.sub(r"[^\d]", "", _t(el))
+                return int(s) if s else 0
+
+            # 카테고리 / 제목
+            col0 = cols[0] if cols else None
+            divs = col0.find_all("div") if col0 else []
+            cat_text   = _t(divs[0]) if len(divs) >= 1 else _t(col0)
+            title_text = _t(divs[1]) if len(divs) >= 2 else ""
+
+            # 기간 → 날짜 추출
+            period   = _t(cols[1]) if len(cols) > 1 else ""
+            date_m   = _re.search(r'(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})', period)
+            date_str = (f"{date_m.group(1)}-{int(date_m.group(2)):02d}-{int(date_m.group(3)):02d}"
+                        if date_m else "")
+
+            # 방송시간(h) → 분
+            dur_text = _t(cols[2]) if len(cols) > 2 else ""
+            dur_m    = _re.search(r'(\d+(?:\.\d+)?)', dur_text)
+            dur_min  = int(float(dur_m.group(1)) * 60) if dur_m else 0
+
+            peak = _n(cols[3]) if len(cols) > 3 else 0
+            avg  = _n(cols[4]) if len(cols) > 4 else 0
+
+            # 카테고리 필터
+            if categories and cat_text and not any(c.lower() in cat_text.lower() for c in categories):
+                continue
+
+            rows.append({
+                "creator":      creator_id,
+                "platform":     platform.upper(),
+                "title":        title_text,
+                "category":     cat_text,
+                "peak_viewers": peak,
+                "avg_viewers":  avg,
+                "date":         date_str,
+                "duration_min": dur_min,
+            })
+        return rows
+
+    # ── 메인 크롤링 루프 ──────────────────────────────────────────────────────
     results = []
-    page = 1
-    consecutive_old = 0
-    MAX_CONSECUTIVE_OLD = 10
-
     try:
-      while not stop_event.is_set():
-        page_url = f"{url_base}?page={page}" if page > 1 else url_base
-        _log(f"    페이지 {page}: {page_url}\n")
-
-        soup = None
-        for attempt in range(3):
-            try:
-                soup = _get_soup(page_url)
-                break
-            except Exception as exc:
-                if attempt == 2:
-                    raise RuntimeError(f"페이지 로드 실패 ({page_url}): {exc}")
-                time.sleep(2 ** attempt)
-
-        if soup is None:
-            break
-
-        # ── 방송 목록 파싱 ────────────────────────────────────────────
-        rows_on_page = 0
-
-        # 테이블 기반 파싱 (일반적인 레이아웃)
-        table = soup.find("table")
-        _log(f"    HTML title: {soup.title.string if soup.title else '(없음)'}\n")
-        _log(f"    table 태그: {'발견' if table else '없음'}\n")
-        if table:
-            tbody = table.find("tbody") or table
-            for tr in tbody.find_all("tr"):
-                if stop_event.is_set():
-                    break
-                tds = tr.find_all(["td", "th"])
-                if len(tds) < 3:
-                    continue
-
-                # 날짜 (첫 번째 컬럼)
-                raw_date = tds[0].get_text(strip=True)
-                try:
-                    bdate = datetime.strptime(raw_date[:10], "%Y-%m-%d")
-                except ValueError:
-                    continue
-
-                # 날짜 범위 체크
-                if bdate > end_dt:
-                    consecutive_old += 1
-                    if consecutive_old >= MAX_CONSECUTIVE_OLD:
-                        return results
-                    continue
-                if bdate < start_dt:
-                    consecutive_old += 1
-                    if consecutive_old >= MAX_CONSECUTIVE_OLD:
-                        return results
-                    continue
-                consecutive_old = 0
-
-                # 나머지 컬럼
-                title    = tds[1].get_text(strip=True) if len(tds) > 1 else ""
-                category = tds[2].get_text(strip=True) if len(tds) > 2 else ""
-                peak     = _parse_viewer_num(tds[3].get_text(strip=True)) if len(tds) > 3 else 0
-                avg      = _parse_viewer_num(tds[4].get_text(strip=True)) if len(tds) > 4 else 0
-                dur_min  = _parse_viewer_num(tds[5].get_text(strip=True)) if len(tds) > 5 else 0
-
-                # 카테고리 필터
-                if categories and not any(c.lower() in category.lower() for c in categories):
-                    continue
-
-                results.append({
-                    "creator":      creator_id,
-                    "platform":     platform.upper(),
-                    "title":        title,
-                    "category":     category,
-                    "peak_viewers": peak,
-                    "avg_viewers":  avg,
-                    "date":         raw_date[:10],
-                    "duration_min": dur_min,
-                })
-                rows_on_page += 1
-
-        else:
-            # 카드/리스트 기반 파싱 폴백
-            cards = (
-                soup.select(".broadcast-row, .stream-row, .vod-row, "
-                            "[class*='broadcast'], [class*='stream'], [class*='vod']")
+        _log(f"    URL: {url}\n")
+        driver.get(url)
+        try:
+            _Wait(driver, 15).until(
+                _EC.presence_of_all_elements_located((_By.CSS_SELECTOR, STREAM_SEL))
             )
-            for card in cards:
-                if stop_event.is_set():
-                    break
-                raw_date = card.get("data-date", "") or (
-                    card.select_one("[class*='date']") or tk.Label()
-                ).get_text(strip=True) if hasattr(card, "select_one") else ""
-                try:
-                    bdate = datetime.strptime(raw_date[:10], "%Y-%m-%d")
-                except ValueError:
-                    continue
-                if not (start_dt <= bdate <= end_dt):
-                    continue
+        except _TE:
+            _log("    ⚠ 요소 대기 타임아웃 — 파싱 시도 계속\n")
 
-                title_el = card.select_one("[class*='title']")
-                cat_el   = card.select_one("[class*='category'], [class*='game']")
-                peak_el  = card.select_one("[class*='peak'], [class*='max']")
-                avg_el   = card.select_one("[class*='avg'], [class*='average']")
+        page = 1
+        while not stop_event.is_set():
+            _log(f"    {page}페이지 파싱 중...\n")
+            rows = _parse_page()
+            results.extend(rows)
+            _log(f"    → {len(rows)}건\n")
 
-                results.append({
-                    "creator":      creator_id,
-                    "platform":     platform.upper(),
-                    "title":        title_el.get_text(strip=True) if title_el else "",
-                    "category":     cat_el.get_text(strip=True)   if cat_el   else "",
-                    "peak_viewers": _parse_viewer_num(peak_el.get_text(strip=True)) if peak_el else 0,
-                    "avg_viewers":  _parse_viewer_num(avg_el.get_text(strip=True))  if avg_el  else 0,
-                    "date":         raw_date[:10],
-                    "duration_min": 0,
-                })
-                rows_on_page += 1
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            _time.sleep(0.5)
 
-        _log(f"    → {rows_on_page}건 파싱\n")
+            next_page = str(page + 1)
+            if not any((b.text or "").strip() == next_page for b in _num_page_btns()):
+                break
 
-        # 다음 페이지 링크 탐색
-        next_btn = (
-            soup.find("a", string=lambda t: t and any(k in t for k in ["다음", "Next", "›", "»"]))
-            or soup.select_one("a[rel='next'], .pagination .next a, li.next a")
-        )
-        if not next_btn or rows_on_page == 0:
-            break
+            before = ""
+            try:
+                elems  = driver.find_elements(_By.CSS_SELECTOR, STREAM_SEL)
+                before = (elems[0].text or "").strip() if elems else ""
+            except Exception:
+                pass
 
-        page += 1
-        time.sleep(1.5)  # 서버 부하 방지
+            if not _click_page(next_page):
+                break
+
+            _wait_page_change(before)
+            page += 1
+            _time.sleep(_rnd.uniform(2.0, 4.0))
 
     finally:
         try:
