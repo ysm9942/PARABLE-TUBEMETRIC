@@ -333,7 +333,7 @@ def combine_results(paid_flag: dict, nlp: dict, dom_paid: bool = False) -> dict:
 def analyze_video_for_ad(driver, video_id: str) -> dict:
     """
     영상 페이지를 직접 로드해 광고 여부를 분석.
-    ytInitialPlayerResponse + ytInitialData + DOM을 모두 활용.
+    우선순위: DOM 오버레이 > ytInitialPlayerResponse 플래그 > NLP 텍스트 분석
     """
     url = f"https://www.youtube.com/watch?v={video_id}"
     print(f"  [광고분석] {video_id}")
@@ -346,6 +346,15 @@ def analyze_video_for_ad(driver, video_id: str) -> dict:
     except Exception:
         pass
     time.sleep(2)
+
+    # ── 프리롤 광고 스킵 ──────────────────────────────────────────────────────
+    _skip_ads(driver)
+    time.sleep(1.5)
+
+    # ── DOM 오버레이 감지 (신뢰도 최우선) ────────────────────────────────────
+    dom_paid = _detect_paid_overlay(driver)
+    if dom_paid:
+        print(f"    → DOM 오버레이 감지: 유료 광고 포함 확정")
 
     page_source = driver.page_source
 
