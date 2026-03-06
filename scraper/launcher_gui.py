@@ -9,6 +9,10 @@ Vercel 대시보드의 모든 기능을 로컬 exe에 구현:
   - 데이터 대시보드 (결과 표시 + Excel 내보내기)
 """
 import sys
+import re
+import time
+import random
+import pickle
 import threading
 import socket
 import getpass
