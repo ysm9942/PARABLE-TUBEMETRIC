@@ -2087,46 +2087,62 @@ class MainApp(tk.Frame):
         _apply_treeview_style()
 
         # 사이드바
-        sidebar = tk.Frame(self, bg=BG2, width=200)
+        sidebar = tk.Frame(self, bg=BG2, width=240)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
 
-        logo = tk.Frame(sidebar, bg=BG2, pady=22)
+        # ── 로고 ────────────────────────────────────────────────────────────
+        logo = tk.Frame(sidebar, bg=BG2, padx=20, pady=22)
         logo.pack(fill="x")
-        tk.Label(logo, text="⬤", font=("Arial", 14), bg=BG2, fg=ACCENT).pack()
-        tk.Label(logo, text="TubeMetric", font=("Arial", 12, "bold"),
-                 bg=BG2, fg=FG).pack()
+        logo_row = tk.Frame(logo, bg=BG2)
+        logo_row.pack(anchor="w")
+        tk.Frame(logo_row, bg=ACCENT, width=4, height=22).pack(side="left")
+        tk.Label(logo_row, text="  TubeMetric",
+                 font=("Arial", 13, "bold"), bg=BG2, fg=FG).pack(side="left")
         tk.Label(logo, text=f"@{MACHINE_INFO['operator']}",
-                 font=("Arial", 8), bg=BG2, fg=FG_DIM).pack()
+                 font=("Arial", 8), bg=BG2, fg=FG_MUTE, anchor="w").pack(fill="x", pady=(6, 0))
 
         tk.Frame(sidebar, bg=BORDER, height=1).pack(fill="x")
+        tk.Label(sidebar, text="NAVIGATION",
+                 font=("Arial", 7, "bold"), bg=BG2, fg=FG_MUTE, anchor="w").pack(
+                 fill="x", padx=22, pady=(12, 4))
 
-        self._tab_btns: dict[str, tk.Button] = {}
+        # ── 탭 버튼 (인디케이터 바 포함) ────────────────────────────────────
+        self._tab_items: dict = {}
+        self._tab_btns:  dict = {}
         for key, icon, label in [
-            ("channel",  "📊", " 채널 통합 분석"),
-            ("video",    "🎬", " 단일 영상 분석"),
-            ("ad",       "📢", " 광고 영상 분석"),
-            ("scraper",  "⚙",  " 로컬 스크래퍼"),
-            ("live",     "📡", " 라이브 지표 분석"),
-            ("dashboard","📋", " 데이터 대시보드"),
+            ("channel",   "▸", "채널 통합 분석"),
+            ("video",     "▸", "단일 영상 분석"),
+            ("ad",        "▸", "광고 영상 분석"),
+            ("scraper",   "▸", "로컬 스크래퍼"),
+            ("live",      "▸", "라이브 지표 분석"),
+            ("dashboard", "▸", "데이터 대시보드"),
         ]:
+            row = tk.Frame(sidebar, bg=BG2)
+            row.pack(fill="x")
+            ind = tk.Frame(row, bg=BG2, width=3)
+            ind.pack(side="left", fill="y")
+            ind.pack_propagate(False)
             btn = tk.Button(
-                sidebar, text=f"  {icon}{label}",
+                row, text=f"  {icon}  {label}",
                 command=lambda k=key: self.switch_tab(k),
-                bg=BG2, fg=FG_DIM, activebackground=BG3,
+                bg=BG2, fg=FG_DIM,
+                activebackground=BG3, activeforeground=FG,
                 font=("Arial", 10), relief="flat",
-                anchor="w", padx=14, pady=11, cursor="hand2",
+                anchor="w", padx=16, pady=12, cursor="hand2",
             )
-            btn.pack(fill="x")
+            btn.pack(fill="both", expand=True)
+            self._tab_items[key] = {"btn": btn, "ind": ind}
             self._tab_btns[key] = btn
 
+        # ── 하단 시스템 정보 ─────────────────────────────────────────────────
         mf = tk.Frame(sidebar, bg=BG2)
-        mf.pack(side="bottom", fill="x", padx=14, pady=12)
+        mf.pack(side="bottom", fill="x", padx=20, pady=14)
         tk.Frame(mf, bg=BORDER, height=1).pack(fill="x", pady=(0, 8))
         tk.Label(mf, text=MACHINE_INFO["hostname"],
-                 font=("Consolas", 8, "bold"), bg=BG2, fg=FG_DIM).pack(anchor="w")
-        tk.Label(mf, text=MACHINE_INFO["os"].split()[0],
-                 font=("Arial", 7), bg=BG2, fg=FG_MUTE).pack(anchor="w")
+                 font=("Arial", 8), bg=BG2, fg=FG_DIM, anchor="w").pack(fill="x")
+        tk.Label(mf, text=f"{MACHINE_INFO['os'].split()[0]}  ·  v1.0",
+                 font=("Arial", 7), bg=BG2, fg=FG_MUTE, anchor="w").pack(fill="x")
 
         # 컨텐츠
         self.content = tk.Frame(self, bg=BG)
