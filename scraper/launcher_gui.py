@@ -1669,6 +1669,267 @@ class LiveMetricsTab(tk.Frame):
         messagebox.showinfo("저장 완료", f"Excel 저장 완료\n{path}")
 
 
+# ── Instagram 분석 탭 ─────────────────────────────────────────────────────────
+class InstagramTab(tk.Frame):
+    def __init__(self, master, app):
+        super().__init__(master, bg=BG)
+        self.app = app
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._driver = None
+        self.ig_results: list = []
+        self._tree_row = [0]
+        self._build()
+
+    def _build(self):
+        _section_header(self, "Instagram 분석",
+                        "undetected-chromedriver  →  계정 게시물 크롤링  →  지표 수집")
+
+        wrap = tk.Frame(self, bg=BG, padx=28)
+        wrap.pack(fill="both", expand=True)
+
+        # ── 계정 목록 ────────────────────────────────────────────────────────
+        tk.Label(wrap, text="Instagram 계정 목록  (한 줄에 하나, @ 제외)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
+        tk.Label(wrap, text="예:  nike  /  chanelofficial  /  hermes",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
+        acc_border = tk.Frame(wrap, bg=ACCENT, padx=1, pady=1)
+        acc_border.pack(fill="x")
+        self.acc_txt = tk.Text(acc_border, height=5, font=("Consolas", 10),
+                               bg=BG3, fg=FG, insertbackground=ACCENT,
+                               relief="flat", padx=10, pady=8)
+        self.acc_txt.pack(fill="both")
+
+        # ── 인증 정보 ────────────────────────────────────────────────────────
+        cred_row = tk.Frame(wrap, bg=BG, pady=8)
+        cred_row.pack(fill="x")
+        tk.Label(cred_row, text="Instagram ID",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._ig_id = tk.StringVar()
+        tk.Entry(cred_row, textvariable=self._ig_id, width=18,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 18))
+        tk.Label(cred_row, text="Password",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._ig_pw = tk.StringVar()
+        tk.Entry(cred_row, textvariable=self._ig_pw, width=18,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10), show="●").pack(side="left", padx=(6, 0))
+
+        # ── 옵션 ─────────────────────────────────────────────────────────────
+        opt_row = tk.Frame(wrap, bg=BG, pady=4)
+        opt_row.pack(fill="x")
+        tk.Label(opt_row, text="게시물 수 (계정당)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._max_posts = tk.StringVar(value="10")
+        tk.Entry(opt_row, textvariable=self._max_posts, width=5,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 20))
+        self._headless = tk.BooleanVar(value=False)
+        tk.Checkbutton(opt_row, text="헤드리스  (Chrome 창 없이 실행)",
+                       variable=self._headless, bg=BG, fg=FG_DIM,
+                       activebackground=BG, selectcolor=BG3,
+                       font=("Arial", 9), activeforeground=FG).pack(side="left")
+
+        # ── 버튼 행 ──────────────────────────────────────────────────────────
+        btn_row = tk.Frame(wrap, bg=BG, pady=6)
+        btn_row.pack(fill="x")
+        self.run_btn = _btn(btn_row, "▶  수집 시작", self._run,
+                            bg=ACCENT, fg="white", bold=True, padx=20, pady=10)
+        self.run_btn.pack(side="left")
+        self.stop_btn = _btn(btn_row, "■  중지", self._stop, padx=14, pady=10)
+        self.stop_btn.configure(state="disabled")
+        self.stop_btn.pack(side="left", padx=6)
+        self.export_btn = _btn(btn_row, "⬇  Excel 내보내기", self._export,
+                               padx=14, pady=10)
+        self.export_btn.pack(side="left", padx=6)
+        self._status_var = tk.StringVar(value="대기 중")
+        tk.Label(btn_row, textvariable=self._status_var,
+                 font=("Consolas", 9), bg=BG, fg=FG_DIM).pack(side="left", padx=14)
+
+        # ── 결과 Treeview ─────────────────────────────────────────────────────
+        tk.Frame(wrap, bg=BORDER, height=1).pack(fill="x", pady=(8, 0))
+        tk.Label(wrap, text="수집 결과",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(6, 4))
+        tree_frame = tk.Frame(wrap, bg=BG)
+        tree_frame.pack(fill="both", expand=True)
+
+        cols   = ("계정", "유형", "좋아요", "조회수", "이미지수", "게시일", "캡션")
+        widths = (110,     60,    70,       70,       60,         85,      280)
+        self.result_tree = ttk.Treeview(tree_frame, columns=cols,
+                                        show="headings", style="Dark.Treeview", height=10)
+        for i, col in enumerate(cols):
+            self.result_tree.heading(col, text=col)
+            self.result_tree.column(col, width=widths[i], minwidth=40, anchor="w")
+        self.result_tree.tag_configure("odd",  background=BG3)
+        self.result_tree.tag_configure("even", background=BG5)
+        _orig = self.result_tree.insert
+        def _striped(*a, **kw):
+            kw["tags"] = list(kw.get("tags", ())) + \
+                         ["odd" if self._tree_row[0] % 2 == 0 else "even"]
+            r = _orig(*a, **kw)
+            self._tree_row[0] += 1
+            return r
+        self.result_tree.insert = _striped
+
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=self.result_tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.result_tree.xview)
+        self.result_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.result_tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+    # ── 수집 실행 ─────────────────────────────────────────────────────────────
+    def _run(self):
+        accounts = [
+            ln.strip().lstrip("@")
+            for ln in self.acc_txt.get("1.0", "end").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        if not accounts:
+            messagebox.showwarning("입력 필요", "Instagram 계정을 입력하세요.")
+            return
+        ig_id = self._ig_id.get().strip()
+        ig_pw = self._ig_pw.get().strip()
+        if not ig_id or not ig_pw:
+            messagebox.showwarning("인증 필요", "Instagram ID와 비밀번호를 입력하세요.")
+            return
+        try:
+            max_posts = max(1, int(self._max_posts.get()))
+        except ValueError:
+            max_posts = 10
+
+        self.run_btn.configure(state="disabled")
+        self.stop_btn.configure(state="normal", bg=ACCENT, fg="white")
+        self._status_var.set("수집 중...")
+        self._stop_event.clear()
+        self.ig_results = []
+        self._tree_row[0] = 0
+        for row in self.result_tree.get_children():
+            self.result_tree.delete(row)
+
+        cookie_path = str(SCRIPT_DIR / "instagram_cookies.pkl")
+        self._thread = threading.Thread(
+            target=self._crawl_thread,
+            args=(accounts, ig_id, ig_pw, max_posts, cookie_path),
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _crawl_thread(self, accounts, ig_id, ig_pw, max_posts, cookie_path):
+        try:
+            self.after(0, lambda: self._status_var.set("드라이버 시작 중..."))
+            driver = _ig_create_driver(headless=self._headless.get())
+            self._driver = driver
+            try:
+                _ig_ensure_login(driver, ig_id, ig_pw, cookie_path)
+                total = len(accounts)
+                all_results = []
+                for idx, account in enumerate(accounts, 1):
+                    if self._stop_event.is_set():
+                        break
+                    self.after(0, lambda i=idx, t=total, a=account:
+                               self._status_var.set(f"수집 중... ({i}/{t})  @{a}"))
+                    try:
+                        post_links = _ig_collect_post_links(driver, account, max_posts)
+                    except Exception:
+                        continue
+                    for post_url in post_links:
+                        if self._stop_event.is_set():
+                            break
+                        try:
+                            row = _ig_scrape_post(driver, post_url, account)
+                            all_results.append(row)
+                            self.after(0, lambda r=row: self.result_tree.insert(
+                                "", "end", values=(
+                                    r["account"],
+                                    r["post_type"],
+                                    fmt_num(r["like_count"]) if r["like_count"] else "-",
+                                    fmt_num(r["view_count"]) if r["view_count"] else "-",
+                                    r["image_count"],
+                                    r["posted_at"],
+                                    r["caption"][:60],
+                                )
+                            ))
+                        except Exception:
+                            continue
+                        _ig_sleep(1.3, 2.8)
+                    _ig_sleep(3.0, 6.0)
+                self.ig_results = all_results
+                self.app.instagram_results = all_results
+            finally:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                self._driver = None
+            count = len(self.ig_results)
+            self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
+            self.after(0, lambda: self.app.dashboard.show_instagram())
+        except Exception as e:
+            self.after(0, lambda: self._status_var.set(f"오류: {e}"))
+        finally:
+            self.after(0, self._done)
+
+    def _stop(self):
+        self._stop_event.set()
+        if self._driver:
+            try:
+                self._driver.quit()
+            except Exception:
+                pass
+            self._driver = None
+        self._done()
+
+    def _done(self):
+        self.run_btn.configure(state="normal")
+        self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
+
+    # ── Excel 내보내기 ─────────────────────────────────────────────────────────
+    def _export(self):
+        if not self.ig_results:
+            messagebox.showwarning("데이터 없음", "수집된 데이터가 없습니다.")
+            return
+        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel 파일", "*.xlsx")],
+            initialfile=f"Instagram_{ts}.xlsx",
+        )
+        if not path:
+            return
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            messagebox.showerror("라이브러리 없음",
+                                 "openpyxl 이 필요합니다.\npip install openpyxl")
+            return
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Instagram"
+        HDR_FILL = PatternFill("solid", fgColor="1A1A1A")
+        headers = [
+            ("account","계정"), ("post_url","URL"), ("post_type","유형"),
+            ("caption","캡션"), ("thumbnail_url","썸네일URL"),
+            ("image_count","이미지수"), ("video_url","비디오URL"),
+            ("is_carousel","캐러셀"), ("like_count","좋아요"),
+            ("view_count","조회수"), ("posted_at","게시일"), ("scraped_at","수집일시"),
+        ]
+        for ci, (_, hdr) in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=ci, value=hdr)
+            cell.font = Font(bold=True, color="F4F4F5")
+            cell.fill = HDR_FILL
+            cell.alignment = Alignment(horizontal="center")
+        for ri, row in enumerate(self.ig_results, 2):
+            for ci, (key, _) in enumerate(headers, 1):
+                ws.cell(row=ri, column=ci, value=row.get(key, ""))
+        wb.save(path)
+        messagebox.showinfo("저장 완료", f"저장되었습니다:\n{path}")
+
+
 # ── 대시보드 탭 ───────────────────────────────────────────────────────────────
 class DashboardTab(tk.Frame):
     def __init__(self, master, app):
