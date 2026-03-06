@@ -1705,28 +1705,23 @@ class InstagramTab(tk.Frame):
                     self.after(0, lambda i=idx, t=total, a=account:
                                self._status_var.set(f"수집 중... ({i}/{t})  @{a}"))
                     try:
-                        reel_links = _ig_collect_reel_links(driver, account, max_posts)
+                        rows = _ig_scrape_reels_from_grid(driver, account, max_posts)
                     except Exception:
                         continue
-                    for reel_url in reel_links:
+                    for row in rows:
                         if self._stop_event.is_set():
                             break
-                        try:
-                            row = _ig_scrape_post(driver, reel_url, account)
-                            all_results.append(row)
-                            self.after(0, lambda r=row: self.result_tree.insert(
-                                "", "end", values=(
-                                    r["account"],
-                                    fmt_num(r["like_count"])    if r["like_count"]    else "-",
-                                    fmt_num(r["view_count"])    if r["view_count"]    else "-",
-                                    fmt_num(r["comment_count"]) if r["comment_count"] else "-",
-                                    r["posted_at"],
-                                    r["caption"][:60],
-                                )
-                            ))
-                        except Exception:
-                            continue
-                        _ig_sleep(0.7, 1.5)
+                        all_results.append(row)
+                        self.after(0, lambda r=row: self.result_tree.insert(
+                            "", "end", values=(
+                                r["account"],
+                                fmt_num(r["like_count"])    if r["like_count"]    else "-",
+                                fmt_num(r["view_count"])    if r["view_count"]    else "-",
+                                fmt_num(r["comment_count"]) if r["comment_count"] else "-",
+                                r["posted_at"],
+                                r["caption"][:60],
+                            )
+                        ))
                     _ig_sleep(2.0, 3.5)
                 self.ig_results = all_results
                 self.app.instagram_results = all_results
