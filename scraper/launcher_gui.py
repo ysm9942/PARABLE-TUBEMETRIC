@@ -836,6 +836,617 @@ class ScraperTab(tk.Frame):
         self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
 
 
+# ── 라이브 지표 크롤러 (모듈 레벨) ───────────────────────────────────────────────
+
+def _parse_viewer_num(s: str) -> int:
+    """'1,234' 또는 '1234' 형식의 문자열을 정수로 변환"""
+    import re as _re
+    s = _re.sub(r"[^\d]", "", str(s))
+    return int(s) if s else 0
+
+
+def _crawl_creator(platform: str, creator_id: str,
+                   start_dt, end_dt,
+                   categories: list, headless: bool,
+                   stop_event, progress_cb=None) -> list:
+    """
+    viewership.softc.one에서 크리에이터의 방송 지표를 수집.
+
+    platform  : 'chzzk' 또는 'soop'
+    creator_id: 크리에이터 채널 ID / 닉네임
+    """
+    import requests
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        raise RuntimeError("beautifulsoup4 가 설치되어 있지 않습니다.\npip install beautifulsoup4")
+
+    def _log(msg):
+        if progress_cb:
+            progress_cb(msg)
+
+    BASE = "https://viewership.softc.one"
+    PLAT_PATH = {"chzzk": "chzzk", "soop": "soop"}.get(platform, "chzzk")
+    url_base = f"{BASE}/{PLAT_PATH}/{creator_id}"
+
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+        "Referer": BASE,
+    })
+
+    results = []
+    page = 1
+    consecutive_old = 0
+    MAX_CONSECUTIVE_OLD = 10
+
+    while not stop_event.is_set():
+        page_url = f"{url_base}?page={page}" if page > 1 else url_base
+        _log(f"    페이지 {page}: {page_url}\n")
+
+        # 재시도 로직
+        soup = None
+        for attempt in range(3):
+            try:
+                resp = session.get(page_url, timeout=20)
+                resp.raise_for_status()
+                soup = BeautifulSoup(resp.text, "html.parser")
+                break
+            except Exception as exc:
+                if attempt == 2:
+                    raise RuntimeError(f"페이지 로드 실패 ({page_url}): {exc}")
+                time.sleep(2 ** attempt)
+
+        if soup is None:
+            break
+
+        # ── 방송 목록 파싱 ────────────────────────────────────────────
+        rows_on_page = 0
+
+        # 테이블 기반 파싱 (일반적인 레이아웃)
+        table = soup.find("table")
+        if table:
+            tbody = table.find("tbody") or table
+            for tr in tbody.find_all("tr"):
+                if stop_event.is_set():
+                    break
+                tds = tr.find_all(["td", "th"])
+                if len(tds) < 3:
+                    continue
+
+                # 날짜 (첫 번째 컬럼)
+                raw_date = tds[0].get_text(strip=True)
+                try:
+                    bdate = datetime.strptime(raw_date[:10], "%Y-%m-%d")
+                except ValueError:
+                    continue
+
+                # 날짜 범위 체크
+                if bdate > end_dt:
+                    consecutive_old += 1
+                    if consecutive_old >= MAX_CONSECUTIVE_OLD:
+                        return results
+                    continue
+                if bdate < start_dt:
+                    consecutive_old += 1
+                    if consecutive_old >= MAX_CONSECUTIVE_OLD:
+                        return results
+                    continue
+                consecutive_old = 0
+
+                # 나머지 컬럼
+                title    = tds[1].get_text(strip=True) if len(tds) > 1 else ""
+                category = tds[2].get_text(strip=True) if len(tds) > 2 else ""
+                peak     = _parse_viewer_num(tds[3].get_text(strip=True)) if len(tds) > 3 else 0
+                avg      = _parse_viewer_num(tds[4].get_text(strip=True)) if len(tds) > 4 else 0
+                dur_min  = _parse_viewer_num(tds[5].get_text(strip=True)) if len(tds) > 5 else 0
+
+                # 카테고리 필터
+                if categories and not any(c.lower() in category.lower() for c in categories):
+                    continue
+
+                results.append({
+                    "creator":      creator_id,
+                    "platform":     platform.upper(),
+                    "title":        title,
+                    "category":     category,
+                    "peak_viewers": peak,
+                    "avg_viewers":  avg,
+                    "date":         raw_date[:10],
+                    "duration_min": dur_min,
+                })
+                rows_on_page += 1
+
+        else:
+            # 카드/리스트 기반 파싱 폴백
+            cards = (
+                soup.select(".broadcast-row, .stream-row, .vod-row, "
+                            "[class*='broadcast'], [class*='stream'], [class*='vod']")
+            )
+            for card in cards:
+                if stop_event.is_set():
+                    break
+                raw_date = card.get("data-date", "") or (
+                    card.select_one("[class*='date']") or tk.Label()
+                ).get_text(strip=True) if hasattr(card, "select_one") else ""
+                try:
+                    bdate = datetime.strptime(raw_date[:10], "%Y-%m-%d")
+                except ValueError:
+                    continue
+                if not (start_dt <= bdate <= end_dt):
+                    continue
+
+                title_el = card.select_one("[class*='title']")
+                cat_el   = card.select_one("[class*='category'], [class*='game']")
+                peak_el  = card.select_one("[class*='peak'], [class*='max']")
+                avg_el   = card.select_one("[class*='avg'], [class*='average']")
+
+                results.append({
+                    "creator":      creator_id,
+                    "platform":     platform.upper(),
+                    "title":        title_el.get_text(strip=True) if title_el else "",
+                    "category":     cat_el.get_text(strip=True)   if cat_el   else "",
+                    "peak_viewers": _parse_viewer_num(peak_el.get_text(strip=True)) if peak_el else 0,
+                    "avg_viewers":  _parse_viewer_num(avg_el.get_text(strip=True))  if avg_el  else 0,
+                    "date":         raw_date[:10],
+                    "duration_min": 0,
+                })
+                rows_on_page += 1
+
+        _log(f"    → {rows_on_page}건 파싱\n")
+
+        # 다음 페이지 링크 탐색
+        next_btn = (
+            soup.find("a", string=lambda t: t and any(k in t for k in ["다음", "Next", "›", "»"]))
+            or soup.select_one("a[rel='next'], .pagination .next a, li.next a")
+        )
+        if not next_btn or rows_on_page == 0:
+            break
+
+        page += 1
+        time.sleep(1.2)  # 서버 부하 방지
+
+    return results
+
+
+# ── 라이브 지표 분석 탭 ────────────────────────────────────────────────────────
+class LiveMetricsTab(tk.Frame):
+    def __init__(self, master, app):
+        super().__init__(master, bg=BG)
+        self.app = app
+        self._stop_event = threading.Event()
+        self._thread = None
+        self.live_results: list = []
+        self._build()
+
+    def _build(self):
+        _section_header(self, "라이브 지표 분석",
+                         "CHZZK / SOOP 방송 시청자 지표 수집  ·  viewership.softc.one")
+
+        # ── 2단 레이아웃 ──────────────────────────────────────────────────────
+        body = tk.Frame(self, bg=BG)
+        body.pack(fill="both", expand=True)
+
+        left = tk.Frame(body, bg=BG, padx=28)
+        left.pack(side="left", fill="both", expand=True)
+
+        right = tk.Frame(body, bg=BG, padx=14, pady=0, width=260)
+        right.pack(side="right", fill="y")
+        right.pack_propagate(False)
+
+        # ── 크리에이터 ID 입력 ─────────────────────────────────────────────
+        tk.Label(left, text="크리에이터 ID 목록  (한 줄에 하나)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
+        tk.Label(left,
+                 text="형식:  chzzk:채널ID   또는   soop:아이디   (플랫폼 생략 시 하단 선택 적용)",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
+
+        id_border = tk.Frame(left, bg=ACCENT, padx=1, pady=1)
+        id_border.pack(fill="x")
+        self.id_txt = tk.Text(id_border, height=6, font=("Consolas", 10),
+                              bg=BG3, fg=FG, insertbackground=ACCENT,
+                              relief="flat", padx=10, pady=8)
+        self.id_txt.pack(fill="both")
+
+        # ── 날짜 범위 ──────────────────────────────────────────────────────
+        date_row = tk.Frame(left, bg=BG, pady=8)
+        date_row.pack(fill="x")
+
+        tk.Label(date_row, text="시작일", font=("Arial", 9, "bold"),
+                 bg=BG, fg=FG).pack(side="left")
+        self.start_date = tk.StringVar(
+            value=(datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"))
+        tk.Entry(date_row, textvariable=self.start_date, width=12,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 16))
+
+        tk.Label(date_row, text="종료일", font=("Arial", 9, "bold"),
+                 bg=BG, fg=FG).pack(side="left")
+        self.end_date = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        tk.Entry(date_row, textvariable=self.end_date, width=12,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 20))
+
+        for lbl, days in [("7일", 7), ("30일", 30), ("90일", 90), ("전체", None)]:
+            def _set_period(d=days):
+                end = datetime.now()
+                start = (end - timedelta(days=d)) if d else datetime(2020, 1, 1)
+                self.start_date.set(start.strftime("%Y-%m-%d"))
+                self.end_date.set(end.strftime("%Y-%m-%d"))
+            _btn(date_row, lbl, _set_period, padx=10, pady=4).pack(side="left", padx=2)
+
+        # ── 플랫폼 선택 ───────────────────────────────────────────────────
+        opt_row = tk.Frame(left, bg=BG, pady=2)
+        opt_row.pack(fill="x")
+
+        tk.Label(opt_row, text="기본 플랫폼", font=("Arial", 9, "bold"),
+                 bg=BG, fg=FG).pack(side="left", padx=(0, 8))
+        self.platform_var = tk.StringVar(value="chzzk")
+        for val, lbl in [("chzzk", "CHZZK"), ("soop", "SOOP")]:
+            tk.Radiobutton(opt_row, text=lbl, variable=self.platform_var, value=val,
+                           bg=BG, fg=FG_DIM, activebackground=BG,
+                           selectcolor=BG3, font=("Arial", 9),
+                           activeforeground=FG).pack(side="left", padx=4)
+
+        tk.Label(opt_row, text="|", bg=BG, fg=FG_MUTE).pack(side="left", padx=6)
+        self.headless_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(opt_row, text="헤드리스 (백그라운드 크롬)",
+                       variable=self.headless_var,
+                       bg=BG, fg=FG_DIM, activebackground=BG,
+                       selectcolor=BG3, font=("Arial", 9),
+                       activeforeground=FG).pack(side="left", padx=4)
+
+        # ── 버튼 행 ───────────────────────────────────────────────────────
+        btn_row = tk.Frame(left, bg=BG, pady=6)
+        btn_row.pack(fill="x")
+
+        self.run_btn = _btn(btn_row, "▶  수집 시작", self._run,
+                            bg=ACCENT, fg="white", bold=True, padx=20, pady=10)
+        self.run_btn.pack(side="left")
+
+        self.stop_btn = _btn(btn_row, "■  중지", self._stop, padx=14, pady=10)
+        self.stop_btn.configure(state="disabled")
+        self.stop_btn.pack(side="left", padx=6)
+
+        self.export_btn = _btn(btn_row, "⬇  Excel 내보내기", self._export,
+                               padx=14, pady=10)
+        self.export_btn.pack(side="left", padx=6)
+
+        self._status_var = tk.StringVar(value="대기 중")
+        tk.Label(btn_row, textvariable=self._status_var,
+                 font=("Consolas", 9), bg=BG, fg=FG_DIM).pack(side="left", padx=14)
+
+        # ── 결과 Treeview ─────────────────────────────────────────────────
+        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=(4, 0))
+        tk.Label(left, text="수집 결과",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(6, 4))
+
+        tree_frame = tk.Frame(left, bg=BG)
+        tree_frame.pack(fill="both", expand=True)
+
+        cols = ("크리에이터", "플랫폼", "방송 제목", "카테고리",
+                "최고 시청자", "평균 시청자", "날짜", "방송시간(분)")
+        widths = (110, 55, 200, 100, 80, 80, 85, 70)
+        self.result_tree = ttk.Treeview(tree_frame, columns=cols,
+                                        show="headings", style="Dark.Treeview", height=10)
+        for i, col in enumerate(cols):
+            self.result_tree.heading(col, text=col)
+            self.result_tree.column(col, width=widths[i], minwidth=40, anchor="w")
+
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=self.result_tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.result_tree.xview)
+        self.result_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.result_tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+        # ── 우측: 카테고리 필터 + 로그 ────────────────────────────────────
+        tk.Label(right, text="카테고리 필터",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
+        tk.Label(right, text="(비워 두면 전체 수집)",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
+
+        cat_border = tk.Frame(right, bg=BORDER, padx=1, pady=1)
+        cat_border.pack(fill="x")
+        self.cat_txt = tk.Text(cat_border, height=5, font=("Consolas", 10),
+                               bg=BG3, fg=FG, insertbackground=ACCENT,
+                               relief="flat", padx=8, pady=6)
+        self.cat_txt.pack(fill="both")
+
+        tk.Label(right, text="실행 로그",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(14, 4))
+        self.log_box = scrolledtext.ScrolledText(
+            right, height=12, font=("Consolas", 9),
+            bg="#0c0c0c", fg="#cccccc", insertbackground="white",
+            relief="flat", padx=8, pady=6, state="disabled",
+        )
+        self.log_box.pack(fill="both", expand=True)
+        self.log_box.tag_configure("ok",   foreground="#4ade80")
+        self.log_box.tag_configure("err",  foreground="#f87171")
+        self.log_box.tag_configure("info", foreground="#60a5fa")
+        self.log_box.tag_configure("dim",  foreground="#555555")
+
+        # 요약 통계 라벨
+        self._summary_var = tk.StringVar(value="")
+        tk.Label(right, textvariable=self._summary_var,
+                 font=("Consolas", 8), bg=BG, fg=FG_DIM,
+                 anchor="w", wraplength=240, justify="left").pack(fill="x", pady=(6, 0))
+
+    # ── 로그 출력 ──────────────────────────────────────────────────────────
+    def _log(self, msg: str, tag: str = ""):
+        def _do():
+            self.log_box.configure(state="normal")
+            if not tag:
+                low = msg.lower()
+                if any(k in low for k in ["✓", "완료", "done"]):
+                    t = "ok"
+                elif any(k in low for k in ["✗", "오류", "error", "fail"]):
+                    t = "err"
+                elif msg.startswith("["):
+                    t = "info"
+                else:
+                    t = "dim"
+            else:
+                t = tag
+            self.log_box.insert("end", msg, t)
+            self.log_box.see("end")
+            self.log_box.configure(state="disabled")
+        self.after(0, _do)
+
+    # ── 입력 파싱 ──────────────────────────────────────────────────────────
+    def _parse_ids(self) -> list:
+        """
+        textarea 내용을 (platform, creator_id) 튜플 리스트로 변환.
+        지원 형식:
+          chzzk:채널ID
+          soop:아이디
+          아이디          ← 기본 플랫폼 적용
+        """
+        default_plat = self.platform_var.get()
+        lines = [
+            ln.strip() for ln in self.id_txt.get("1.0", "end").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        result = []
+        for line in lines:
+            if ":" in line:
+                plat, cid = line.split(":", 1)
+                plat = plat.strip().lower()
+                cid  = cid.strip().lstrip("@")
+                if plat not in ("chzzk", "soop"):
+                    plat = default_plat
+            else:
+                plat = default_plat
+                cid  = line.lstrip("@").strip()
+            if cid:
+                result.append((plat, cid))
+        return result
+
+    # ── 수집 시작 ──────────────────────────────────────────────────────────
+    def _run(self):
+        creators = self._parse_ids()
+        if not creators:
+            messagebox.showwarning("입력 필요",
+                                   "크리에이터 ID를 입력하세요.\n"
+                                   "형식:  chzzk:채널ID  또는  soop:아이디")
+            return
+
+        try:
+            start_dt = datetime.strptime(self.start_date.get(), "%Y-%m-%d")
+            end_dt   = datetime.strptime(self.end_date.get(),   "%Y-%m-%d")
+        except ValueError:
+            messagebox.showerror("날짜 오류", "날짜 형식: YYYY-MM-DD")
+            return
+
+        if start_dt > end_dt:
+            messagebox.showerror("날짜 오류", "시작일이 종료일보다 늦습니다.")
+            return
+
+        categories = [
+            ln.strip() for ln in self.cat_txt.get("1.0", "end").splitlines()
+            if ln.strip()
+        ]
+
+        # 초기화
+        self.run_btn.configure(state="disabled")
+        self.stop_btn.configure(state="normal", bg=ACCENT, fg="white")
+        self._status_var.set("수집 중...")
+        self._stop_event.clear()
+        self.live_results = []
+        self._summary_var.set("")
+
+        for row in self.result_tree.get_children():
+            self.result_tree.delete(row)
+
+        self._log(
+            f"[시작] 크리에이터 {len(creators)}명  "
+            f"{self.start_date.get()} ~ {self.end_date.get()}\n",
+            "info",
+        )
+        if categories:
+            self._log(f"[필터] 카테고리: {', '.join(categories)}\n", "info")
+
+        self._thread = threading.Thread(
+            target=self._crawl_thread,
+            args=(creators, start_dt, end_dt, categories),
+            daemon=True,
+        )
+        self._thread.start()
+
+    # ── 중지 ──────────────────────────────────────────────────────────────
+    def _stop(self):
+        self._stop_event.set()
+        self._log("\n[중지] 중지 요청됨 — 현재 작업 완료 후 종료합니다.\n", "err")
+        self._done()
+
+    def _done(self):
+        self.run_btn.configure(state="normal")
+        self.stop_btn.configure(state="disabled", bg=BG3, fg=FG_DIM)
+
+    # ── 크롤링 스레드 ──────────────────────────────────────────────────────
+    def _crawl_thread(self, creators, start_dt, end_dt, categories):
+        all_results = []
+        total = len(creators)
+
+        for idx, (platform, creator_id) in enumerate(creators, 1):
+            if self._stop_event.is_set():
+                break
+            self._log(f"\n[{idx}/{total}]  {platform.upper()}:{creator_id}\n", "info")
+            try:
+                rows = _crawl_creator(
+                    platform, creator_id, start_dt, end_dt,
+                    categories, self.headless_var.get(),
+                    self._stop_event, progress_cb=self._log,
+                )
+                all_results.extend(rows)
+                self._log(f"  ✓  {len(rows)}건 수집\n", "ok")
+
+                for row in rows:
+                    self.after(0, lambda r=row: self.result_tree.insert(
+                        "", "end", values=(
+                            r.get("creator",      ""),
+                            r.get("platform",     ""),
+                            r.get("title",        "")[:50],
+                            r.get("category",     ""),
+                            fmt_num(r.get("peak_viewers", 0)),
+                            fmt_num(r.get("avg_viewers",  0)),
+                            r.get("date",         ""),
+                            r.get("duration_min", 0),
+                        )
+                    ))
+            except Exception as exc:
+                self._log(f"  ✗  오류: {exc}\n", "err")
+
+        self.live_results = all_results
+        count = len(all_results)
+
+        # 요약
+        if all_results:
+            peak_avg = round(sum(r.get("peak_viewers", 0) for r in all_results) / count)
+            avg_avg  = round(sum(r.get("avg_viewers",  0) for r in all_results) / count)
+            cats     = [r.get("category", "") for r in all_results if r.get("category")]
+            top_cat  = max(set(cats), key=cats.count) if cats else "-"
+            summary  = (
+                f"총 {count}건\n"
+                f"평균 최고 시청자: {fmt_num(peak_avg)}\n"
+                f"평균 시청자: {fmt_num(avg_avg)}\n"
+                f"주요 카테고리: {top_cat}"
+            )
+            self.after(0, lambda: self._summary_var.set(summary))
+
+        self._log(f"\n[완료]  총 {count}건 수집 완료\n", "ok")
+        self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
+        self.after(0, self._done)
+
+    # ── Excel 내보내기 ──────────────────────────────────────────────────────
+    def _export(self):
+        if not self.live_results:
+            messagebox.showwarning("데이터 없음", "수집된 데이터가 없습니다.\n먼저 수집을 실행하세요.")
+            return
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel 파일", "*.xlsx")],
+            initialfile=f"LiveMetrics_{ts}.xlsx",
+        )
+        if not path:
+            return
+
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            messagebox.showerror("라이브러리 없음", "openpyxl 이 설치되어 있지 않습니다.\npip install openpyxl")
+            return
+
+        wb = openpyxl.Workbook()
+        HDR_FILL = PatternFill("solid", fgColor="1A1A1A")
+        HDR_FONT = Font(color="F4F4F5", bold=True)
+
+        def _style_hdr(ws):
+            for cell in ws[1]:
+                cell.fill = HDR_FILL
+                cell.font = HDR_FONT
+                cell.alignment = Alignment(horizontal="center")
+
+        # ── 방송 목록 시트 ────────────────────────────────────────────────
+        ws = wb.active
+        ws.title = "방송 목록"
+        ws.append(["크리에이터", "플랫폼", "방송 제목", "카테고리",
+                   "최고 시청자", "평균 시청자", "방송 날짜", "방송 시간(분)"])
+        for r in self.live_results:
+            ws.append([
+                r.get("creator",      ""),
+                r.get("platform",     ""),
+                r.get("title",        ""),
+                r.get("category",     ""),
+                r.get("peak_viewers", 0),
+                r.get("avg_viewers",  0),
+                r.get("date",         ""),
+                r.get("duration_min", 0),
+            ])
+        _style_hdr(ws)
+
+        # ── 크리에이터 요약 시트 ──────────────────────────────────────────
+        ws2 = wb.create_sheet("크리에이터 요약")
+        ws2.append(["크리에이터", "플랫폼", "방송 수",
+                    "총 최고 시청자", "평균 최고 시청자",
+                    "평균 시청자", "주요 카테고리"])
+
+        from collections import defaultdict
+        creator_data: dict = defaultdict(list)
+        for r in self.live_results:
+            key = (r.get("creator", ""), r.get("platform", ""))
+            creator_data[key].append(r)
+
+        for (creator, platform), rows in sorted(creator_data.items()):
+            peaks = [r.get("peak_viewers", 0) for r in rows]
+            avgs  = [r.get("avg_viewers",  0) for r in rows]
+            cats  = [r.get("category", "") for r in rows if r.get("category")]
+            top_cat = max(set(cats), key=cats.count) if cats else ""
+            ws2.append([
+                creator,
+                platform,
+                len(rows),
+                sum(peaks),
+                round(sum(peaks) / len(peaks)) if peaks else 0,
+                round(sum(avgs)  / len(avgs))  if avgs  else 0,
+                top_cat,
+            ])
+        _style_hdr(ws2)
+
+        # ── 카테고리 집계 시트 ────────────────────────────────────────────
+        ws3 = wb.create_sheet("카테고리 집계")
+        ws3.append(["카테고리", "방송 수", "평균 최고 시청자", "평균 시청자"])
+
+        cat_data: dict = defaultdict(list)
+        for r in self.live_results:
+            cat = r.get("category", "기타") or "기타"
+            cat_data[cat].append(r)
+
+        for cat, rows in sorted(cat_data.items(), key=lambda x: -len(x[1])):
+            peaks = [r.get("peak_viewers", 0) for r in rows]
+            avgs  = [r.get("avg_viewers",  0) for r in rows]
+            ws3.append([
+                cat,
+                len(rows),
+                round(sum(peaks) / len(peaks)) if peaks else 0,
+                round(sum(avgs)  / len(avgs))  if avgs  else 0,
+            ])
+        _style_hdr(ws3)
+
+        wb.save(path)
+        messagebox.showinfo("저장 완료", f"Excel 저장 완료\n{path}")
+
+
 # ── 대시보드 탭 ───────────────────────────────────────────────────────────────
 class DashboardTab(tk.Frame):
     def __init__(self, master, app):
