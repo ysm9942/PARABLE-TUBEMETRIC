@@ -1927,51 +1927,51 @@ class DashboardTab(tk.Frame):
 
         # 계정별 집계
         from collections import defaultdict
-        agg: dict = defaultdict(lambda: {"count": 0, "likes": [], "views": [], "types": []})
+        agg: dict = defaultdict(lambda: {"count": 0, "likes": [], "views": [], "comments": []})
         for r in results:
             acc = r.get("account", "")
-            agg[acc]["count"]  += 1
+            agg[acc]["count"] += 1
             if r.get("like_count") is not None:
                 agg[acc]["likes"].append(r["like_count"])
             if r.get("view_count") is not None:
                 agg[acc]["views"].append(r["view_count"])
-            agg[acc]["types"].append(r.get("post_type", ""))
+            if r.get("comment_count") is not None:
+                agg[acc]["comments"].append(r["comment_count"])
 
-        summary_cols   = ("계정", "게시물수", "총 좋아요", "평균 좋아요", "총 조회수", "평균 조회수", "주요 유형")
-        summary_widths = (130, 70, 90, 90, 90, 90, 80)
+        summary_cols   = ("계정", "릴스수", "총 좋아요", "평균 좋아요", "총 조회수", "평균 조회수", "평균 댓글수")
+        summary_widths = (130, 60, 90, 90, 90, 90, 90)
         tree, _ = self._make_tree(summary_cols, widths=summary_widths)
 
         for acc, d in agg.items():
-            total_likes = sum(d["likes"])
-            avg_likes   = round(total_likes / len(d["likes"])) if d["likes"] else 0
-            total_views = sum(d["views"])
-            avg_views   = round(total_views / len(d["views"])) if d["views"] else 0
-            top_type    = max(set(d["types"]), key=d["types"].count) if d["types"] else "-"
+            total_likes  = sum(d["likes"])
+            avg_likes    = round(total_likes / len(d["likes"]))         if d["likes"]    else 0
+            total_views  = sum(d["views"])
+            avg_views    = round(total_views / len(d["views"]))         if d["views"]    else 0
+            avg_comments = round(sum(d["comments"]) / len(d["comments"])) if d["comments"] else 0
             tree.insert("", "end", values=(
                 acc, d["count"],
-                fmt_num(total_likes) if d["likes"] else "-",
-                fmt_num(avg_likes)   if d["likes"] else "-",
-                fmt_num(total_views) if d["views"] else "-",
-                fmt_num(avg_views)   if d["views"] else "-",
-                top_type,
+                fmt_num(total_likes)  if d["likes"]    else "-",
+                fmt_num(avg_likes)    if d["likes"]    else "-",
+                fmt_num(total_views)  if d["views"]    else "-",
+                fmt_num(avg_views)    if d["views"]    else "-",
+                fmt_num(avg_comments) if d["comments"] else "-",
             ))
 
-        # 상세 게시물 테이블
+        # 릴스 상세 테이블
         detail_lbl = tk.Frame(self._content, bg=BG, padx=20, pady=(8, 4))
         detail_lbl.pack(fill="x")
-        tk.Label(detail_lbl, text="게시물 상세",
+        tk.Label(detail_lbl, text="릴스 상세",
                  font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x")
 
-        detail_cols   = ("계정", "유형", "좋아요", "조회수", "이미지수", "게시일", "캡션")
-        detail_widths = (110, 60, 80, 80, 60, 90, 280)
+        detail_cols   = ("계정", "좋아요", "조회수", "댓글수", "게시일", "캡션")
+        detail_widths = (120, 80, 80, 70, 90, 290)
         dtree, _ = self._make_tree(detail_cols, widths=detail_widths)
         for r in results:
             dtree.insert("", "end", values=(
                 r.get("account", ""),
-                r.get("post_type", ""),
-                fmt_num(r["like_count"]) if r.get("like_count") is not None else "-",
-                fmt_num(r["view_count"]) if r.get("view_count") is not None else "-",
-                r.get("image_count", 0),
+                fmt_num(r["like_count"])    if r.get("like_count")    is not None else "-",
+                fmt_num(r["view_count"])    if r.get("view_count")    is not None else "-",
+                fmt_num(r["comment_count"]) if r.get("comment_count") is not None else "-",
                 r.get("posted_at", ""),
                 r.get("caption", "")[:60],
             ))
@@ -1982,7 +1982,7 @@ class DashboardTab(tk.Frame):
                 return
             idx = dtree.index(sel[0])
             if idx < len(results):
-                webbrowser.open(results[idx].get("post_url", ""))
+                webbrowser.open(results[idx].get("reel_url", ""))
 
         dtree.bind("<<TreeviewSelect>>", _on_select)
 
