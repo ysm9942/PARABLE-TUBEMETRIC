@@ -411,4 +411,4 @@ def analyze_video_for_ad(driver, video_id: str) -> dict:
         pass
 
     nlp = detect_nlp(video_id, title, description, pinned_comment)
-    return combine_results(paid_flag, nlp)
+    return combine_results(paid_flag, nlp, dom_paid=dom_paid)
