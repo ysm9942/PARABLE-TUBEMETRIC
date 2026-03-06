@@ -634,23 +634,24 @@ def _ig_is_logged_in(driver) -> bool:
         return False
 
 def _ig_dismiss_popups(driver) -> None:
+    """팝업 버튼이 있으면 한 번만 탐지·클릭 (단일 XPath OR로 불필요한 대기 제거)."""
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
-    for txt in ["나중에 하기", "나중에", "취소", "Not Now", "Cancel"]:
+    _texts = ["나중에 하기", "나중에", "취소", "Not Now", "Cancel"]
+    _xp = " | ".join(
+        f"//button[normalize-space()='{t}'] | //div[@role='button' and normalize-space()='{t}']"
+        for t in _texts
+    )
+    try:
+        btn = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, _xp)))
         try:
-            btn = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((
-                By.XPATH,
-                f"//button[normalize-space()='{txt}'] | "
-                f"//div[@role='button' and normalize-space()='{txt}']",
-            )))
-            try:
-                btn.click()
-            except Exception:
-                driver.execute_script("arguments[0].click();", btn)
-            _ig_sleep(0.8, 1.5)
+            btn.click()
         except Exception:
-            pass
+            driver.execute_script("arguments[0].click();", btn)
+        time.sleep(0.5)
+    except Exception:
+        pass
 
 def _ig_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
     from selenium.webdriver.common.by import By
