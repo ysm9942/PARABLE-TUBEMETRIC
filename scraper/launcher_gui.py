@@ -926,6 +926,8 @@ def _crawl_creator(platform: str, creator_id: str,
 
         # 테이블 기반 파싱 (일반적인 레이아웃)
         table = soup.find("table")
+        _log(f"    HTML title: {soup.title.string if soup.title else '(없음)'}\n")
+        _log(f"    table 태그: {'발견' if table else '없음'}\n")
         if table:
             tbody = table.find("tbody") or table
             for tr in tbody.find_all("tr"):
