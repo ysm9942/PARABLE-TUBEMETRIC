@@ -753,13 +753,13 @@ def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
     """/username/reels/ 탭으로 이동 후 /reel/ 링크만 수집."""
     from selenium.webdriver.common.by import By
     _ig_open_reels_tab(driver, username)
-    links: set = set()
+    links: dict = {}  # url → None, 삽입 순서(최신순) 유지 + 중복 제거
     retry = last_count = 0
     while len(links) < max_reels and retry < 6:
         for elem in driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']"):
             href = elem.get_attribute("href")
             if href and "/reel/" in href:
-                links.add(_ig_normalize_url(href))
+                links[_ig_normalize_url(href)] = None
         if len(links) == last_count:
             retry += 1
         else:
