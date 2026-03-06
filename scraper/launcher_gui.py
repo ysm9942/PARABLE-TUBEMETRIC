@@ -1811,6 +1811,34 @@ class DashboardTab(tk.Frame):
                 ch.get("scrapedAt", "")[:19].replace("T", " "),
             ))
 
+    # ── 라이브 지표 결과 ─────────────────────────────────────────────────────
+    def _build_live(self):
+        live_tab = self.app._pages.get("live")
+        results = live_tab.live_results if live_tab else []
+        if not results:
+            _label(self._content,
+                   "아직 라이브 지표 수집 결과가 없습니다.\n라이브 지표 분석 탭에서 수집을 실행하세요.",
+                   font_size=10, color=FG_DIM).pack(expand=True)
+            return
+        cols = ("플랫폼", "방송 제목", "카테고리",
+                "최고 시청자", "평균 시청자", "날짜", "방송시간(분)")
+        tree, _ = self._make_tree(cols, widths=(55, 220, 110, 80, 80, 85, 70))
+        for r in results:
+            tree.insert("", "end", values=(
+                r.get("platform",     ""),
+                r.get("title",        "")[:50],
+                r.get("category",     ""),
+                fmt_num(r.get("peak_viewers", 0)),
+                fmt_num(r.get("avg_viewers",  0)),
+                r.get("date",         ""),
+                r.get("duration_min", 0),
+            ))
+
+    def refresh_live(self):
+        """크롤링 완료 후 라이브 지표 서브탭 갱신 (현재 해당 탭이 열려있을 때만)"""
+        if self._current_sub == "live":
+            self._switch_sub("live")
+
     # ── Treeview 생성 헬퍼 ───────────────────────────────────────────────────
     def _make_tree(self, cols, widths=None, parent=None, height=16):
         parent = parent or self._content
