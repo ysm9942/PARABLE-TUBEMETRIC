@@ -874,10 +874,8 @@ def _crawl_creator(platform: str, creator_id: str,
     PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
     url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
 
-    # ── Chrome 드라이버 초기화 ─────────────────────────────────────────────
+    # ── Chrome 드라이버 초기화 (항상 창 띄움 - 봇 차단 우회) ────────────────
     opts = uc.ChromeOptions()
-    if headless:
-        opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--lang=ko-KR")
