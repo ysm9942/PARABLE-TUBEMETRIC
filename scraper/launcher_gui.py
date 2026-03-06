@@ -1322,8 +1322,7 @@ class LiveMetricsTab(tk.Frame):
             try:
                 rows = _crawl_creator(
                     platform, creator_id, start_dt, end_dt,
-                    categories, self.headless_var.get(),
-                    self._stop_event, progress_cb=self._log,
+                    categories, self._stop_event, progress_cb=self._log,
                 )
                 all_results.extend(rows)
                 self._log(f"  ✓  {len(rows)}건 수집\n", "ok")
