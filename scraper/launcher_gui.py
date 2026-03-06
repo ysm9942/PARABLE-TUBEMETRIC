@@ -892,17 +892,43 @@ def _ig_parse_number(text) -> "int | None":
             return None
     return None
 
+def _ig_get_chrome_ver():
+    import subprocess, re as _re2
+    cmds = [
+        r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version',
+        r'reg query "HKEY_LOCAL_MACHINE\Software\Google\Chrome\BLBeacon" /v version',
+        r'reg query "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Google\Chrome\BLBeacon" /v version',
+    ]
+    for cmd in cmds:
+        try:
+            out = subprocess.check_output(cmd, shell=True, text=True,
+                                          encoding="utf-8", errors="ignore")
+            m = _re2.search(r"(\d+)\.\d+\.\d+\.\d+", out)
+            if m:
+                return int(m.group(1))
+        except Exception:
+            continue
+    return None
+
 def _ig_create_driver(headless: bool = False):
     import undetected_chromedriver as uc
-    options = uc.ChromeOptions()
-    options.add_argument("--start-maximized")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--lang=ko-KR")
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-    )
-    return uc.Chrome(options=options, headless=headless)
+    opts = uc.ChromeOptions()
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--start-maximized")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--lang=ko-KR")
+    chrome_major = _ig_get_chrome_ver()
+    try:
+        if chrome_major:
+            driver = uc.Chrome(options=opts, version_main=chrome_major, headless=headless)
+        else:
+            driver = uc.Chrome(options=opts, headless=headless)
+    except Exception:
+        driver = uc.Chrome(options=opts, headless=headless)
+    driver.implicitly_wait(3)
+    return driver
 
 def _ig_save_cookies(driver, path: str) -> None:
     with open(path, "wb") as f:
