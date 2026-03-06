@@ -1176,9 +1176,9 @@ class LiveMetricsTab(tk.Frame):
         tree_frame = tk.Frame(left, bg=BG)
         tree_frame.pack(fill="both", expand=True)
 
-        cols = ("크리에이터", "플랫폼", "방송 제목", "카테고리",
+        cols = ("플랫폼", "방송 제목", "카테고리",
                 "최고 시청자", "평균 시청자", "날짜", "방송시간(분)")
-        widths = (110, 55, 200, 100, 80, 80, 85, 70)
+        widths = (55, 220, 110, 80, 80, 85, 70)
         self.result_tree = ttk.Treeview(tree_frame, columns=cols,
                                         show="headings", style="Dark.Treeview", height=10)
         for i, col in enumerate(cols):
