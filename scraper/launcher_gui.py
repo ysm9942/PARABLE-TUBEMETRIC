@@ -1627,8 +1627,8 @@ class InstagramTab(tk.Frame):
                             ))
                         except Exception:
                             continue
-                        _ig_sleep(1.3, 2.8)
-                    _ig_sleep(3.0, 6.0)
+                        _ig_sleep(0.7, 1.5)
+                    _ig_sleep(2.0, 3.5)
                 self.ig_results = all_results
                 self.app.instagram_results = all_results
             finally:
