@@ -848,8 +848,8 @@ def _parse_viewer_num(s: str) -> int:
 
 def _crawl_creator(platform: str, creator_id: str,
                    start_dt, end_dt,
-                   categories: list, headless: bool,
-                   stop_event, progress_cb=None) -> list:
+                   categories: list, stop_event,
+                   progress_cb=None) -> list:
     """
     viewership.softc.one에서 크리에이터의 방송 지표를 수집.
     undetected_chromedriver로 실제 브라우저를 사용해 봇 차단을 우회.
