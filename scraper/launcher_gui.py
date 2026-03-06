@@ -1474,7 +1474,7 @@ class InstagramTab(tk.Frame):
         # ── 옵션 ─────────────────────────────────────────────────────────────
         opt_row = tk.Frame(wrap, bg=BG, pady=4)
         opt_row.pack(fill="x")
-        tk.Label(opt_row, text="게시물 수 (계정당)",
+        tk.Label(opt_row, text="릴스 수 (계정당)",
                  font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
         self._max_posts = tk.StringVar(value="10")
         tk.Entry(opt_row, textvariable=self._max_posts, width=5,
