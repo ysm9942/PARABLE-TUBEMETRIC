@@ -1986,9 +1986,6 @@ class DashboardTab(tk.Frame):
         if sub == "video" and not self.app.video_results:
             messagebox.showwarning("데이터 없음", "영상 분석 결과가 없습니다.")
             return
-        if sub == "ad" and not self.app.ad_results:
-            messagebox.showwarning("데이터 없음", "광고 분석 결과가 없습니다.")
-            return
         if sub == "live":
             live_tab = self.app._pages.get("live")
             if not live_tab or not live_tab.live_results:
