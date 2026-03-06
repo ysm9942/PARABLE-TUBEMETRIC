@@ -1530,33 +1530,40 @@ class DashboardTab(tk.Frame):
         self._build()
 
     def _build(self):
-        # 서브탭 헤더
-        top = tk.Frame(self, bg=BG, padx=28, pady=14)
+        # ── 헤더 영역 ─────────────────────────────────────────────────────────
+        top = tk.Frame(self, bg=BG2, padx=28, pady=16)
         top.pack(fill="x")
-        tk.Label(top, text="데이터 대시보드", font=("Arial", 17, "bold"),
-                 bg=BG, fg=FG, anchor="w").pack(side="left")
-
+        hdr_left = tk.Frame(top, bg=BG2)
+        hdr_left.pack(side="left", fill="y")
+        tk.Frame(hdr_left, bg=ACCENT, width=3).pack(side="left", fill="y", padx=(0, 14))
+        tk.Label(hdr_left, text="데이터 대시보드", font=("Arial", 15, "bold"),
+                 bg=BG2, fg=FG).pack(side="left")
         self._excel_btn = _btn(top, "⬇  Excel 내보내기", self._export_excel,
-                               padx=14, pady=7)
+                               bg=BG4, fg=FG_DIM, padx=14, pady=7)
         self._excel_btn.pack(side="right")
-
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
-        # 서브탭 버튼
-        sub_bar = tk.Frame(self, bg=BG2, padx=28, pady=0)
+        # ── 서브탭 바 (언더라인 인디케이터) ──────────────────────────────────
+        sub_bar = tk.Frame(self, bg=BG, padx=24, pady=0)
         sub_bar.pack(fill="x")
         self._sub_btns = {}
         for key, lbl in [("channel","채널 분석"), ("video","영상 분석"),
                          ("ad","광고 분석"), ("scraper","로컬 스크래퍼"),
                          ("live","라이브 지표")]:
+            tab_f = tk.Frame(sub_bar, bg=BG)
+            tab_f.pack(side="left")
             btn = tk.Button(
-                sub_bar, text=lbl,
+                tab_f, text=lbl,
                 command=lambda k=key: self._switch_sub(k),
-                font=("Arial", 9, "bold"), relief="flat", cursor="hand2",
-                padx=16, pady=10,
+                font=("Arial", 9), relief="flat", cursor="hand2",
+                bg=BG, fg=FG_DIM,
+                activebackground=BG, activeforeground=FG,
+                padx=16, pady=10, bd=0,
             )
-            btn.pack(side="left")
-            self._sub_btns[key] = btn
+            btn.pack()
+            ind = tk.Frame(tab_f, bg=BG, height=2)
+            ind.pack(fill="x")
+            self._sub_btns[key] = {"btn": btn, "ind": ind}
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
         # 컨텐츠 영역
