@@ -858,13 +858,10 @@ def _crawl_creator(platform: str, creator_id: str,
     creator_id: 크리에이터 채널 ID / 닉네임
     """
     try:
-        import undetected_chromedriver as uc
-    except ImportError:
-        raise RuntimeError("undetected_chromedriver 가 설치되어 있지 않습니다.\npip install undetected-chromedriver")
-    try:
         from bs4 import BeautifulSoup
     except ImportError:
         raise RuntimeError("beautifulsoup4 가 설치되어 있지 않습니다.\npip install beautifulsoup4")
+    from browser import create_driver
 
     def _log(msg):
         if progress_cb:
@@ -874,14 +871,8 @@ def _crawl_creator(platform: str, creator_id: str,
     PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
     url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
 
-    # ── Chrome 드라이버 초기화 (항상 창 띄움 - 봇 차단 우회) ────────────────
-    opts = uc.ChromeOptions()
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--lang=ko-KR")
-
-    driver = uc.Chrome(options=opts, use_subprocess=True)
-    driver.set_page_load_timeout(30)
+    # 로컬 스크래퍼와 동일한 create_driver() 사용 (버전 자동감지 + 봇 우회 옵션 포함)
+    driver = create_driver(headless=False)
 
     def _get_soup(url: str) -> "BeautifulSoup":
         for attempt in range(3):
