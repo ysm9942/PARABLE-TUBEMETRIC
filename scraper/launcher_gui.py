@@ -1400,6 +1400,8 @@ class LiveMetricsTab(tk.Frame):
         self._log(f"\n[완료]  총 {count}건 수집 완료\n", "ok")
         self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
         self.after(0, self._done)
+        # 대시보드 라이브 지표 탭 갱신
+        self.after(0, lambda: self.app.dashboard.refresh_live())
 
     # ── Excel 내보내기 ──────────────────────────────────────────────────────
     def _export(self):
