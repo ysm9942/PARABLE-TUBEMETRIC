@@ -1217,6 +1217,17 @@ class LiveMetricsTab(tk.Frame):
         ]
         result = []
         for line in lines:
+            # viewership.softc.one URL 직접 붙여넣기 지원
+            # 예: https://viewership.softc.one/channel/naverchzzk/ec857bee...
+            if line.startswith("http"):
+                import re as _re
+                m = _re.search(r"softc\.one/channel/([^/]+)/([^/?#\s]+)", line)
+                if m:
+                    raw_plat, cid = m.group(1), m.group(2)
+                    plat = "chzzk" if raw_plat == "naverchzzk" else raw_plat
+                    if cid:
+                        result.append((plat, cid))
+                continue
             if ":" in line:
                 plat, cid = line.split(":", 1)
                 plat = plat.strip().lower()
