@@ -988,10 +988,10 @@ def _crawl_creator(platform: str, creator_id: str,
             cat_text   = _t(divs[0]) if len(divs) >= 1 else _t(col0)
             title_text = _t(divs[1]) if len(divs) >= 2 else ""
 
-            # 기간 → 날짜 추출
+            # 기간 → 날짜 추출 (형식: "03.06 (금) 00:15 ~" — YYYY 없는 MM.DD)
             period   = _t(cols[1]) if len(cols) > 1 else ""
-            date_m   = _re.search(r'(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})', period)
-            date_str = (f"{date_m.group(1)}-{int(date_m.group(2)):02d}-{int(date_m.group(3)):02d}"
+            date_m   = _re.search(r'(\d{1,2})\.(\d{2})', period)
+            date_str = (f"{start_dt.year}-{int(date_m.group(1)):02d}-{int(date_m.group(2)):02d}"
                         if date_m else "")
 
             # 방송시간(h) → 분
