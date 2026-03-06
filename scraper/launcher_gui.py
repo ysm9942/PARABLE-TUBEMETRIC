@@ -1597,22 +1597,21 @@ class InstagramTab(tk.Frame):
                     self.after(0, lambda i=idx, t=total, a=account:
                                self._status_var.set(f"수집 중... ({i}/{t})  @{a}"))
                     try:
-                        post_links = _ig_collect_post_links(driver, account, max_posts)
+                        reel_links = _ig_collect_reel_links(driver, account, max_posts)
                     except Exception:
                         continue
-                    for post_url in post_links:
+                    for reel_url in reel_links:
                         if self._stop_event.is_set():
                             break
                         try:
-                            row = _ig_scrape_post(driver, post_url, account)
+                            row = _ig_scrape_post(driver, reel_url, account)
                             all_results.append(row)
                             self.after(0, lambda r=row: self.result_tree.insert(
                                 "", "end", values=(
                                     r["account"],
-                                    r["post_type"],
-                                    fmt_num(r["like_count"]) if r["like_count"] else "-",
-                                    fmt_num(r["view_count"]) if r["view_count"] else "-",
-                                    r["image_count"],
+                                    fmt_num(r["like_count"])    if r["like_count"]    else "-",
+                                    fmt_num(r["view_count"])    if r["view_count"]    else "-",
+                                    fmt_num(r["comment_count"]) if r["comment_count"] else "-",
                                     r["posted_at"],
                                     r["caption"][:60],
                                 )
