@@ -1509,8 +1509,8 @@ class InstagramTab(tk.Frame):
         tree_frame = tk.Frame(wrap, bg=BG)
         tree_frame.pack(fill="both", expand=True)
 
-        cols   = ("계정", "유형", "좋아요", "조회수", "이미지수", "게시일", "캡션")
-        widths = (110,     60,    70,       70,       60,         85,      280)
+        cols   = ("계정", "좋아요", "조회수", "댓글수", "게시일", "캡션")
+        widths = (120,    80,      80,       70,       90,      290)
         self.result_tree = ttk.Treeview(tree_frame, columns=cols,
                                         show="headings", style="Dark.Treeview", height=10)
         for i, col in enumerate(cols):
