@@ -1119,13 +1119,7 @@ class LiveMetricsTab(tk.Frame):
                            selectcolor=BG3, font=("Arial", 9),
                            activeforeground=FG).pack(side="left", padx=4)
 
-        tk.Label(opt_row, text="|", bg=BG, fg=FG_MUTE).pack(side="left", padx=6)
-        self.headless_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(opt_row, text="헤드리스 (백그라운드 크롬)",
-                       variable=self.headless_var,
-                       bg=BG, fg=FG_DIM, activebackground=BG,
-                       selectcolor=BG3, font=("Arial", 9),
-                       activeforeground=FG).pack(side="left", padx=4)
+        self.headless_var = tk.BooleanVar(value=False)  # 항상 창 띄움
 
         # ── 버튼 행 ───────────────────────────────────────────────────────
         btn_row = tk.Frame(left, bg=BG, pady=6)
