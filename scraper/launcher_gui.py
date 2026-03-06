@@ -5,6 +5,7 @@ Vercel 대시보드의 모든 기능을 로컬 exe에 구현:
   - 단일 영상 분석  (YouTube API)
   - 광고 영상 분석  (YouTube API + NLP)
   - 로컬 스크래퍼   (undetected-chromedriver → GitHub push)
+  - 라이브 지표 분석 (CHZZK/SOOP · viewership.softc.one)
   - 데이터 대시보드 (결과 표시 + Excel 내보내기)
 """
 import sys
