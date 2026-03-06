@@ -2280,6 +2280,75 @@ class DashboardTab(tk.Frame):
                 fmt_num(round(sum(avgs)  / len(avgs)))  if avgs  else 0,
             ))
 
+    # ── Instagram 결과 ───────────────────────────────────────────────────────
+    def _build_instagram(self):
+        results = self.app.instagram_results
+        if not results:
+            _label(self._content, "아직 Instagram 수집 결과가 없습니다.\nInstagram 분석 탭에서 수집을 실행하세요.",
+                   font_size=10, color=FG_DIM).pack(expand=True)
+            return
+
+        # 계정별 집계
+        from collections import defaultdict
+        agg: dict = defaultdict(lambda: {"count": 0, "likes": [], "views": [], "types": []})
+        for r in results:
+            acc = r.get("account", "")
+            agg[acc]["count"]  += 1
+            if r.get("like_count") is not None:
+                agg[acc]["likes"].append(r["like_count"])
+            if r.get("view_count") is not None:
+                agg[acc]["views"].append(r["view_count"])
+            agg[acc]["types"].append(r.get("post_type", ""))
+
+        summary_cols   = ("계정", "게시물수", "총 좋아요", "평균 좋아요", "총 조회수", "평균 조회수", "주요 유형")
+        summary_widths = (130, 70, 90, 90, 90, 90, 80)
+        tree, _ = self._make_tree(summary_cols, widths=summary_widths)
+
+        for acc, d in agg.items():
+            total_likes = sum(d["likes"])
+            avg_likes   = round(total_likes / len(d["likes"])) if d["likes"] else 0
+            total_views = sum(d["views"])
+            avg_views   = round(total_views / len(d["views"])) if d["views"] else 0
+            top_type    = max(set(d["types"]), key=d["types"].count) if d["types"] else "-"
+            tree.insert("", "end", values=(
+                acc, d["count"],
+                fmt_num(total_likes) if d["likes"] else "-",
+                fmt_num(avg_likes)   if d["likes"] else "-",
+                fmt_num(total_views) if d["views"] else "-",
+                fmt_num(avg_views)   if d["views"] else "-",
+                top_type,
+            ))
+
+        # 상세 게시물 테이블
+        detail_lbl = tk.Frame(self._content, bg=BG, padx=20, pady=(8, 4))
+        detail_lbl.pack(fill="x")
+        tk.Label(detail_lbl, text="게시물 상세",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x")
+
+        detail_cols   = ("계정", "유형", "좋아요", "조회수", "이미지수", "게시일", "캡션")
+        detail_widths = (110, 60, 80, 80, 60, 90, 280)
+        dtree, _ = self._make_tree(detail_cols, widths=detail_widths)
+        for r in results:
+            dtree.insert("", "end", values=(
+                r.get("account", ""),
+                r.get("post_type", ""),
+                fmt_num(r["like_count"]) if r.get("like_count") is not None else "-",
+                fmt_num(r["view_count"]) if r.get("view_count") is not None else "-",
+                r.get("image_count", 0),
+                r.get("posted_at", ""),
+                r.get("caption", "")[:60],
+            ))
+
+        def _on_select(e):
+            sel = dtree.selection()
+            if not sel:
+                return
+            idx = dtree.index(sel[0])
+            if idx < len(results):
+                webbrowser.open(results[idx].get("post_url", ""))
+
+        dtree.bind("<<TreeviewSelect>>", _on_select)
+
     def refresh_live(self):
         """크롤링 완료 후 라이브 지표 서브탭 갱신 (현재 해당 탭이 열려있을 때만)"""
         if self._current_sub == "live":
