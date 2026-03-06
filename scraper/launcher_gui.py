@@ -869,7 +869,7 @@ def _crawl_creator(platform: str, creator_id: str,
 
     BASE = "https://viewership.softc.one"
     PLAT_PATH = {"chzzk": "naverchzzk", "soop": "soop"}.get(platform, platform)
-    url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}"
+    url_base = f"{BASE}/channel/{PLAT_PATH}/{creator_id}/streams"
 
     # 로컬 스크래퍼와 동일한 create_driver() 사용 (버전 자동감지 + 봇 우회 옵션 포함)
     _log("    드라이버 시작 중...\n")
