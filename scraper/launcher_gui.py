@@ -84,23 +84,18 @@ def _load_yt_api_key() -> str:
 
 
 def _load_gsheet_url() -> str:
-    # SCRIPT_DIR을 sys.path에 추가해 실행 위치에 무관하게 config를 찾음
-    import importlib, sys as _sys
-    _dir = str(SCRIPT_DIR)
-    _added = _dir not in _sys.path
-    if _added:
-        _sys.path.insert(0, _dir)
+    # 파일 경로 직접 로드 → 모듈 캐시 우회
+    config_path = SCRIPT_DIR / "config.py"
+    if not config_path.exists():
+        return ""
     try:
-        cfg = importlib.import_module("config")
-        url = getattr(cfg, "GSHEET_URL", "")
-        if url:
-            return url
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location("_tubemetric_cfg", str(config_path))
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return getattr(mod, "GSHEET_URL", "") or ""
     except Exception:
-        pass
-    finally:
-        if _added and _dir in _sys.path:
-            _sys.path.remove(_dir)
-    return ""
+        return ""
 
 
 # ── 숫자 포맷 ─────────────────────────────────────────────────────────────────
