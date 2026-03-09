@@ -1562,7 +1562,7 @@ class LiveMetricsTab(tk.Frame):
         inner.bind("<Configure>", _on_resize)
 
         # 체크박스 변수 (크리에이터명 단위)
-        check_vars: dict[str, tk.BooleanVar] = {}
+        check_vars = {}  # {name: BooleanVar}
         rows_widgets = []
 
         PLAT_LABEL = {"chzzk": "CHZZK", "soop": "SOOP"}
