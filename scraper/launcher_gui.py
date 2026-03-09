@@ -1229,8 +1229,12 @@ class LiveMetricsTab(tk.Frame):
         left.pack(fill="both", expand=True)
 
         # ── 크리에이터 ID 입력 ─────────────────────────────────────────────
-        tk.Label(left, text="크리에이터 ID 목록  (한 줄에 하나)",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
+        id_lbl_row = tk.Frame(left, bg=BG)
+        id_lbl_row.pack(fill="x", pady=(16, 2))
+        tk.Label(id_lbl_row, text="크리에이터 ID 목록  (한 줄에 하나)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(side="left")
+        _btn(id_lbl_row, "구글 시트에서 불러오기", self._load_from_gsheet,
+             padx=10, pady=3).pack(side="right")
         tk.Label(left,
                  text="형식:  chzzk:채널ID  /  soop:아이디  /  URL 전체 붙여넣기 가능",
                  font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
