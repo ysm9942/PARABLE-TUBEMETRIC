@@ -84,12 +84,22 @@ def _load_yt_api_key() -> str:
 
 
 def _load_gsheet_url() -> str:
+    # SCRIPT_DIR을 sys.path에 추가해 실행 위치에 무관하게 config를 찾음
+    import importlib, sys as _sys
+    _dir = str(SCRIPT_DIR)
+    _added = _dir not in _sys.path
+    if _added:
+        _sys.path.insert(0, _dir)
     try:
-        from config import GSHEET_URL
-        if GSHEET_URL:
-            return GSHEET_URL
-    except (ImportError, AttributeError):
+        cfg = importlib.import_module("config")
+        url = getattr(cfg, "GSHEET_URL", "")
+        if url:
+            return url
+    except Exception:
         pass
+    finally:
+        if _added and _dir in _sys.path:
+            _sys.path.remove(_dir)
     return ""
 
 
