@@ -1365,12 +1365,11 @@ class LiveMetricsTab(tk.Frame):
         import csv
         import io
 
-        raw_url = self.gsheet_url_var.get().strip()
+        raw_url = _load_gsheet_url()
         if not raw_url:
             messagebox.showwarning("URL 없음",
-                                   "구글 스프레드시트 URL을 입력하세요.\n"
-                                   "config.py 의 GSHEET_URL 에 미리 설정하거나\n"
-                                   "위 입력란에 직접 붙여넣으세요.")
+                                   "구글 스프레드시트 URL이 설정되어 있지 않습니다.\n"
+                                   "config.py 의 GSHEET_URL 에 URL을 설정하세요.")
             return
 
         # Sheet ID 추출
