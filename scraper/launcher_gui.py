@@ -1254,11 +1254,38 @@ class LiveMetricsTab(tk.Frame):
         id_hdr.pack(fill="x", pady=(16, 2))
         tk.Label(id_hdr, text="크리에이터 ID 목록  (한 줄에 하나)",
                  font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(side="left")
-        _btn(id_hdr, "구글 시트에서 불러오기", self._load_from_gsheet,
-             padx=10, pady=3).pack(side="right")
+        self._gsheet_status_lbl = tk.Label(id_hdr, text="⏳ 연동 중...",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM)
+        self._gsheet_status_lbl.pack(side="right", padx=4)
+        _btn(id_hdr, "↺", self._manual_gsheet_load,
+             padx=6, pady=3).pack(side="right")
         tk.Label(left,
                  text="형식:  chzzk:채널ID  /  soop:아이디  /  URL 전체 붙여넣기 가능",
-                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 2))
+
+        # ── 자동완성 검색창 (구글 스프레드시트 연동 시 활성화) ─────────────────
+        ac_border = tk.Frame(left, bg=BORDER, padx=1, pady=1)
+        ac_border.pack(fill="x", pady=(0, 2))
+        self._ac_var = tk.StringVar()
+        self._ac_var.trace_add("write", self._on_ac_change)
+        self._ac_entry = tk.Entry(ac_border, textvariable=self._ac_var,
+                                  font=("Arial", 10), bg=BG3, fg=FG_DIM,
+                                  insertbackground=ACCENT, relief="flat",
+                                  state="disabled")
+        self._ac_entry.pack(fill="x", padx=8, pady=5)
+        self._ac_entry.insert(0, "🔍  크리에이터 검색...")
+
+        # 자동완성 드롭다운 (초기엔 숨김)
+        self._ac_lb_frame = tk.Frame(left, bg=BORDER, padx=1, pady=1)
+        self._ac_listbox = tk.Listbox(
+            self._ac_lb_frame, bg=BG3, fg=FG,
+            selectbackground=ACCENT, selectforeground="white",
+            font=("Arial", 10), relief="flat", height=6,
+            activestyle="none", cursor="hand2",
+        )
+        self._ac_listbox.pack(fill="both", padx=0, pady=0)
+        self._ac_listbox.bind("<<ListboxSelect>>", self._on_ac_select)
+        self._ac_entry.bind("<Escape>", lambda e: self._ac_lb_frame.pack_forget())
 
         id_border = tk.Frame(left, bg=ACCENT, padx=1, pady=1)
         id_border.pack(fill="x")
