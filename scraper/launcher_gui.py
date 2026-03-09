@@ -1252,8 +1252,7 @@ class LiveMetricsTab(tk.Frame):
         self.gsheet_url_var = tk.StringVar(value=_load_gsheet_url())
         tk.Entry(gs_border, textvariable=self.gsheet_url_var,
                  font=("Consolas", 9), bg=BG3, fg=FG,
-                 insertbackground=ACCENT, relief="flat",
-                 padx=8, pady=5).pack(fill="both")
+                 insertbackground=ACCENT, relief="flat").pack(fill="both", ipadx=8, ipady=5)
         _btn(gs_row, "불러오기", self._load_from_gsheet,
              padx=12, pady=6).pack(side="left", padx=(6, 0))
 
