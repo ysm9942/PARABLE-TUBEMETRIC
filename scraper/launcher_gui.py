@@ -1248,27 +1248,13 @@ class LiveMetricsTab(tk.Frame):
         left = tk.Frame(self, bg=BG, padx=28)
         left.pack(fill="both", expand=True)
 
-        # ── 구글 시트 URL 입력 ────────────────────────────────────────────
-        tk.Label(left, text="구글 스프레드시트 URL",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 2))
-        tk.Label(left,
-                 text="열 구조: 크리에이터명 | 플랫폼 | URL  ·  '링크가 있는 모든 사용자 - 뷰어' 공유 필요",
-                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
-
-        gs_row = tk.Frame(left, bg=BG)
-        gs_row.pack(fill="x", pady=(0, 8))
-        gs_border = tk.Frame(gs_row, bg=ACCENT, padx=1, pady=1)
-        gs_border.pack(side="left", fill="x", expand=True)
-        self.gsheet_url_var = tk.StringVar(value=_load_gsheet_url())
-        tk.Entry(gs_border, textvariable=self.gsheet_url_var,
-                 font=("Consolas", 9), bg=BG3, fg=FG,
-                 insertbackground=ACCENT, relief="flat").pack(fill="both", ipadx=8, ipady=5)
-        _btn(gs_row, "불러오기", self._load_from_gsheet,
-             padx=12, pady=6).pack(side="left", padx=(6, 0))
-
         # ── 크리에이터 ID 입력 ─────────────────────────────────────────────
-        tk.Label(left, text="크리에이터 ID 목록  (한 줄에 하나)",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(0, 2))
+        id_hdr = tk.Frame(left, bg=BG)
+        id_hdr.pack(fill="x", pady=(16, 2))
+        tk.Label(id_hdr, text="크리에이터 ID 목록  (한 줄에 하나)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(side="left")
+        _btn(id_hdr, "구글 시트에서 불러오기", self._load_from_gsheet,
+             padx=10, pady=3).pack(side="right")
         tk.Label(left,
                  text="형식:  chzzk:채널ID  /  soop:아이디  /  URL 전체 붙여넣기 가능",
                  font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
