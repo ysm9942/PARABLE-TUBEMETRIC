@@ -16,7 +16,7 @@ GITHUB_BRANCH = "main"
 
 YOUTUBE_API_KEY = "AIzaSyDyg1ThpwHJIL2lHJW9bixqiDawMBUK2uo"          # YouTube Data API v3 키 (AIzaSy...)
 
-GSHEET_URL = ""               # 라이브 지표 크리에이터 목록 구글 스프레드시트 URL
+GSHEET_URL = "https://docs.google.com/spreadsheets/d/1EuUBKF7Vhb7pF0B3GvVCMHpNQeL-esPZ3mQO-t0joEE/edit?gid=0#gid=0"               # 라이브 지표 크리에이터 목록 구글 스프레드시트 URL
                                # 열 구조: 크리에이터명 | 플랫폼 | URL
                                # 시트는 '링크가 있는 모든 사용자 - 뷰어' 공유 필요
 
