@@ -2681,7 +2681,14 @@ class App(tk.Tk):
     def _show_main(self):
         for w in self.winfo_children():
             w.destroy()
-        MainApp(self).pack(fill="both", expand=True)
+        try:
+            MainApp(self).pack(fill="both", expand=True)
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            messagebox.showerror("초기화 오류",
+                                 f"앱을 로드하는 중 오류가 발생했습니다.\n\n{err}")
+            raise
 
 
 if __name__ == "__main__":
