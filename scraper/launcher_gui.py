@@ -1246,115 +1246,154 @@ class LiveMetricsTab(tk.Frame):
         _section_header(self, "라이브 지표 분석",
                          "CHZZK / SOOP 방송 시청자 지표 수집  ·  viewership.softc.one")
 
-        left = tk.Frame(self, bg=BG, padx=28)
-        left.pack(fill="both", expand=True)
+        # ── 2-column 레이아웃: 좌(설정) | 우(결과) ────────────────────────
+        body = tk.Frame(self, bg=BG)
+        body.pack(fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=0)   # 좌: 고정폭
+        body.grid_columnconfigure(1, weight=0)   # 구분선
+        body.grid_columnconfigure(2, weight=1)   # 우: 가변
+        body.grid_rowconfigure(0, weight=1)
 
-        # ── 크리에이터 ID 입력 ─────────────────────────────────────────────
-        id_hdr = tk.Frame(left, bg=BG)
-        id_hdr.pack(fill="x", pady=(16, 2))
-        tk.Label(id_hdr, text="크리에이터 ID 목록  (한 줄에 하나)",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(side="left")
-        self._gsheet_status_lbl = tk.Label(id_hdr, text="⏳ 연동 중...",
-                 font=("Arial", 8), bg=BG, fg=FG_DIM)
-        self._gsheet_status_lbl.pack(side="right", padx=4)
-        _btn(id_hdr, "↺", self._manual_gsheet_load,
-             padx=6, pady=3).pack(side="right")
-        tk.Label(left,
-                 text="형식:  chzzk:채널ID  /  soop:아이디  /  URL 전체 붙여넣기 가능",
-                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 2))
+        # 좌 패널
+        left = tk.Frame(body, bg=BG, padx=20, pady=18, width=370)
+        left.grid(row=0, column=0, sticky="nsew")
+        left.pack_propagate(False)
 
-        # ── 자동완성 검색창 (구글 스프레드시트 연동 시 활성화) ─────────────────
-        # ac_container: 검색창 + 드롭다운을 묶어 pack 순서 고정
+        # 구분선
+        tk.Frame(body, bg=BORDER, width=1).grid(row=0, column=1, sticky="ns", padx=0)
+
+        # 우 패널
+        right = tk.Frame(body, bg=BG, padx=20, pady=18)
+        right.grid(row=0, column=2, sticky="nsew")
+
+        # ── [좌] 섹션 레이블 헬퍼 ─────────────────────────────────────────
+        def _sec(text):
+            tk.Label(left, text=text, font=("Arial", 8, "bold"),
+                     bg=BG, fg=FG_MUTE, anchor="w").pack(fill="x", pady=(0, 6))
+
+        # ══════════════════════════════════════════════════════════════════
+        # [좌] 1. 크리에이터
+        # ══════════════════════════════════════════════════════════════════
+        _sec("크리에이터")
+
+        # 구글 시트 상태 + 새로고침 버튼
+        gs_row = tk.Frame(left, bg=BG)
+        gs_row.pack(fill="x", pady=(0, 6))
+        self._gsheet_status_lbl = tk.Label(
+            gs_row, text="⏳ 연동 중...",
+            font=("Arial", 8), bg=BG, fg=FG_MUTE)
+        self._gsheet_status_lbl.pack(side="left")
+        _btn(gs_row, "↺  새로고침", self._manual_gsheet_load,
+             padx=8, pady=3).pack(side="right")
+
+        # 자동완성 검색창 + 드롭다운 (ac_container로 묶어 위치 고정)
         ac_container = tk.Frame(left, bg=BG)
-        ac_container.pack(fill="x", pady=(0, 2))
+        ac_container.pack(fill="x", pady=(0, 6))
 
-        ac_border = tk.Frame(ac_container, bg=BORDER, padx=1, pady=1)
-        ac_border.pack(fill="x")
+        ac_bd = tk.Frame(ac_container, bg=BORDER2, padx=1, pady=1)
+        ac_bd.pack(fill="x")
         self._ac_var = tk.StringVar()
         self._ac_var.trace_add("write", self._on_ac_change)
-        self._ac_entry = tk.Entry(ac_border, textvariable=self._ac_var,
-                                  font=("Arial", 10), bg=BG3, fg=FG_DIM,
-                                  insertbackground=ACCENT, relief="flat",
-                                  state="disabled")
-        self._ac_entry.pack(fill="x", padx=8, pady=5)
-        self._ac_entry.insert(0, "🔍  크리에이터 검색...")
+        self._ac_entry = tk.Entry(
+            ac_bd, textvariable=self._ac_var,
+            font=("Arial", 10), bg=BG3, fg=FG_MUTE,
+            insertbackground=ACCENT, relief="flat", state="disabled")
+        self._ac_entry.pack(fill="x", padx=8, pady=7)
+        self._ac_entry.insert(0, "🔍  크리에이터 이름 검색...")
 
-        # 드롭다운: ac_container 내부 → 검색창 바로 아래에 항상 위치
-        self._ac_lb_frame = tk.Frame(ac_container, bg=BORDER, padx=1, pady=1)
+        self._ac_lb_frame = tk.Frame(ac_container, bg=BORDER2, padx=1, pady=1)
         self._ac_listbox = tk.Listbox(
             self._ac_lb_frame, bg=BG3, fg=FG,
             selectbackground=ACCENT, selectforeground="white",
-            font=("Arial", 10), relief="flat", height=6,
-            activestyle="none", cursor="hand2",
-        )
+            font=("Arial", 10), relief="flat", height=7,
+            activestyle="none", cursor="hand2")
         self._ac_listbox.pack(fill="both")
         self._ac_listbox.bind("<<ListboxSelect>>", self._on_ac_select)
         self._ac_entry.bind("<Escape>", lambda e: self._ac_lb_frame.pack_forget())
 
-        id_border = tk.Frame(left, bg=ACCENT, padx=1, pady=1)
-        id_border.pack(fill="x")
-        self.id_txt = tk.Text(id_border, height=6, font=("Consolas", 10),
-                              bg=BG3, fg=FG, insertbackground=ACCENT,
-                              relief="flat", padx=10, pady=8)
+        # 선택된 ID 목록 (텍스트 입력 영역)
+        id_bd = tk.Frame(left, bg=BORDER2, padx=1, pady=1)
+        id_bd.pack(fill="x")
+        self.id_txt = tk.Text(
+            id_bd, height=7, font=("Consolas", 10),
+            bg=BG3, fg=FG, insertbackground=ACCENT,
+            relief="flat", padx=10, pady=8)
         self.id_txt.pack(fill="both")
+        tk.Label(left, text="chzzk:채널ID  /  soop:아이디  /  URL 직접 입력 가능",
+                 font=("Arial", 8), bg=BG, fg=FG_MUTE, anchor="w").pack(fill="x", pady=(4, 16))
 
-        # ── 날짜 범위 ──────────────────────────────────────────────────────
-        date_row = tk.Frame(left, bg=BG, pady=8)
-        date_row.pack(fill="x")
+        # ── 구분선 ────────────────────────────────────────────────────────
+        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=(0, 16))
 
-        tk.Label(date_row, text="시작일", font=("Arial", 9, "bold"),
-                 bg=BG, fg=FG).pack(side="left")
+        # ══════════════════════════════════════════════════════════════════
+        # [좌] 2. 분석 기간
+        # ══════════════════════════════════════════════════════════════════
+        _sec("분석 기간")
+
         self.start_date = tk.StringVar(
             value=(datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"))
-        tk.Entry(date_row, textvariable=self.start_date, width=12,
-                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
-                 font=("Consolas", 10)).pack(side="left", padx=(6, 16))
-
-        tk.Label(date_row, text="종료일", font=("Arial", 9, "bold"),
-                 bg=BG, fg=FG).pack(side="left")
         self.end_date = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        tk.Entry(date_row, textvariable=self.end_date, width=12,
-                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
-                 font=("Consolas", 10)).pack(side="left", padx=(6, 20))
 
+        # 빠른 선택 버튼
+        preset_row = tk.Frame(left, bg=BG)
+        preset_row.pack(fill="x", pady=(0, 8))
         for lbl, days in [("7일", 7), ("30일", 30), ("90일", 90), ("전체", None)]:
             def _set_period(d=days):
                 end = datetime.now()
                 start = (end - timedelta(days=d)) if d else datetime(2020, 1, 1)
                 self.start_date.set(start.strftime("%Y-%m-%d"))
                 self.end_date.set(end.strftime("%Y-%m-%d"))
-            _btn(date_row, lbl, _set_period, padx=10, pady=4).pack(side="left", padx=2)
+            _btn(preset_row, lbl, _set_period, padx=12, pady=5).pack(
+                side="left", padx=(0, 4))
 
-        # platform_var: URL 파싱 폴백용 내부 변수 (UI 없음 — URL에서 자동 감지)
-        self.platform_var = tk.StringVar(value="chzzk")
-        self.headless_var = tk.BooleanVar(value=False)  # 항상 창 띄움
+        # 날짜 직접 입력
+        date_row = tk.Frame(left, bg=BG)
+        date_row.pack(fill="x")
+        tk.Label(date_row, text="시작", font=("Arial", 9),
+                 bg=BG, fg=FG_DIM).pack(side="left")
+        tk.Entry(date_row, textvariable=self.start_date, width=11,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 6))
+        tk.Label(date_row, text="~", font=("Arial", 10),
+                 bg=BG, fg=FG_MUTE).pack(side="left")
+        tk.Entry(date_row, textvariable=self.end_date, width=11,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 0))
 
-        # ── 버튼 행 ───────────────────────────────────────────────────────
-        btn_row = tk.Frame(left, bg=BG, pady=6)
-        btn_row.pack(fill="x")
+        # ── 구분선 ────────────────────────────────────────────────────────
+        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=(16, 16))
 
-        self.run_btn = _btn(btn_row, "▶  수집 시작", self._run,
-                            bg=ACCENT, fg="white", bold=True, padx=20, pady=10)
-        self.run_btn.pack(side="left")
+        # ══════════════════════════════════════════════════════════════════
+        # [좌] 3. 액션 버튼
+        # ══════════════════════════════════════════════════════════════════
+        self.platform_var = tk.StringVar(value="chzzk")   # 내부용 (UI 없음)
+        self.headless_var = tk.BooleanVar(value=False)
 
-        self.stop_btn = _btn(btn_row, "■  중지", self._stop, padx=14, pady=10)
+        self.run_btn = _btn(left, "▶  수집 시작", self._run,
+                            bg=ACCENT, fg="white", bold=True, padx=20, pady=12)
+        self.run_btn.pack(fill="x", pady=(0, 6))
+
+        sub_row = tk.Frame(left, bg=BG)
+        sub_row.pack(fill="x")
+        self.stop_btn = _btn(sub_row, "■  중지", self._stop, padx=14, pady=9)
         self.stop_btn.configure(state="disabled")
-        self.stop_btn.pack(side="left", padx=6)
-
-        self.export_btn = _btn(btn_row, "⬇  Excel 내보내기", self._export,
-                               padx=14, pady=10)
-        self.export_btn.pack(side="left", padx=6)
+        self.stop_btn.pack(side="left", expand=True, fill="x", padx=(0, 4))
+        self.export_btn = _btn(sub_row, "⬇  Excel 내보내기", self._export, padx=14, pady=9)
+        self.export_btn.pack(side="left", expand=True, fill="x")
 
         self._status_var = tk.StringVar(value="대기 중")
-        tk.Label(btn_row, textvariable=self._status_var,
-                 font=("Consolas", 9), bg=BG, fg=FG_DIM).pack(side="left", padx=14)
+        tk.Label(left, textvariable=self._status_var,
+                 font=("Consolas", 9), bg=BG, fg=FG_MUTE, anchor="w").pack(
+                     fill="x", pady=(10, 0))
 
-        # ── 결과 Treeview ─────────────────────────────────────────────────
-        tk.Frame(left, bg=BORDER, height=1).pack(fill="x", pady=(4, 0))
-        tk.Label(left, text="수집 결과",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(6, 4))
+        # ══════════════════════════════════════════════════════════════════
+        # [우] 수집 결과
+        # ══════════════════════════════════════════════════════════════════
+        tk.Label(right, text="수집 결과",
+                 font=("Arial", 10, "bold"), bg=BG, fg=FG, anchor="w").pack(
+                     fill="x", pady=(0, 10))
 
-        tree_frame = tk.Frame(left, bg=BG)
+        tree_frame = tk.Frame(right, bg=BG)
         tree_frame.pack(fill="both", expand=True)
 
         cols = ("플랫폼", "방송 제목", "카테고리",
