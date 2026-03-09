@@ -1234,10 +1234,13 @@ class LiveMetricsTab(tk.Frame):
         self._stop_event = threading.Event()
         self._thread = None
         self.live_results: list = []
+        self._gsheet_data: dict = {}          # {크리에이터명: [(plat, cid), ...]}
         self._build()
-        # config에 URL이 설정되어 있으면 시작 시 자동 로드
+        # config에 URL이 설정되어 있으면 시작 시 백그라운드 자동 로드 (다이얼로그 없음)
         if _load_gsheet_url():
-            self.after(300, self._load_from_gsheet)
+            self.after(400, lambda: threading.Thread(
+                target=self._fetch_gsheet_data, args=(True,), daemon=True
+            ).start())
 
     def _build(self):
         _section_header(self, "라이브 지표 분석",
