@@ -1264,8 +1264,12 @@ class LiveMetricsTab(tk.Frame):
                  font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 2))
 
         # ── 자동완성 검색창 (구글 스프레드시트 연동 시 활성화) ─────────────────
-        ac_border = tk.Frame(left, bg=BORDER, padx=1, pady=1)
-        ac_border.pack(fill="x", pady=(0, 2))
+        # ac_container: 검색창 + 드롭다운을 묶어 pack 순서 고정
+        ac_container = tk.Frame(left, bg=BG)
+        ac_container.pack(fill="x", pady=(0, 2))
+
+        ac_border = tk.Frame(ac_container, bg=BORDER, padx=1, pady=1)
+        ac_border.pack(fill="x")
         self._ac_var = tk.StringVar()
         self._ac_var.trace_add("write", self._on_ac_change)
         self._ac_entry = tk.Entry(ac_border, textvariable=self._ac_var,
@@ -1275,15 +1279,15 @@ class LiveMetricsTab(tk.Frame):
         self._ac_entry.pack(fill="x", padx=8, pady=5)
         self._ac_entry.insert(0, "🔍  크리에이터 검색...")
 
-        # 자동완성 드롭다운 (초기엔 숨김)
-        self._ac_lb_frame = tk.Frame(left, bg=BORDER, padx=1, pady=1)
+        # 드롭다운: ac_container 내부 → 검색창 바로 아래에 항상 위치
+        self._ac_lb_frame = tk.Frame(ac_container, bg=BORDER, padx=1, pady=1)
         self._ac_listbox = tk.Listbox(
             self._ac_lb_frame, bg=BG3, fg=FG,
             selectbackground=ACCENT, selectforeground="white",
             font=("Arial", 10), relief="flat", height=6,
             activestyle="none", cursor="hand2",
         )
-        self._ac_listbox.pack(fill="both", padx=0, pady=0)
+        self._ac_listbox.pack(fill="both")
         self._ac_listbox.bind("<<ListboxSelect>>", self._on_ac_select)
         self._ac_entry.bind("<Escape>", lambda e: self._ac_lb_frame.pack_forget())
 
