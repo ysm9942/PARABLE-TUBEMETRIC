@@ -1474,9 +1474,136 @@ class LiveMetricsTab(tk.Frame):
             )
             return
 
+        # ── 크리에이터별 그룹화 ───────────────────────────────────────────
+        name_col = _find_col(["크리에이터", "이름", "name"])
+        # entries: [(name, plat, cid), ...]  (name 없으면 cid 사용)
+        entries = []
+        for i, ln in enumerate(lines):
+            plat, cid = ln.split(":", 1)
+            name = (rows[i].get(name_col) or "").strip() if name_col else ""
+            entries.append((name or cid, plat, cid))
+
+        # 크리에이터명 기준 순서 유지 딕셔너리
+        from collections import OrderedDict
+        grouped: "OrderedDict[str, list]" = OrderedDict()
+        for name, plat, cid in entries:
+            grouped.setdefault(name, []).append((plat, cid))
+
+        # ── 선택 다이얼로그 ───────────────────────────────────────────────
+        selected = self._show_creator_select(grouped)
+        if selected is None:   # 취소
+            return
+
+        result_lines = [f"{plat}:{cid}" for plat, cid in selected]
+        if not result_lines:
+            messagebox.showwarning("선택 없음", "선택된 크리에이터가 없습니다.")
+            return
+
         self.id_txt.delete("1.0", "end")
-        self.id_txt.insert("1.0", "\n".join(lines))
-        messagebox.showinfo("불러오기 완료", f"{len(lines)}명의 크리에이터 ID를 불러왔습니다.")
+        self.id_txt.insert("1.0", "\n".join(result_lines))
+
+    # ── 크리에이터 선택 다이얼로그 ────────────────────────────────────────
+    def _show_creator_select(self, grouped: dict):
+        """
+        grouped: {크리에이터명: [(plat, cid), ...]}
+        반환: 선택된 [(plat, cid), ...] 또는 None(취소)
+        """
+        result = []
+        cancelled = [False]
+
+        win = tk.Toplevel(self)
+        win.title("크리에이터 선택")
+        win.configure(bg=BG)
+        win.resizable(False, True)
+        win.grab_set()
+
+        # ── 헤더 ─────────────────────────────────────────────────────────
+        tk.Label(win, text="조회할 크리에이터를 선택하세요",
+                 font=("Arial", 10, "bold"), bg=BG, fg=FG,
+                 padx=16, pady=10).pack(anchor="w")
+        tk.Frame(win, bg=BORDER, height=1).pack(fill="x")
+
+        # ── 스크롤 목록 ───────────────────────────────────────────────────
+        list_frame = tk.Frame(win, bg=BG)
+        list_frame.pack(fill="both", expand=True, padx=4, pady=4)
+
+        canvas = tk.Canvas(list_frame, bg=BG, highlightthickness=0,
+                           width=420, height=min(40 * len(grouped) + 8, 400))
+        vsb = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        inner = tk.Frame(canvas, bg=BG)
+        canvas_win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_resize(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.itemconfig(canvas_win, width=e.width)
+        inner.bind("<Configure>", _on_resize)
+
+        # 체크박스 변수 (크리에이터명 단위)
+        check_vars: dict[str, tk.BooleanVar] = {}
+        rows_widgets = []
+
+        PLAT_LABEL = {"chzzk": "CHZZK", "soop": "SOOP"}
+
+        for name, pairs in grouped.items():
+            var = tk.BooleanVar(value=True)
+            check_vars[name] = var
+
+            row_bg = BG3 if len(rows_widgets) % 2 == 0 else BG
+            row = tk.Frame(inner, bg=row_bg, pady=3)
+            row.pack(fill="x", padx=2, pady=1)
+
+            tk.Checkbutton(row, variable=var, bg=row_bg, fg=FG,
+                           activebackground=row_bg, selectcolor=BG3,
+                           relief="flat").pack(side="left", padx=(6, 0))
+
+            tk.Label(row, text=name, font=("Arial", 9, "bold"),
+                     bg=row_bg, fg=FG, width=16, anchor="w").pack(side="left", padx=(2, 8))
+
+            plat_str = "  ·  ".join(PLAT_LABEL.get(p, p.upper()) for p, _ in pairs)
+            count_str = f"({len(pairs)})" if len(pairs) > 1 else ""
+            tk.Label(row, text=plat_str, font=("Consolas", 9),
+                     bg=row_bg, fg=ACCENT, anchor="w").pack(side="left")
+            if count_str:
+                tk.Label(row, text=f"  {count_str}", font=("Arial", 8),
+                         bg=row_bg, fg=FG_DIM).pack(side="left")
+
+            rows_widgets.append(row)
+
+        # ── 하단 버튼 ─────────────────────────────────────────────────────
+        tk.Frame(win, bg=BORDER, height=1).pack(fill="x")
+        btn_row = tk.Frame(win, bg=BG, padx=12, pady=8)
+        btn_row.pack(fill="x")
+
+        def _all(v):
+            for var in check_vars.values():
+                var.set(v)
+
+        _btn(btn_row, "전체 선택",  lambda: _all(True),  padx=10, pady=5).pack(side="left", padx=2)
+        _btn(btn_row, "전체 해제",  lambda: _all(False), padx=10, pady=5).pack(side="left", padx=2)
+
+        def _confirm():
+            for name, var in check_vars.items():
+                if var.get():
+                    result.extend(grouped[name])
+            win.destroy()
+
+        def _cancel():
+            cancelled[0] = True
+            win.destroy()
+
+        _btn(btn_row, "확인", _confirm,
+             bg=ACCENT, fg="white", bold=True, padx=16, pady=5).pack(side="right", padx=2)
+        _btn(btn_row, "취소", _cancel, padx=12, pady=5).pack(side="right", padx=2)
+
+        win.bind("<Return>", lambda e: _confirm())
+        win.bind("<Escape>", lambda e: _cancel())
+        win.wait_window()
+
+        return None if cancelled[0] else result
 
     # ── 입력 파싱 ──────────────────────────────────────────────────────────
     def _parse_ids(self) -> list:
