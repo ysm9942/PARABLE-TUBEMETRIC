@@ -1321,19 +1321,8 @@ class LiveMetricsTab(tk.Frame):
                 self.end_date.set(end.strftime("%Y-%m-%d"))
             _btn(date_row, lbl, _set_period, padx=10, pady=4).pack(side="left", padx=2)
 
-        # ── 플랫폼 선택 ───────────────────────────────────────────────────
-        opt_row = tk.Frame(left, bg=BG, pady=2)
-        opt_row.pack(fill="x")
-
-        tk.Label(opt_row, text="기본 플랫폼", font=("Arial", 9, "bold"),
-                 bg=BG, fg=FG).pack(side="left", padx=(0, 8))
+        # platform_var: URL 파싱 폴백용 내부 변수 (UI 없음 — URL에서 자동 감지)
         self.platform_var = tk.StringVar(value="chzzk")
-        for val, lbl in [("chzzk", "CHZZK"), ("soop", "SOOP")]:
-            tk.Radiobutton(opt_row, text=lbl, variable=self.platform_var, value=val,
-                           bg=BG, fg=FG_DIM, activebackground=BG,
-                           selectcolor=BG3, font=("Arial", 9),
-                           activeforeground=FG).pack(side="left", padx=4)
-
         self.headless_var = tk.BooleanVar(value=False)  # 항상 창 띄움
 
         # ── 버튼 행 ───────────────────────────────────────────────────────
