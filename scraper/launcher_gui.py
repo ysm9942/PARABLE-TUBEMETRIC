@@ -1372,63 +1372,12 @@ class LiveMetricsTab(tk.Frame):
         tree_frame.grid_columnconfigure(0, weight=1)
 
 
-    # ── 구글 시트 불러오기 ─────────────────────────────────────────────────
-    def _load_from_gsheet(self):
-        """구글 스프레드시트에서 크리에이터 ID 목록을 불러와 textarea에 채운다.
-        시트 열 구조: 크리에이터명 | 플랫폼 | URL
-        공개(링크 공유) 시트에 한해 인증 없이 CSV export API를 사용한다.
-        """
-        import urllib.request
-        import csv
-        import io
+    # ── 구글 시트 데이터 공통 파싱 헬퍼 ──────────────────────────────────────
+    @staticmethod
+    def _parse_gsheet_rows(rows, fieldnames):
+        """CSV rows → OrderedDict{name: [(plat, cid), ...]}"""
+        from collections import OrderedDict
 
-        raw_url = _load_gsheet_url()
-        if not raw_url:
-            messagebox.showwarning("URL 없음",
-                                   "구글 스프레드시트 URL이 설정되어 있지 않습니다.\n"
-                                   "config.py 의 GSHEET_URL 에 URL을 설정하세요.")
-            return
-
-        # Sheet ID 추출
-        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", raw_url)
-        if not m:
-            messagebox.showerror("URL 오류", "올바른 구글 스프레드시트 URL이 아닙니다.")
-            return
-        sheet_id = m.group(1)
-
-        # gid (탭 ID) 추출 – 없으면 첫 번째 시트(0)
-        gid_m = re.search(r"gid=(\d+)", raw_url)
-        gid = gid_m.group(1) if gid_m else "0"
-
-        csv_url = (
-            f"https://docs.google.com/spreadsheets/d/{sheet_id}"
-            f"/export?format=csv&gid={gid}"
-        )
-
-        # CSV 다운로드
-        try:
-            req = urllib.request.Request(
-                csv_url, headers={"User-Agent": "Mozilla/5.0"}
-            )
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                raw_csv = resp.read().decode("utf-8-sig")
-        except Exception as e:
-            messagebox.showerror(
-                "불러오기 실패",
-                f"스프레드시트를 가져올 수 없습니다.\n{e}\n\n"
-                "시트가 '링크가 있는 모든 사용자'에게 공유되었는지 확인하세요.",
-            )
-            return
-
-        reader = csv.DictReader(io.StringIO(raw_csv))
-        rows = list(reader)
-        fieldnames = reader.fieldnames or []
-
-        if not rows:
-            messagebox.showwarning("빈 시트", "시트에 데이터가 없습니다.")
-            return
-
-        # 열 이름 탐색 (대소문자·공백 무시)
         def _find_col(keywords):
             for f in fieldnames:
                 if any(k in f.lower() for k in keywords):
@@ -1437,59 +1386,11 @@ class LiveMetricsTab(tk.Frame):
 
         plat_col = _find_col(["플랫폼", "platform"])
         url_col  = _find_col(["url"])
+        name_col = _find_col(["크리에이터", "이름", "name"])
 
         if not url_col:
-            messagebox.showerror(
-                "열 없음",
-                f"'URL' 열을 찾을 수 없습니다.\n발견된 열: {', '.join(fieldnames)}",
-            )
-            return
+            return None, url_col, fieldnames  # 오류 신호
 
-        default_plat = self.platform_var.get()
-        lines = []
-
-        for row in rows:
-            raw = (row.get(url_col) or "").strip()
-            if not raw:
-                continue
-
-            plat_raw = (row.get(plat_col) or "").strip().lower() if plat_col else ""
-
-            # 플랫폼 판별 (열 값 우선, 없으면 URL로 추론)
-            if "chzzk" in plat_raw or "chzzk" in raw:
-                plat = "chzzk"
-                m2 = re.search(
-                    r"chzzk\.naver\.com/(?:live/)?([a-zA-Z0-9]+)", raw
-                )
-                cid = m2.group(1) if m2 else ""
-            elif "soop" in plat_raw or "sooplive" in raw or "afreeca" in raw:
-                plat = "soop"
-                m2 = re.search(
-                    r"(?:sooplive\.co\.kr|afreecatv\.com)/([^/?#\s]+)", raw
-                )
-                cid = m2.group(1) if m2 else ""
-            else:
-                # 플랫폼 불명: 기본 플랫폼으로 설정, URL 마지막 경로 세그먼트를 ID로
-                plat = default_plat
-                m2 = re.search(r"/([^/?#\s]+)/?$", raw.rstrip("/"))
-                cid = m2.group(1) if m2 else ""
-
-            if cid:
-                lines.append(f"{plat}:{cid}")
-
-        if not lines:
-            messagebox.showwarning(
-                "결과 없음",
-                "URL 열에서 크리에이터 ID를 추출할 수 없었습니다.\n"
-                "URL 형식을 확인하세요. (예: https://chzzk.naver.com/채널ID)",
-            )
-            return
-
-        # ── 크리에이터별 그룹화 ───────────────────────────────────────────
-        name_col = _find_col(["크리에이터", "이름", "name"])
-        # rows와 lines는 빈 URL 행 스킵으로 인덱스가 불일치할 수 있으므로
-        # rows를 직접 순회하면서 name과 (plat, cid) 쌍을 함께 추출
-        from collections import OrderedDict
         grouped = OrderedDict()
         for row in rows:
             raw = (row.get(url_col) or "").strip()
@@ -1505,32 +1406,156 @@ class LiveMetricsTab(tk.Frame):
                 m2 = re.search(r"(?:sooplive\.co\.kr|afreecatv\.com)/([^/?#\s]+)", raw)
                 cid = m2.group(1) if m2 else ""
             else:
-                plat = default_plat
+                # URL만으로 플랫폼 판단 불가 → chzzk 기본값
+                plat = "chzzk"
                 m2 = re.search(r"/([^/?#\s]+)/?$", raw.rstrip("/"))
                 cid = m2.group(1) if m2 else ""
             if not cid:
                 continue
             name = (row.get(name_col) or "").strip() if name_col else ""
             grouped.setdefault(name or cid, []).append((plat, cid))
+        return grouped, url_col, fieldnames
 
-        # 크리에이터명 기준 순서 유지 딕셔너리
-        from collections import OrderedDict
-        grouped: "OrderedDict[str, list]" = OrderedDict()
-        for name, plat, cid in entries:
-            grouped.setdefault(name, []).append((plat, cid))
+    # ── 백그라운드 자동 로드 (silent) ─────────────────────────────────────
+    def _fetch_gsheet_data(self, silent: bool = True):
+        """구글 시트에서 크리에이터 목록을 받아 self._gsheet_data에 저장.
+        silent=True 이면 에러 팝업 없이 상태 레이블만 업데이트.
+        스레드에서 호출 가능 (UI 갱신은 after()로 위임).
+        """
+        import urllib.request, csv, io
 
-        # ── 선택 다이얼로그 ───────────────────────────────────────────────
-        selected = self._show_creator_select(grouped)
-        if selected is None:   # 취소
+        def _ui(fn):
+            self.after(0, fn)
+
+        raw_url = _load_gsheet_url()
+        if not raw_url:
+            if not silent:
+                _ui(lambda: messagebox.showwarning(
+                    "URL 없음",
+                    "구글 스프레드시트 URL이 설정되어 있지 않습니다.\n"
+                    "config.py 의 GSHEET_URL 에 URL을 설정하세요."))
+            _ui(lambda: self._gsheet_status_lbl.configure(text="⚠ URL 미설정", fg="#e74c3c"))
+            return False
+
+        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", raw_url)
+        if not m:
+            if not silent:
+                _ui(lambda: messagebox.showerror("URL 오류", "올바른 구글 스프레드시트 URL이 아닙니다."))
+            _ui(lambda: self._gsheet_status_lbl.configure(text="⚠ URL 오류", fg="#e74c3c"))
+            return False
+        sheet_id = m.group(1)
+        gid = re.search(r"gid=(\d+)", raw_url)
+        csv_url = (f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+                   f"/export?format=csv&gid={gid.group(1) if gid else '0'}")
+
+        try:
+            req = urllib.request.Request(csv_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                raw_csv = resp.read().decode("utf-8-sig")
+        except Exception as e:
+            if not silent:
+                _ui(lambda: messagebox.showerror(
+                    "불러오기 실패",
+                    f"스프레드시트를 가져올 수 없습니다.\n{e}\n\n"
+                    "시트가 '링크가 있는 모든 사용자'에게 공유되었는지 확인하세요."))
+            _ui(lambda: self._gsheet_status_lbl.configure(text="⚠ 연결 실패", fg="#e74c3c"))
+            return False
+
+        reader = csv.DictReader(io.StringIO(raw_csv))
+        rows = list(reader)
+        fieldnames = reader.fieldnames or []
+
+        if not rows:
+            _ui(lambda: self._gsheet_status_lbl.configure(text="⚠ 빈 시트", fg="#e74c3c"))
+            return False
+
+        grouped, url_col, fnames = self._parse_gsheet_rows(rows, fieldnames)
+        if grouped is None:
+            if not silent:
+                _ui(lambda: messagebox.showerror(
+                    "열 없음",
+                    f"'URL' 열을 찾을 수 없습니다.\n발견된 열: {', '.join(fnames)}"))
+            _ui(lambda: self._gsheet_status_lbl.configure(text="⚠ URL 열 없음", fg="#e74c3c"))
+            return False
+
+        self._gsheet_data = grouped
+        count = len(grouped)
+
+        def _activate():
+            self._gsheet_status_lbl.configure(
+                text=f"✓ 연동됨  ({count}명)", fg="#2ecc71")
+            self._ac_entry.configure(state="normal", fg=FG)
+            self._ac_entry.delete(0, "end")
+
+        _ui(_activate)
+        return True
+
+    # ── 수동 새로고침 버튼 ─────────────────────────────────────────────────
+    def _manual_gsheet_load(self):
+        self._gsheet_status_lbl.configure(text="⏳ 연동 중...", fg=FG_DIM)
+        threading.Thread(
+            target=self._fetch_gsheet_data, args=(False,), daemon=True
+        ).start()
+
+    # ── 전체 목록 다이얼로그 (↺ 버튼에서 긴 클릭 시 또는 직접 호출용) ─────
+    def _load_from_gsheet(self):
+        """수동: 데이터 새로고침 후 선택 다이얼로그 표시."""
+        if not self._gsheet_data:
+            ok = self._fetch_gsheet_data(silent=False)
+            if not ok:
+                return
+
+        if not self._gsheet_data:
+            messagebox.showwarning("빈 시트", "시트에 데이터가 없습니다.")
             return
 
+        selected = self._show_creator_select(self._gsheet_data)
+        if selected is None:
+            return
         result_lines = [f"{plat}:{cid}" for plat, cid in selected]
         if not result_lines:
             messagebox.showwarning("선택 없음", "선택된 크리에이터가 없습니다.")
             return
-
         self.id_txt.delete("1.0", "end")
         self.id_txt.insert("1.0", "\n".join(result_lines))
+
+    # ── 자동완성 이벤트 핸들러 ────────────────────────────────────────────
+    def _on_ac_change(self, *_):
+        query = self._ac_var.get().strip().lower()
+        self._ac_listbox.delete(0, "end")
+        if not query or not self._gsheet_data:
+            self._ac_lb_frame.pack_forget()
+            return
+        matches = [n for n in self._gsheet_data if query in n.lower()]
+        if not matches:
+            self._ac_lb_frame.pack_forget()
+            return
+        for name in matches[:10]:
+            plats = "/".join(dict.fromkeys(p.upper() for p, _ in self._gsheet_data[name]))
+            self._ac_listbox.insert("end", f"  {name}  ({plats})")
+        self._ac_listbox.configure(height=min(len(matches), 8))
+        # 검색창 바로 아래에 표시
+        self._ac_lb_frame.pack(fill="x", pady=(0, 4))
+
+    def _on_ac_select(self, event=None):
+        sel = self._ac_listbox.curselection()
+        if not sel:
+            return
+        display = self._ac_listbox.get(sel[0]).strip()
+        name = display.rsplit("  (", 1)[0].strip()
+        pairs = self._gsheet_data.get(name, [])
+        existing = set(self.id_txt.get("1.0", "end").strip().splitlines())
+        for plat, cid in pairs:
+            line = f"{plat}:{cid}"
+            if line not in existing:
+                existing.add(line)
+                cur = self.id_txt.get("1.0", "end").rstrip("\n")
+                if cur.strip():
+                    self.id_txt.insert("end", f"\n{line}")
+                else:
+                    self.id_txt.insert("end", line)
+        self._ac_var.set("")
+        self._ac_lb_frame.pack_forget()
 
     # ── 크리에이터 선택 다이얼로그 ────────────────────────────────────────
     def _show_creator_select(self, grouped: dict):
