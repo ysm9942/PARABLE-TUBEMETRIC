@@ -1335,6 +1335,126 @@ class LiveMetricsTab(tk.Frame):
         tree_frame.grid_columnconfigure(0, weight=1)
 
 
+    # ── 구글 시트 불러오기 ─────────────────────────────────────────────────
+    def _load_from_gsheet(self):
+        """구글 스프레드시트에서 크리에이터 ID 목록을 불러와 textarea에 채운다.
+        시트 열 구조: 크리에이터명 | 플랫폼 | URL
+        공개(링크 공유) 시트에 한해 인증 없이 CSV export API를 사용한다.
+        """
+        import urllib.request
+        import csv
+        import io
+        from tkinter import simpledialog
+
+        raw_url = simpledialog.askstring(
+            "구글 스프레드시트 URL",
+            "공유된 스프레드시트 URL을 붙여넣으세요.\n"
+            "(파일 → 공유 → '링크가 있는 모든 사용자' 설정 필요)",
+            parent=self,
+        )
+        if not raw_url:
+            return
+
+        # Sheet ID 추출
+        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", raw_url)
+        if not m:
+            messagebox.showerror("URL 오류", "올바른 구글 스프레드시트 URL이 아닙니다.")
+            return
+        sheet_id = m.group(1)
+
+        # gid (탭 ID) 추출 – 없으면 첫 번째 시트(0)
+        gid_m = re.search(r"gid=(\d+)", raw_url)
+        gid = gid_m.group(1) if gid_m else "0"
+
+        csv_url = (
+            f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+            f"/export?format=csv&gid={gid}"
+        )
+
+        # CSV 다운로드
+        try:
+            req = urllib.request.Request(
+                csv_url, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                raw_csv = resp.read().decode("utf-8-sig")
+        except Exception as e:
+            messagebox.showerror(
+                "불러오기 실패",
+                f"스프레드시트를 가져올 수 없습니다.\n{e}\n\n"
+                "시트가 '링크가 있는 모든 사용자'에게 공유되었는지 확인하세요.",
+            )
+            return
+
+        reader = csv.DictReader(io.StringIO(raw_csv))
+        rows = list(reader)
+        fieldnames = reader.fieldnames or []
+
+        if not rows:
+            messagebox.showwarning("빈 시트", "시트에 데이터가 없습니다.")
+            return
+
+        # 열 이름 탐색 (대소문자·공백 무시)
+        def _find_col(keywords):
+            for f in fieldnames:
+                if any(k in f.lower() for k in keywords):
+                    return f
+            return None
+
+        plat_col = _find_col(["플랫폼", "platform"])
+        url_col  = _find_col(["url"])
+
+        if not url_col:
+            messagebox.showerror(
+                "열 없음",
+                f"'URL' 열을 찾을 수 없습니다.\n발견된 열: {', '.join(fieldnames)}",
+            )
+            return
+
+        default_plat = self.platform_var.get()
+        lines = []
+
+        for row in rows:
+            raw = (row.get(url_col) or "").strip()
+            if not raw:
+                continue
+
+            plat_raw = (row.get(plat_col) or "").strip().lower() if plat_col else ""
+
+            # 플랫폼 판별 (열 값 우선, 없으면 URL로 추론)
+            if "chzzk" in plat_raw or "chzzk" in raw:
+                plat = "chzzk"
+                m2 = re.search(
+                    r"chzzk\.naver\.com/(?:live/)?([a-zA-Z0-9]+)", raw
+                )
+                cid = m2.group(1) if m2 else ""
+            elif "soop" in plat_raw or "sooplive" in raw or "afreeca" in raw:
+                plat = "soop"
+                m2 = re.search(
+                    r"(?:sooplive\.co\.kr|afreecatv\.com)/([^/?#\s]+)", raw
+                )
+                cid = m2.group(1) if m2 else ""
+            else:
+                # 플랫폼 불명: 기본 플랫폼으로 설정, URL 마지막 경로 세그먼트를 ID로
+                plat = default_plat
+                m2 = re.search(r"/([^/?#\s]+)/?$", raw.rstrip("/"))
+                cid = m2.group(1) if m2 else ""
+
+            if cid:
+                lines.append(f"{plat}:{cid}")
+
+        if not lines:
+            messagebox.showwarning(
+                "결과 없음",
+                "URL 열에서 크리에이터 ID를 추출할 수 없었습니다.\n"
+                "URL 형식을 확인하세요. (예: https://chzzk.naver.com/채널ID)",
+            )
+            return
+
+        self.id_txt.delete("1.0", "end")
+        self.id_txt.insert("1.0", "\n".join(lines))
+        messagebox.showinfo("불러오기 완료", f"{len(lines)}명의 크리에이터 ID를 불러왔습니다.")
+
     # ── 입력 파싱 ──────────────────────────────────────────────────────────
     def _parse_ids(self) -> list:
         """
