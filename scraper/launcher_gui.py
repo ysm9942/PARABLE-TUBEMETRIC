@@ -1476,12 +1476,31 @@ class LiveMetricsTab(tk.Frame):
 
         # ── 크리에이터별 그룹화 ───────────────────────────────────────────
         name_col = _find_col(["크리에이터", "이름", "name"])
-        # entries: [(name, plat, cid), ...]  (name 없으면 cid 사용)
-        entries = []
-        for i, ln in enumerate(lines):
-            plat, cid = ln.split(":", 1)
-            name = (rows[i].get(name_col) or "").strip() if name_col else ""
-            entries.append((name or cid, plat, cid))
+        # rows와 lines는 빈 URL 행 스킵으로 인덱스가 불일치할 수 있으므로
+        # rows를 직접 순회하면서 name과 (plat, cid) 쌍을 함께 추출
+        from collections import OrderedDict
+        grouped = OrderedDict()
+        for row in rows:
+            raw = (row.get(url_col) or "").strip()
+            if not raw:
+                continue
+            plat_raw = (row.get(plat_col) or "").strip().lower() if plat_col else ""
+            if "chzzk" in plat_raw or "chzzk" in raw:
+                plat = "chzzk"
+                m2 = re.search(r"chzzk\.naver\.com/(?:live/)?([a-zA-Z0-9]+)", raw)
+                cid = m2.group(1) if m2 else ""
+            elif "soop" in plat_raw or "sooplive" in raw or "afreeca" in raw:
+                plat = "soop"
+                m2 = re.search(r"(?:sooplive\.co\.kr|afreecatv\.com)/([^/?#\s]+)", raw)
+                cid = m2.group(1) if m2 else ""
+            else:
+                plat = default_plat
+                m2 = re.search(r"/([^/?#\s]+)/?$", raw.rstrip("/"))
+                cid = m2.group(1) if m2 else ""
+            if not cid:
+                continue
+            name = (row.get(name_col) or "").strip() if name_col else ""
+            grouped.setdefault(name or cid, []).append((plat, cid))
 
         # 크리에이터명 기준 순서 유지 딕셔너리
         from collections import OrderedDict
