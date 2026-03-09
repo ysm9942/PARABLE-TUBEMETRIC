@@ -1240,6 +1240,9 @@ class LiveMetricsTab(tk.Frame):
         self._thread = None
         self.live_results: list = []
         self._build()
+        # config에 URL이 설정되어 있으면 시작 시 자동 로드
+        if _load_gsheet_url():
+            self.after(300, self._load_from_gsheet)
 
     def _build(self):
         _section_header(self, "라이브 지표 분석",
