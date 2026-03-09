@@ -771,8 +771,9 @@ def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
 
 def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> list:
     """릴스 탭 그리드에서 개별 페이지 방문 없이 지표 수집.
-    - 조회수: 그리드에서 항상 노출되는 span[dir] 내부 숫자
-    - 좋아요·댓글: 썸네일에 마우스오버 시 나타나는 숫자 (순서: 좋아요, 댓글)
+    - 조회수: 그리드 셀 내 span[dir] 안의 html-span (항상 노출)
+    - 좋아요·댓글: 셀에 마우스오버 후 dir 없는 html-span 숫자들 (좋아요, 댓글 순)
+    탐색 범위는 <a> 태그가 아닌 '그리드 셀 컨테이너' 기준으로 수행.
     """
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.action_chains import ActionChains
@@ -783,6 +784,27 @@ def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> li
     results: dict = {}  # url -> row (삽입 순서 = 최신순)
     retry = last_count = 0
     actions = ActionChains(driver)
+
+    def _cell_of(anchor):
+        """anchor의 가장 가까운 그리드 셀(reel 링크가 하나만 있는 최소 조상) 반환."""
+        return driver.execute_script(
+            "let e = arguments[0].parentElement;"
+            "while(e && e.querySelectorAll('a[href*=\"/reel/\"]').length !== 1)"
+            "{ e = e.parentElement; }"
+            "return e || arguments[0].parentElement;",
+            anchor,
+        )
+
+    def _parse_nums(elements):
+        """span 목록에서 숫자 파싱 (만/천/K/M 등 모두 처리)."""
+        nums = []
+        for s in elements:
+            t = s.text.strip()
+            if t:
+                n = _ig_parse_number(t)
+                if n is not None:
+                    nums.append(n)
+        return nums
 
     while len(results) < max_reels and retry < 6:
         anchors = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
@@ -796,11 +818,17 @@ def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> li
             if url in results:
                 continue
 
-            # 조회수 — dir="auto" wrapper 내부 span (항상 노출)
+            # 그리드 셀 컨테이너 (stats overlay가 <a> 바깥에 있을 수 있음)
+            try:
+                cell = _cell_of(a)
+            except Exception:
+                cell = a
+
+            # 조회수 — dir="auto" wrapper 내부 html-span (항상 노출)
             view_count = None
             try:
-                vspan = a.find_element(
-                    By.XPATH, ".//span[@dir]/span[contains(@class,'html-span')]"
+                vspan = cell.find_element(
+                    By.XPATH, ".//span[@dir]//span[contains(@class,'html-span')]"
                 )
                 view_count = _ig_parse_number(vspan.text.strip())
             except Exception:
@@ -814,7 +842,7 @@ def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> li
             except Exception:
                 pass
 
-            # 마우스오버 → 좋아요·댓글 (dir 없는 html-span)
+            # 마우스오버 → 좋아요·댓글 (dir 없는 html-span, 셀 전체 기준)
             like_count = comment_count = None
             try:
                 driver.execute_script(
@@ -822,17 +850,13 @@ def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> li
                 )
                 _ig_sleep(0.15, 0.3)
                 actions.move_to_element(a).perform()
-                _ig_sleep(0.5, 0.9)
-                hover_spans = a.find_elements(
+                _ig_sleep(0.6, 1.0)
+                hover_spans = cell.find_elements(
                     By.XPATH,
                     ".//span[contains(@class,'html-span')"
                     " and not(ancestor::span[@dir])]",
                 )
-                nums = []
-                for s in hover_spans:
-                    t = s.text.strip()
-                    if t and re.fullmatch(r"[\d,\.]+", t):
-                        nums.append(_ig_parse_number(t))
+                nums = _parse_nums(hover_spans)
                 if len(nums) >= 2:
                     like_count, comment_count = nums[0], nums[1]
                 elif len(nums) == 1:
