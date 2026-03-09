@@ -83,6 +83,16 @@ def _load_yt_api_key() -> str:
     return os.environ.get("YOUTUBE_API_KEY", "")
 
 
+def _load_gsheet_url() -> str:
+    try:
+        from config import GSHEET_URL
+        if GSHEET_URL:
+            return GSHEET_URL
+    except (ImportError, AttributeError):
+        pass
+    return ""
+
+
 # ── 숫자 포맷 ─────────────────────────────────────────────────────────────────
 def fmt_num(n) -> str:
     try:
