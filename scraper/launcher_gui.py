@@ -1369,15 +1369,13 @@ class LiveMetricsTab(tk.Frame):
         import urllib.request
         import csv
         import io
-        from tkinter import simpledialog
 
-        raw_url = simpledialog.askstring(
-            "구글 스프레드시트 URL",
-            "공유된 스프레드시트 URL을 붙여넣으세요.\n"
-            "(파일 → 공유 → '링크가 있는 모든 사용자' 설정 필요)",
-            parent=self,
-        )
+        raw_url = self.gsheet_url_var.get().strip()
         if not raw_url:
+            messagebox.showwarning("URL 없음",
+                                   "구글 스프레드시트 URL을 입력하세요.\n"
+                                   "config.py 의 GSHEET_URL 에 미리 설정하거나\n"
+                                   "위 입력란에 직접 붙여넣으세요.")
             return
 
         # Sheet ID 추출
