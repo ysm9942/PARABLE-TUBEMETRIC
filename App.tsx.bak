@@ -473,40 +473,41 @@ const App: React.FC = () => {
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex items-center justify-center p-6 selection:bg-violet-500/30">
-        <div className="w-full max-w-md space-y-10 animate-in fade-in duration-500">
-          <div className="text-center space-y-5">
-            <div className="inline-flex items-center justify-center bg-violet-600 p-4 rounded-xl shadow-md mb-4">
-              <Lock className="text-white w-8 h-8" strokeWidth={2} />
+      <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex items-center justify-center p-6 selection:bg-red-500/30">
+        <div className="w-full max-w-md space-y-12 animate-in fade-in zoom-in-95 duration-700">
+          <div className="text-center space-y-6">
+            <div className="inline-block bg-red-600 p-5 rounded-[2.5rem] shadow-2xl shadow-red-600/20 mb-4">
+              <Lock className="text-white w-10 h-10" strokeWidth={2.5} />
             </div>
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold text-white">
-                Parable TubeMetric
+              <h1 className="text-4xl font-black tracking-tighter italic uppercase text-white">
+                Parable<br />
+                <span className="text-red-600">TubeMetric</span>
               </h1>
-              <p className="text-zinc-500 text-sm">Enter your PIN to continue</p>
+              <p className="text-zinc-500 text-sm font-bold tracking-widest uppercase">System Locked</p>
             </div>
           </div>
 
-          <form onSubmit={handlePinSubmit} className="space-y-4">
-            <div className="relative">
+          <form onSubmit={handlePinSubmit} className="space-y-6">
+            <div className="relative group">
               <input
                 type="password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="PIN Code"
+                placeholder="PIN CODE"
                 autoFocus
-                className="w-full bg-[#1a1b23] border border-white/8 rounded-xl py-4 px-6 text-center text-2xl font-medium tracking-[0.4em] text-white focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-zinc-700 placeholder:tracking-normal placeholder:text-base"
+                className="w-full bg-[#121212] border-2 border-white/5 rounded-[32px] py-6 px-10 text-center text-3xl font-black tracking-[0.5em] text-white focus:outline-none focus:border-red-600/50 focus:ring-4 focus:ring-red-600/10 transition-all placeholder:text-zinc-800 placeholder:tracking-normal placeholder:text-base"
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-lg font-medium text-base transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full bg-red-600 hover:bg-red-500 text-white py-6 rounded-[32px] font-black text-lg transition-all shadow-2xl shadow-red-600/20 active:scale-95 uppercase tracking-widest flex items-center justify-center gap-3"
             >
-              Authorize <ChevronRight size={18} />
+              Authorize System <ChevronRight size={20} />
             </button>
           </form>
-
-          <p className="text-center text-xs text-zinc-700">Authorized access only</p>
+          
+          <p className="text-center text-[10px] text-zinc-700 font-bold uppercase tracking-[0.3em]">Authorized Access Only</p>
         </div>
       </div>
     );
