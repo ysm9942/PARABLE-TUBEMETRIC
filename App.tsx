@@ -735,38 +735,37 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0a0a0a]">
-        <div className="p-8 md:pt-10 md:pb-16 md:px-16 max-w-7xl w-full mx-auto">
+      <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0f1117]">
+        <div className="p-8 md:pt-10 md:pb-16 md:px-12 max-w-7xl w-full mx-auto">
           {activeTab === 'channel-config' ? (
-            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+            <div className="space-y-8 animate-in fade-in duration-500">
                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-2 bg-red-600 rounded-full"></div>
-                    <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-white">채널 통합 분석</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-semibold text-white">채널 통합 분석</h2>
                   </div>
-                  <button 
-                    onClick={() => setShowHelp(!showHelp)} 
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${showHelp ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-200'}`}
+                  <button
+                    onClick={() => setShowHelp(!showHelp)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${showHelp ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-200 hover:bg-white/8'}`}
                   >
-                    <Info size={16} /> 분석 가이드 {showHelp ? '닫기' : '보기'}
+                    <Info size={14} /> 분석 가이드 {showHelp ? '닫기' : '보기'}
                   </button>
                 </div>
 
                {showHelp && (
-                 <div className="bg-white/5 border border-white/10 rounded-[32px] p-10 animate-in slide-in-from-top-5 duration-500">
-                    <h3 className="text-lg font-black text-white uppercase tracking-tight mb-6 flex items-center gap-3">
-                      <HelpCircle className="text-red-600" /> Analysis Guide
+                 <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-6 animate-in fade-in duration-200">
+                    <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                      <HelpCircle size={16} className="text-violet-500" /> Analysis Guide
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                      <div className="space-y-4">
-                        <h4 className="font-black text-red-500 text-sm uppercase">분석 기간 (Analysis Period)</h4>
-                        <p className="text-zinc-400 text-[13px] leading-relaxed">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-violet-400 text-xs">분석 기간 (Analysis Period)</h4>
+                        <p className="text-zinc-400 text-xs leading-relaxed">
                           수집할 영상의 게시 기간을 필터링합니다. '전체' 선택 시 기간 제한 없이 최근 영상부터 수집합니다. 모든 영상 유형에 공통 적용됩니다.
                         </p>
                       </div>
-                      <div className="space-y-4">
-                        <h4 className="font-black text-red-500 text-sm uppercase">영상 수집 개수 (Collection Target)</h4>
-                        <p className="text-zinc-400 text-[13px] leading-relaxed">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-violet-400 text-xs">영상 수집 개수 (Collection Target)</h4>
+                        <p className="text-zinc-400 text-xs leading-relaxed">
                           채널당 수집할 최대 영상 개수를 지정합니다. <br/>
                           쇼츠와 롱폼에 대해 각각 다른 목표치를 설정할 수 있습니다.
                         </p>
