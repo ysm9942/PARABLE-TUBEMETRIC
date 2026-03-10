@@ -927,62 +927,59 @@ const App: React.FC = () => {
             </div>
           ) : activeTab === 'scraper-config' ? (
             /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
-            <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-2 bg-red-600 rounded-full" />
-                <h2 className="text-5xl font-black italic text-white uppercase">로컬 스크래퍼</h2>
-              </div>
+            <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <h2 className="text-2xl font-semibold text-white">로컬 스크래퍼</h2>
 
               {/* 설명 */}
-              <div className="bg-white/[0.03] border border-white/10 rounded-[28px] p-8 space-y-3 text-sm text-zinc-400 leading-relaxed">
-                <p className="flex items-center gap-2 font-black text-zinc-200 text-base">
-                  <Activity size={18} className="text-red-600" /> 작동 방식
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3 text-sm text-zinc-400 leading-relaxed">
+                <p className="flex items-center gap-2 font-medium text-zinc-200 text-sm">
+                  <Activity size={15} className="text-violet-500" /> 작동 방식
                 </p>
-                <div className="space-y-1.5 text-[13px]">
-                  <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-white">요청 전송</strong>을 클릭합니다.</p>
-                  <p>② GitHub <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                  <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">undetected_chromedriver</code>로 스크래핑합니다.</p>
+                <div className="space-y-1.5 text-xs text-zinc-400">
+                  <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">요청 전송</strong>을 클릭합니다.</p>
+                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                  <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">undetected_chromedriver</code>로 스크래핑합니다.</p>
                   <p>④ 완료 후 GitHub에 결과를 push → 이 사이트 대시보드에 자동 반영됩니다.</p>
                 </div>
-                <div className="border-t border-white/10 pt-4 text-[11px] text-zinc-600">
-                  로컬 서버 실행: <code className="bg-white/10 px-2 py-1 rounded text-zinc-400">launcher_gui.py</code> → 서버 모드 켜기 &nbsp;|&nbsp; 또는 <code className="bg-white/10 px-2 py-1 rounded text-zinc-400">python scraper/local_server.py</code>
+                <div className="border-t border-white/8 pt-3 text-xs text-zinc-600">
+                  로컬 서버 실행: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">launcher_gui.py</code> → 서버 모드 켜기 &nbsp;|&nbsp; 또는 <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">python scraper/local_server.py</code>
                 </div>
               </div>
 
               {/* 채널 입력 */}
-              <div className="bg-[#121212] rounded-[40px] border border-white/5 p-10 space-y-6 shadow-2xl">
-                <label className="text-[13px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                  <List size={16} className="text-red-600" /> 채널 목록 (한 줄에 하나, @ 핸들 또는 URL)
+              <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
+                  <List size={13} className="text-violet-500" /> 채널 목록 (한 줄에 하나, @ 핸들 또는 URL)
                 </label>
                 <textarea
                   value={scraperHandles}
                   onChange={e => setScraperHandles(e.target.value)}
-                  className="w-full h-52 p-8 bg-black/50 border border-white/5 rounded-[28px] text-white font-mono text-[15px] focus:outline-none focus:border-red-600/50 resize-none"
+                  className="w-full h-44 p-4 bg-white/5 border border-white/8 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none"
                   placeholder={"@채널핸들1\n@채널핸들2\nhttps://youtube.com/@handle"}
                 />
 
                 {/* 날짜 범위 설정 */}
-                <div className="space-y-5 border-t border-white/5 pt-6">
+                <div className="space-y-4 border-t border-white/8 pt-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
-                      <CalendarDays size={14} className="text-red-500" /> 수집 기간 설정
+                    <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                      <CalendarDays size={13} className="text-violet-400" /> 수집 기간 설정
                     </label>
                     <button
                       onClick={() => setScraperUseDateFilter(!scraperUseDateFilter)}
-                      className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${scraperUseDateFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${scraperUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
                     >
-                      {scraperUseDateFilter ? 'ENABLED' : 'DISABLED'}
+                      {scraperUseDateFilter ? 'Enabled' : 'Disabled'}
                     </button>
                   </div>
 
-                  <div className={`space-y-4 transition-opacity ${!scraperUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
+                  <div className={`space-y-3 transition-opacity ${!scraperUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
                     {/* 프리셋 버튼 */}
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
                         <button
                           key={p}
                           onClick={() => setScraperDatesByPeriod(p)}
-                          className="py-2.5 text-[11px] font-black rounded-xl bg-white/5 text-white hover:bg-red-600 hover:text-white transition-all active:scale-95"
+                          className="py-2 text-xs font-medium rounded-lg bg-white/5 text-zinc-400 hover:bg-violet-600 hover:text-white transition-all active:scale-95"
                         >
                           {periodLabels[p]}
                         </button>
@@ -990,48 +987,48 @@ const App: React.FC = () => {
                     </div>
 
                     {/* 직접 날짜 입력 */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="group relative bg-black/40 border border-white/5 hover:border-red-600/30 rounded-2xl p-4 transition-all">
-                        <label className="absolute -top-2.5 left-4 bg-[#121212] px-2 text-[9px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">Start</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-500 group-hover:text-violet-400">Start</label>
                         <div className="flex items-center gap-2">
-                          <Calendar size={14} className="text-red-600 shrink-0" />
+                          <Calendar size={13} className="text-violet-500 shrink-0" />
                           <input
                             type="date"
                             value={scraperStartDate}
                             onChange={e => setScraperStartDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
                           />
                         </div>
                       </div>
-                      <div className="group relative bg-black/40 border border-white/5 hover:border-red-600/30 rounded-2xl p-4 transition-all">
-                        <label className="absolute -top-2.5 left-4 bg-[#121212] px-2 text-[9px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-red-500">End</label>
+                      <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-500 group-hover:text-violet-400">End</label>
                         <div className="flex items-center gap-2">
-                          <Calendar size={14} className="text-red-600 shrink-0" />
+                          <Calendar size={13} className="text-violet-500 shrink-0" />
                           <input
                             type="date"
                             value={scraperEndDate}
                             onChange={e => setScraperEndDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white font-black text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
                           />
                         </div>
                       </div>
                     </div>
-                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
+                    <p className="text-xs text-zinc-600 text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
                   </div>
                 </div>
 
                 {/* 상태 표시 */}
                 {scraperJobStatus !== 'idle' && (
-                  <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold ${
+                  <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium ${
                     scraperJobStatus === 'pending'    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
                     scraperJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
                     scraperJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                                       'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                       'bg-violet-500/10 text-violet-400 border border-violet-500/20'
                   }`}>
-                    {scraperJobStatus === 'submitting' && <Loader2 size={16} className="animate-spin" />}
-                    {scraperJobStatus === 'pending'    && <Loader2 size={16} className="animate-spin" />}
-                    {scraperJobStatus === 'done'       && <CheckCircle2 size={16} />}
-                    {scraperJobStatus === 'error'      && <AlertCircle size={16} />}
+                    {scraperJobStatus === 'submitting' && <Loader2 size={14} className="animate-spin" />}
+                    {scraperJobStatus === 'pending'    && <Loader2 size={14} className="animate-spin" />}
+                    {scraperJobStatus === 'done'       && <CheckCircle2 size={14} />}
+                    {scraperJobStatus === 'error'      && <AlertCircle size={14} />}
                     {{
                       submitting: '요청을 GitHub에 전송 중...',
                       pending:    `로컬 서버가 처리 중입니다... (10초마다 확인) — Job ID: ${scraperJobId?.slice(0,12)}`,
@@ -1045,11 +1042,11 @@ const App: React.FC = () => {
                 <button
                   onClick={handleScraperRequest}
                   disabled={scraperJobStatus === 'submitting' || scraperJobStatus === 'pending'}
-                  className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl shadow-red-600/20"
+                  className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium text-base flex items-center justify-center gap-3 transition-all active:scale-95"
                 >
                   {(scraperJobStatus === 'submitting' || scraperJobStatus === 'pending')
-                    ? <Loader2 className="animate-spin" />
-                    : <Activity size={24} />
+                    ? <Loader2 className="animate-spin" size={18} />
+                    : <Activity size={18} />
                   }
                   {scraperJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : '로컬 스크래퍼에 요청 전송'}
                 </button>
@@ -1058,9 +1055,9 @@ const App: React.FC = () => {
               {/* 빠른 대시보드 이동 */}
               <button
                 onClick={() => { setActiveTab('dashboard'); setDashboardSubTab('scraper'); loadScraperResults(); }}
-                className="w-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white py-5 rounded-[24px] font-black text-sm flex items-center justify-center gap-3 transition-all"
+                className="w-full bg-white/5 hover:bg-white/8 text-zinc-400 hover:text-zinc-200 py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
               >
-                <BarChart3 size={18} /> 스크래퍼 결과 대시보드 보기
+                <BarChart3 size={16} /> 스크래퍼 결과 대시보드 보기
               </button>
             </div>
           ) : (
