@@ -1094,80 +1094,80 @@ const App: React.FC = () => {
 
               {/* ── 스크래퍼 결과 (GitHub Raw) ─────────────────────────────── */}
               {dashboardSubTab === 'scraper' && (
-                <div className="bg-[#121212] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-                  <div className="px-10 py-8 border-b border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Activity size={18} className="text-red-600" />
-                      <span className="font-black text-white text-sm uppercase tracking-widest">로컬 스크래퍼 결과</span>
-                      <span className="text-[10px] text-zinc-600 font-bold uppercase">from GitHub Raw</span>
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity size={15} className="text-violet-500" />
+                      <span className="font-medium text-white text-sm">로컬 스크래퍼 결과</span>
+                      <span className="text-xs text-zinc-600">from GitHub Raw</span>
                     </div>
                     <button
                       onClick={loadScraperResults}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-2xl text-[11px] font-black text-zinc-400 hover:text-white transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition-all"
                     >
-                      {scraperResultsLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      {scraperResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                       새로고침
                     </button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-white/[0.03] text-zinc-500 text-[11px] uppercase font-black tracking-[0.2em]">
+                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
                         <tr>
-                          <th className="px-10 py-8">Channel</th>
-                          <th className="px-10 py-8 text-center">Subscribers</th>
-                          <th className="px-10 py-8 text-right">Shorts Avg</th>
-                          <th className="px-10 py-8 text-right">Longform Avg</th>
-                          <th className="px-10 py-8 text-center">Scraped At</th>
-                          <th className="px-10 py-8 text-center">Detail</th>
+                          <th className="px-6 py-4 font-medium">Channel</th>
+                          <th className="px-6 py-4 text-center font-medium">Subscribers</th>
+                          <th className="px-6 py-4 text-right font-medium">Shorts Avg</th>
+                          <th className="px-6 py-4 text-right font-medium">Longform Avg</th>
+                          <th className="px-6 py-4 text-center font-medium">Scraped At</th>
+                          <th className="px-6 py-4 text-center font-medium">Detail</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {scraperResultsLoading ? (
-                          <tr><td colSpan={6} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-zinc-600" size={32} /></td></tr>
+                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-600" size={24} /></td></tr>
                         ) : scraperResults.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-40 text-center">
-                              <div className="flex flex-col items-center gap-4 text-zinc-700">
-                                <Activity size={48} strokeWidth={1} />
-                                <p className="text-lg font-bold">아직 스크래퍼 결과가 없습니다.</p>
-                                <p className="text-sm">로컬 스크래퍼 탭에서 채널을 요청하세요.</p>
+                            <td colSpan={6} className="py-24 text-center">
+                              <div className="flex flex-col items-center gap-3 text-zinc-700">
+                                <Activity size={36} strokeWidth={1} />
+                                <p className="text-sm font-medium">아직 스크래퍼 결과가 없습니다.</p>
+                                <p className="text-xs">로컬 스크래퍼 탭에서 채널을 요청하세요.</p>
                               </div>
                             </td>
                           </tr>
                         ) : (
                           scraperResults.map((r, i) => (
                             <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                              <td className="px-10 py-8 flex items-center gap-6">
+                              <td className="px-6 py-4 flex items-center gap-4">
                                 {r.thumbnail ? (
-                                  <img src={r.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-white/10" />
+                                  <img src={r.thumbnail} className="w-10 h-10 rounded-lg object-cover border border-white/8" />
                                 ) : (
-                                  <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center"><Activity className="text-zinc-700" size={20} /></div>
+                                  <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center"><Activity className="text-zinc-700" size={16} /></div>
                                 )}
                                 <div>
-                                  <div className="font-black text-zinc-100 text-lg group-hover:text-red-500 transition-colors">{r.channelName}</div>
-                                  <div className="text-[10px] text-zinc-600 font-mono mt-1">{r.channelId}</div>
+                                  <div className="font-medium text-zinc-100 text-sm group-hover:text-violet-400 transition-colors">{r.channelName}</div>
+                                  <div className="text-xs text-zinc-600 font-mono mt-0.5">{r.channelId}</div>
                                 </div>
                               </td>
-                              <td className="px-10 py-8 text-center">
-                                <span className="bg-zinc-900 px-4 py-2 rounded-xl text-zinc-400 font-black text-sm border border-white/5">{formatNumber(r.subscriberCount)}</span>
+                              <td className="px-6 py-4 text-center">
+                                <span className="bg-white/5 px-3 py-1 rounded-lg text-zinc-400 text-xs border border-white/8">{formatNumber(r.subscriberCount)}</span>
                               </td>
-                              <td className="px-10 py-8 text-right">
-                                <div className="text-xl font-black text-red-500">{r.avgShortsViews.toLocaleString()}</div>
-                                <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.shortsCountFound} Shorts</div>
+                              <td className="px-6 py-4 text-right">
+                                <div className="text-base font-semibold text-violet-400">{r.avgShortsViews.toLocaleString()}</div>
+                                <div className="text-xs text-zinc-600 mt-0.5">{r.shortsCountFound} Shorts</div>
                               </td>
-                              <td className="px-10 py-8 text-right">
-                                <div className="text-xl font-black text-zinc-100">{r.avgLongViews.toLocaleString()}</div>
-                                <div className="text-[10px] text-zinc-600 font-bold uppercase mt-1 italic">{r.longCountFound} Videos</div>
+                              <td className="px-6 py-4 text-right">
+                                <div className="text-base font-semibold text-zinc-200">{r.avgLongViews.toLocaleString()}</div>
+                                <div className="text-xs text-zinc-600 mt-0.5">{r.longCountFound} Videos</div>
                               </td>
-                              <td className="px-10 py-8 text-center text-[11px] text-zinc-500 font-mono">
+                              <td className="px-6 py-4 text-center text-xs text-zinc-500 font-mono">
                                 {(r as any).scrapedAt ? new Date((r as any).scrapedAt).toLocaleDateString('ko-KR') : '—'}
                               </td>
-                              <td className="px-10 py-8 text-center">
+                              <td className="px-6 py-4 text-center">
                                 <button
                                   onClick={() => setSelectedChannel(r)}
-                                  className="p-4 bg-white/5 hover:bg-red-600 hover:text-white rounded-2xl transition-all active:scale-90"
+                                  className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all active:scale-90"
                                 >
-                                  <Eye size={20} />
+                                  <Eye size={16} />
                                 </button>
                               </td>
                             </tr>
