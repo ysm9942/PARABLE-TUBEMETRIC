@@ -513,97 +513,95 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex font-sans overflow-hidden selection:bg-red-500/30">
+    <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex font-sans overflow-hidden selection:bg-violet-500/30">
       {/* Modal: Channel Details */}
       {selectedChannel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-[#121212] w-full max-w-6xl h-[85vh] rounded-[40px] border border-white/10 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-red-600/5 to-transparent">
-              <div className="flex items-center gap-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1a1b23] w-full max-w-6xl h-[85vh] rounded-2xl border border-white/8 overflow-hidden flex flex-col shadow-md animate-in fade-in duration-200">
+            <div className="p-6 border-b border-white/8 flex items-center justify-between">
+              <div className="flex items-center gap-4">
                 <div className="relative">
-                  <img src={selectedChannel.thumbnail} className="w-16 h-16 rounded-3xl border-2 border-red-600/30 shadow-2xl object-cover" alt="" />
-                  <div className="absolute -bottom-1 -right-1 bg-red-600 p-1.5 rounded-xl border-2 border-[#121212]">
-                    <Youtube size={12} className="text-white" />
+                  <img src={selectedChannel.thumbnail} className="w-12 h-12 rounded-xl border border-white/10 object-cover" alt="" />
+                  <div className="absolute -bottom-1 -right-1 bg-violet-600 p-1 rounded-lg border-2 border-[#1a1b23]">
+                    <Youtube size={10} className="text-white" />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                     {selectedChannel.channelName}
-                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-500 hover:text-red-500 transition-all"><ExternalLink size={20} /></a>
+                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-500 hover:text-violet-400 transition-all"><ExternalLink size={16} /></a>
                   </h3>
-                  <div className="flex items-center gap-4 mt-1.5">
-                    <span className="flex items-center gap-1.5 text-[11px] font-black text-red-500 bg-red-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
-                      <Users size={12} /> {formatNumber(selectedChannel.subscriberCount)} Subscribers
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="flex items-center gap-1 text-xs font-medium text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-full">
+                      <Users size={11} /> {formatNumber(selectedChannel.subscriberCount)} Subscribers
                     </span>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Analytics Results</p>
+                    <p className="text-xs text-zinc-500">Analytics Results</p>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-6">
-                <button onClick={() => setSelectedChannel(null)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-2xl transition-all group">
-                  <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+              <div className="flex items-center gap-4">
+                <button onClick={() => setSelectedChannel(null)} className="p-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg transition-all">
+                  <X size={20} />
                 </button>
               </div>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-10 space-y-16">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <div className="space-y-8">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
-                      <div className="w-2 h-6 bg-red-600 rounded-full animate-pulse"></div>
-                      Shorts <span className="text-zinc-500 font-medium">({selectedChannel.shortsList.length})</span>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
+                      Shorts <span className="text-zinc-500 font-normal">({selectedChannel.shortsList.length})</span>
                     </h4>
                     <div className="text-right">
-                      <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Avg Views</div>
-                      <div className="text-lg font-black text-red-500">{selectedChannel.avgShortsViews.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-500 mb-0.5">Avg Views</div>
+                      <div className="text-base font-semibold text-violet-400">{selectedChannel.avgShortsViews.toLocaleString()}</div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-3">
                     {selectedChannel.shortsList.map((v) => (
-                      <div key={v.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-5 hover:bg-white/[0.08] hover:border-red-600/30 transition-all group relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <img src={v.thumbnail} className="w-14 h-14 rounded-2xl object-cover shadow-lg" alt="" />
+                      <div key={v.id} className="bg-white/5 p-3 rounded-xl border border-white/8 flex items-center gap-4 hover:bg-white/[0.08] hover:border-violet-500/30 transition-all group">
+                        <img src={v.thumbnail} className="w-12 h-12 rounded-lg object-cover" alt="" />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[14px] font-bold text-zinc-100 truncate leading-snug group-hover:text-white">{v.title}</div>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-[11px] font-black text-red-500">{v.viewCount.toLocaleString()} views</span>
-                            <span className="text-[10px] text-zinc-500 font-medium">{new Date(v.publishedAt).toLocaleDateString()}</span>
+                          <div className="text-sm font-medium text-zinc-200 truncate leading-snug group-hover:text-white">{v.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-violet-400 font-medium">{v.viewCount.toLocaleString()} views</span>
+                            <span className="text-xs text-zinc-600">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2.5 bg-white/5 text-zinc-400 hover:text-white hover:bg-red-600 rounded-xl transition-all">
-                          <ExternalLink size={16} />
+                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-400 hover:text-white hover:bg-violet-600 rounded-lg transition-all">
+                          <ExternalLink size={14} />
                         </a>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="space-y-8">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <h4 className="text-base font-black text-white flex items-center gap-3 uppercase tracking-tighter">
-                      <div className="w-2 h-6 bg-zinc-400 rounded-full animate-pulse"></div>
-                      Longform <span className="text-zinc-500 font-medium">({selectedChannel.longsList.length})</span>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <div className="w-1.5 h-5 bg-zinc-500 rounded-full"></div>
+                      Longform <span className="text-zinc-500 font-normal">({selectedChannel.longsList.length})</span>
                     </h4>
                     <div className="text-right">
-                      <div className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Avg Views</div>
-                      <div className="text-lg font-black text-zinc-100">{selectedChannel.avgLongViews.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-500 mb-0.5">Avg Views</div>
+                      <div className="text-base font-semibold text-zinc-200">{selectedChannel.avgLongViews.toLocaleString()}</div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-3">
                     {selectedChannel.longsList.map((v) => (
-                      <div key={v.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-5 hover:bg-white/[0.08] hover:border-white/20 transition-all group relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-white opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <img src={v.thumbnail} className="w-20 h-12 rounded-xl object-cover shadow-lg" alt="" />
+                      <div key={v.id} className="bg-white/5 p-3 rounded-xl border border-white/8 flex items-center gap-4 hover:bg-white/[0.08] hover:border-white/20 transition-all group">
+                        <img src={v.thumbnail} className="w-20 h-12 rounded-lg object-cover" alt="" />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[14px] font-bold text-zinc-100 truncate leading-snug">{v.title}</div>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-[11px] font-black text-zinc-400">{v.viewCount.toLocaleString()} views</span>
-                            <span className="text-[10px] text-zinc-500 font-medium">{new Date(v.publishedAt).toLocaleDateString()}</span>
+                          <div className="text-sm font-medium text-zinc-200 truncate leading-snug">{v.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-zinc-400 font-medium">{v.viewCount.toLocaleString()} views</span>
+                            <span className="text-xs text-zinc-600">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2.5 bg-white/5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-xl transition-all">
-                          <ExternalLink size={16} />
+                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-all">
+                          <ExternalLink size={14} />
                         </a>
                       </div>
                     ))}
