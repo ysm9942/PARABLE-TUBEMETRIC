@@ -774,142 +774,142 @@ const App: React.FC = () => {
                  </div>
                )}
 
-               <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
-                  <div className="xl:col-span-3 flex flex-col space-y-6">
-                    <label className="text-[14px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                      <List size={18} className="text-red-600" /> CHANNEL LIST
+               <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                  <div className="xl:col-span-3 flex flex-col space-y-3">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
+                      <List size={14} className="text-violet-500" /> Channel List
                     </label>
-                    <textarea 
-                      value={channelInput} 
-                      onChange={(e) => setChannelInput(e.target.value)} 
-                      className="w-full h-[600px] p-10 bg-[#121212] border border-white/5 rounded-[40px] text-lg font-mono focus:outline-none focus:border-red-600/50 resize-none text-white shadow-2xl" 
-                      placeholder="UC-xxxxxxxxxxxx 를 줄바꿈으로 입력하세요." 
+                    <textarea
+                      value={channelInput}
+                      onChange={(e) => setChannelInput(e.target.value)}
+                      className="w-full h-[560px] p-5 bg-[#1a1b23] border border-white/8 rounded-xl text-sm font-mono focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none text-white"
+                      placeholder="UC-xxxxxxxxxxxx 를 줄바꿈으로 입력하세요."
                     />
                   </div>
-                  
-                  <div className="xl:col-span-2 flex flex-col space-y-8">
+
+                  <div className="xl:col-span-2 flex flex-col space-y-4">
                     {/* SECTION 1: 분석 기간 설정 (통합) */}
-                    <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl space-y-8">
-                        <h3 className="text-lg font-black italic tracking-tighter text-white uppercase flex items-center gap-3 pb-2 border-b border-white/10">
-                          <Calendar size={20} className="text-red-600" /> 분석 기간 설정
+                    <div className="bg-[#1a1b23] p-5 rounded-xl border border-white/8 space-y-5">
+                        <h3 className="text-sm font-medium text-white flex items-center gap-2 pb-2 border-b border-white/8">
+                          <Calendar size={15} className="text-violet-500" /> 분석 기간 설정
                         </h3>
-                        
-                        <div className="space-y-6">
+
+                        <div className="space-y-4">
                            <div className="flex justify-between items-center">
-                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
-                                <CalendarDays size={14} className="text-red-500" /> 전체 영상 기준 기간
+                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                                <CalendarDays size={13} className="text-violet-400" /> 전체 영상 기준 기간
                               </label>
-                              <button 
-                                onClick={() => setUseDateFilter(!useDateFilter)} 
-                                className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useDateFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-500'}`}
+                              <button
+                                onClick={() => setUseDateFilter(!useDateFilter)}
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
                               >
-                                {useDateFilter ? 'ENABLED' : 'DISABLED'}
+                                {useDateFilter ? 'Enabled' : 'Disabled'}
                               </button>
                            </div>
-                           <div className={`grid grid-cols-4 gap-2 transition-opacity ${!useDateFilter ? 'opacity-30' : ''}`}>
+                           <div className={`grid grid-cols-4 gap-1.5 transition-opacity ${!useDateFilter ? 'opacity-30' : ''}`}>
                              {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
-                               <button 
-                                 key={p} 
+                               <button
+                                 key={p}
                                  disabled={!useDateFilter}
-                                 onClick={() => setPeriod(p)} 
-                                 className={`py-3 text-[11px] font-black rounded-xl transition-all ${period === p ? 'bg-white text-black shadow-lg' : 'bg-white/5 text-white hover:bg-white/10'}`}
+                                 onClick={() => setPeriod(p)}
+                                 className={`py-2 text-xs font-medium rounded-lg transition-all ${period === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
                                >
                                  {periodLabels[p]}
                                </button>
                              ))}
                            </div>
-                           <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider text-center">설정한 기간 내의 영상만 수집 대상에 포함됩니다.</p>
+                           <p className="text-xs text-zinc-600 text-center">설정한 기간 내의 영상만 수집 대상에 포함됩니다.</p>
                         </div>
                     </div>
 
                     {/* SECTION 2: 영상 수집 개수 필터 (통합 ENABLED/DISABLED) */}
-                    <div className="bg-[#121212] p-8 rounded-[40px] border border-white/5 shadow-2xl space-y-8">
-                        <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                          <h3 className="text-lg font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
-                            <Activity size={20} className="text-red-600" /> 영상 수집 개수 필터
+                    <div className="bg-[#1a1b23] p-5 rounded-xl border border-white/8 space-y-5">
+                        <div className="flex justify-between items-center pb-2 border-b border-white/8">
+                          <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                            <Activity size={15} className="text-violet-500" /> 영상 수집 개수 필터
                           </h3>
-                          <button 
-                            onClick={() => setUseGlobalCountFilter(!useGlobalCountFilter)} 
-                            className={`px-3 py-1 rounded-full text-[10px] font-black transition-all ${useGlobalCountFilter ? 'bg-red-600 text-white' : 'bg-white/10 text-emerald-500'}`}
+                          <button
+                            onClick={() => setUseGlobalCountFilter(!useGlobalCountFilter)}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useGlobalCountFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-emerald-500'}`}
                           >
-                            {useGlobalCountFilter ? 'ENABLED' : 'DISABLED'}
+                            {useGlobalCountFilter ? 'Enabled' : 'Disabled'}
                           </button>
                         </div>
 
                         {/* Shorts Count Filter */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                            <div className="flex justify-between items-center">
-                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
-                                <Radio size={14} className="text-red-500" /> Shorts Target
+                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                                <Radio size={13} className="text-violet-400" /> Shorts Target
                               </label>
-                              <div className="flex items-center gap-4">
-                                <button 
+                              <div className="flex items-center gap-3">
+                                <button
                                   disabled={!useGlobalCountFilter}
-                                  onClick={() => setUseShorts(!useShorts)} 
-                                  className={`${(useShorts && useGlobalCountFilter) ? 'text-red-600' : 'text-zinc-800'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                  onClick={() => setUseShorts(!useShorts)}
+                                  className={`${(useShorts && useGlobalCountFilter) ? 'text-violet-500' : 'text-zinc-700'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
                                 >
-                                  {(useShorts && useGlobalCountFilter) ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                  {(useShorts && useGlobalCountFilter) ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
                                 </button>
                               </div>
                            </div>
-                           <div className={`space-y-3 transition-opacity ${(!useShorts || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
-                              <div className="flex justify-between font-black italic text-[14px]">
-                                <span className="text-zinc-500">MAX TARGET</span>
-                                <span className="text-red-600">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
+                           <div className={`space-y-2 transition-opacity ${(!useShorts || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-zinc-500">Max Target</span>
+                                <span className="text-violet-400 font-medium">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
                               </div>
-                              <input 
-                               type="range" 
-                               min="1" 
-                               max="100" 
+                              <input
+                               type="range"
+                               min="1"
+                               max="100"
                                disabled={!useShorts || !useGlobalCountFilter}
-                               value={Number(targetShorts)} 
-                               onChange={(e) => setTargetShorts(Number(e.target.value))} 
-                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-red-600" 
+                               value={Number(targetShorts)}
+                               onChange={(e) => setTargetShorts(Number(e.target.value))}
+                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-violet-500"
                               />
                            </div>
                         </div>
 
                         {/* Longform Count Filter */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                            <div className="flex justify-between items-center">
-                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest flex items-center gap-2">
-                                <MonitorPlay size={14} className="text-white" /> Longform Target
+                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                                <MonitorPlay size={13} className="text-zinc-400" /> Longform Target
                               </label>
-                              <div className="flex items-center gap-4">
-                                <button 
+                              <div className="flex items-center gap-3">
+                                <button
                                   disabled={!useGlobalCountFilter}
-                                  onClick={() => setUseLongs(!useLongs)} 
-                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-zinc-800'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                  onClick={() => setUseLongs(!useLongs)}
+                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-zinc-700'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
                                 >
-                                  {(useLongs && useGlobalCountFilter) ? <ToggleRight size={30} /> : <ToggleLeft size={30} />}
+                                  {(useLongs && useGlobalCountFilter) ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
                                 </button>
                               </div>
                            </div>
-                           <div className={`space-y-3 transition-opacity ${(!useLongs || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
-                              <div className="flex justify-between font-black italic text-[14px]">
-                                <span className="text-zinc-500">MAX TARGET</span>
-                                <span>{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
+                           <div className={`space-y-2 transition-opacity ${(!useLongs || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-zinc-500">Max Target</span>
+                                <span className="text-zinc-300 font-medium">{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
                               </div>
-                              <input 
-                               type="range" 
-                               min="1" 
-                               max="50" 
+                              <input
+                               type="range"
+                               min="1"
+                               max="50"
                                disabled={!useLongs || !useGlobalCountFilter}
-                               value={Number(targetLong)} 
-                               onChange={(e) => setTargetLong(Number(e.target.value))} 
-                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-white" 
+                               value={Number(targetLong)}
+                               onChange={(e) => setTargetLong(Number(e.target.value))}
+                               className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-zinc-400"
                               />
                            </div>
                         </div>
                     </div>
 
                     <div className="mt-auto">
-                      <button 
-                        onClick={handleChannelStart} 
-                        disabled={isProcessing} 
-                        className="w-full bg-red-600 hover:bg-red-500 text-white py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl shadow-red-600/20 disabled:opacity-50"
+                      <button
+                        onClick={handleChannelStart}
+                        disabled={isProcessing}
+                        className="w-full bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-lg font-medium text-base flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
                       >
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={20} />} 분석 시작
+                        {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play fill="currentColor" size={16} />} 분석 시작
                       </button>
                     </div>
                   </div>
