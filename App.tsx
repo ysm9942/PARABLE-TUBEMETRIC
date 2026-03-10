@@ -685,21 +685,20 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className="w-80 bg-[#0f0f0f] border-r border-white/5 flex flex-col shrink-0 hidden xl:flex">
-        <div className="p-10">
-          <div className="flex items-center gap-4 mb-16">
-            <div className="bg-red-600 p-3 rounded-2xl shadow-2xl shadow-red-600/40">
-              <Youtube className="text-white w-7 h-7" />
+      <aside className="w-64 bg-[#16171f] border-r border-white/8 flex flex-col shrink-0 hidden xl:flex">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="bg-violet-600 p-2 rounded-lg">
+              <Youtube className="text-white w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight italic uppercase leading-tight">
-                Parable<br />
-                <span className="text-red-600">TubeMetric</span>
+              <h1 className="text-sm font-semibold text-white leading-tight">
+                Parable TubeMetric
               </h1>
             </div>
           </div>
 
-          <nav className="space-y-3">
+          <nav className="space-y-1">
             {[
               { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
               { id: 'video-config', label: '단일 영상 분석', icon: Video },
@@ -709,30 +708,27 @@ const App: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as TabType)}
-                className={`w-full flex items-center justify-between px-6 py-5 rounded-[24px] text-[14px] font-black transition-all duration-500 group ${
-                  activeTab === item.id 
-                    ? 'bg-red-600 text-white shadow-2xl shadow-red-600/30' 
-                    : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-200'
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                  activeTab === item.id
+                    ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
+                    : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
                 }`}
               >
-                <div className="flex items-center gap-4">
-                  <item.icon size={20} className={activeTab === item.id ? 'text-white' : 'text-zinc-600 group-hover:text-red-500'} />
-                  {item.label}
-                </div>
-                {activeTab === item.id && <ChevronRight size={16} className="animate-bounce-x" />}
+                <item.icon size={16} className={activeTab === item.id ? 'text-violet-400' : 'text-zinc-600 group-hover:text-zinc-400'} />
+                {item.label}
               </button>
             ))}
           </nav>
         </div>
-        
-        <div className="mt-auto p-10 border-t border-white/5 bg-gradient-to-t from-red-600/5 to-transparent">
-          <div className="bg-[#161616] p-5 rounded-3xl border border-white/5 space-y-3">
-            <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-              <Settings2 size={12} className="text-red-600" /> API Status
+
+        <div className="mt-auto p-6 border-t border-white/8">
+          <div className="bg-white/5 p-4 rounded-xl border border-white/8 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <Settings2 size={12} className="text-violet-500" /> API Status
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-[11px] font-bold text-emerald-500 uppercase">Vercel Connected</span>
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="text-xs text-emerald-500">Vercel Connected</span>
             </div>
           </div>
         </div>
