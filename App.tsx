@@ -513,7 +513,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex font-sans overflow-hidden selection:bg-violet-500/30">
+    <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex overflow-hidden selection:bg-violet-500/30">
       {/* Modal: Channel Details */}
       {selectedChannel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
