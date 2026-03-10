@@ -1061,34 +1061,34 @@ const App: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="space-y-12 animate-in fade-in duration-700">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div className="space-y-2">
-                  <h2 className="text-4xl font-black italic uppercase text-white">Data <span className="text-red-600">Report</span></h2>
-                  <div className="flex items-center gap-4 mt-4">
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-3">
+                  <h2 className="text-2xl font-semibold text-white">Data Report</h2>
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => setDashboardSubTab('channel')}
-                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'channel' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${dashboardSubTab === 'channel' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
                     >
                       Channel Analysis
                     </button>
                     <button
                       onClick={() => setDashboardSubTab('video')}
-                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'video' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${dashboardSubTab === 'video' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
                     >
                       Video Analysis
                     </button>
                     <button
                       onClick={() => { setDashboardSubTab('scraper'); loadScraperResults(); }}
-                      className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${dashboardSubTab === 'scraper' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${dashboardSubTab === 'scraper' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
                     >
-                      <Activity size={12} /> Scraper Results
-                      {scraperJobStatus === 'pending' && <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse ml-1" />}
+                      <Activity size={11} /> Scraper Results
+                      {scraperJobStatus === 'pending' && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse ml-0.5" />}
                     </button>
                   </div>
                 </div>
-                <button onClick={handleDownloadExcel} className="bg-white text-black hover:bg-zinc-200 px-10 py-5 rounded-[24px] font-black flex items-center gap-3 text-sm shadow-2xl shadow-white/10 transition-all active:scale-95">
-                  <FileSpreadsheet size={20} /> Excel Export
+                <button onClick={handleDownloadExcel} className="bg-white/8 hover:bg-white/12 text-zinc-200 hover:text-white border border-white/10 px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 text-sm transition-all active:scale-95">
+                  <FileSpreadsheet size={16} /> Excel Export
                 </button>
               </div>
 
