@@ -1061,36 +1061,123 @@ const App: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="space-y-3">
-                  <h2 className="text-2xl font-semibold text-white">Data Report</h2>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setDashboardSubTab('channel')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${dashboardSubTab === 'channel' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
-                    >
-                      Channel Analysis
-                    </button>
-                    <button
-                      onClick={() => setDashboardSubTab('video')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${dashboardSubTab === 'video' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
-                    >
-                      Video Analysis
-                    </button>
-                    <button
-                      onClick={() => { setDashboardSubTab('scraper'); loadScraperResults(); }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${dashboardSubTab === 'scraper' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/8'}`}
-                    >
-                      <Activity size={11} /> Scraper Results
-                      {scraperJobStatus === 'pending' && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse ml-0.5" />}
-                    </button>
-                  </div>
+            <div className="space-y-5 animate-in fade-in duration-300">
+              {/* 헤더 */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">데이터 대시보드</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">수집된 데이터를 한눈에 확인하고 엑셀로 내보내세요</p>
                 </div>
-                <button onClick={handleDownloadExcel} className="bg-white/8 hover:bg-white/12 text-zinc-200 hover:text-white border border-white/10 px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 text-sm transition-all active:scale-95">
-                  <FileSpreadsheet size={16} /> Excel Export
+                <button
+                  onClick={handleDownloadExcel}
+                  className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition-all active:scale-95 self-start sm:self-auto"
+                >
+                  <FileSpreadsheet size={15} /> 엑셀로 내보내기
                 </button>
               </div>
+
+              {/* 서브탭 */}
+              <div className="flex gap-1 bg-white/[0.04] p-1 rounded-xl w-fit">
+                {([
+                  { id: 'channel', label: '채널 분석', icon: TrendingUp },
+                  { id: 'video', label: '영상 분석', icon: Video },
+                  { id: 'scraper', label: '스크래퍼 결과', icon: Activity },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setDashboardSubTab(tab.id); if (tab.id === 'scraper') loadScraperResults(); }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                      dashboardSubTab === tab.id ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    <tab.icon size={13} /> {tab.label}
+                    {tab.id === 'scraper' && scraperJobStatus === 'pending' && (
+                      <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse ml-0.5" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* KPI 카드 - 채널 */}
+              {dashboardSubTab === 'channel' && (() => {
+                const done = channelResults.filter(r => r.status === 'completed');
+                const avgS = done.length > 0 ? Math.round(done.reduce((s,r)=>s+r.avgShortsViews,0)/done.length) : 0;
+                const avgL = done.length > 0 ? Math.round(done.reduce((s,r)=>s+r.avgLongViews,0)/done.length) : 0;
+                const totalVids = done.reduce((s,r)=>s+r.shortsCountFound+r.longCountFound,0);
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      { label: '완료 채널', value: done.length, sub: `전체 ${channelResults.length}개`, icon: Users, color: 'text-violet-400' },
+                      { label: 'Shorts 평균 조회', value: avgS > 0 ? avgS.toLocaleString() : '—', sub: '완료 채널 기준', icon: Radio, color: 'text-violet-400' },
+                      { label: 'Longform 평균 조회', value: avgL > 0 ? avgL.toLocaleString() : '—', sub: '완료 채널 기준', icon: MonitorPlay, color: 'text-zinc-200' },
+                      { label: '총 수집 영상', value: totalVids.toLocaleString(), sub: '쇼츠 + 롱폼 합계', icon: Video, color: 'text-zinc-200' },
+                    ].map((kpi, i) => (
+                      <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <kpi.icon size={14} className={kpi.color} />
+                        </div>
+                        <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
+                        <div className="text-xs text-zinc-600">{kpi.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* KPI 카드 - 영상 */}
+              {dashboardSubTab === 'video' && (() => {
+                const done = videoResults.filter(v => v.status === 'completed');
+                const avgViews = done.length > 0 ? Math.round(done.reduce((s,v)=>s+v.viewCount,0)/done.length) : 0;
+                const totalLikes = done.reduce((s,v)=>s+v.likeCount,0);
+                const shortsCount = videoResults.filter(v=>v.isShort).length;
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      { label: '분석 영상', value: done.length, sub: `전체 ${videoResults.length}개`, icon: Video, color: 'text-violet-400' },
+                      { label: '평균 조회수', value: avgViews > 0 ? avgViews.toLocaleString() : '—', sub: '완료 영상 기준', icon: Eye, color: 'text-violet-400' },
+                      { label: '총 좋아요', value: totalLikes.toLocaleString(), sub: '수집 영상 합계', icon: ThumbsUp, color: 'text-zinc-200' },
+                      { label: 'Shorts 비율', value: videoResults.length > 0 ? `${Math.round(shortsCount/videoResults.length*100)}%` : '—', sub: `쇼츠 ${shortsCount} / 롱폼 ${videoResults.filter(v=>!v.isShort).length}`, icon: Radio, color: 'text-zinc-200' },
+                    ].map((kpi, i) => (
+                      <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <kpi.icon size={14} className={kpi.color} />
+                        </div>
+                        <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
+                        <div className="text-xs text-zinc-600">{kpi.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* KPI 카드 - 스크래퍼 */}
+              {dashboardSubTab === 'scraper' && (() => {
+                const avgS = scraperResults.length > 0 ? Math.round(scraperResults.reduce((s,r)=>s+r.avgShortsViews,0)/scraperResults.length) : 0;
+                const avgL = scraperResults.length > 0 ? Math.round(scraperResults.reduce((s,r)=>s+r.avgLongViews,0)/scraperResults.length) : 0;
+                const lastDate = scraperResults.length > 0 && (scraperResults[0] as any).scrapedAt
+                  ? new Date((scraperResults[0] as any).scrapedAt).toLocaleDateString('ko-KR') : '—';
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      { label: '수집 채널', value: scraperResults.length, sub: '스크래퍼 결과', icon: Activity, color: 'text-violet-400' },
+                      { label: 'Shorts 평균 조회', value: avgS > 0 ? avgS.toLocaleString() : '—', sub: '전체 채널 평균', icon: Radio, color: 'text-violet-400' },
+                      { label: 'Longform 평균 조회', value: avgL > 0 ? avgL.toLocaleString() : '—', sub: '전체 채널 평균', icon: MonitorPlay, color: 'text-zinc-200' },
+                      { label: '최근 수집일', value: lastDate, sub: '가장 최근 기준', icon: CalendarDays, color: 'text-zinc-200' },
+                    ].map((kpi, i) => (
+                      <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <kpi.icon size={14} className={kpi.color} />
+                        </div>
+                        <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
+                        <div className="text-xs text-zinc-600">{kpi.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* ── 스크래퍼 결과 (GitHub Raw) ─────────────────────────────── */}
               {dashboardSubTab === 'scraper' && (
