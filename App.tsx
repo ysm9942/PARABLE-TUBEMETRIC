@@ -916,12 +916,12 @@ const App: React.FC = () => {
                </div>
             </div>
           ) : activeTab === 'video-config' ? (
-            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in">
-              <h2 className="text-5xl font-black italic text-center uppercase">단일 <span className="text-red-600">영상</span> 분석</h2>
-              <div className="bg-[#121212] p-12 rounded-[48px] border border-white/5 space-y-10 shadow-2xl">
-                <textarea value={videoInput} onChange={(e) => setVideoInput(e.target.value)} className="w-full h-80 p-10 bg-black/50 rounded-[40px] text-zinc-100 font-mono focus:outline-none" placeholder="영상 URL을 입력하세요..." />
-                <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-white text-black py-8 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 active:scale-95 transition-transform">
-                  {isProcessing ? <Loader2 className="animate-spin" /> : <MonitorPlay />} 수집 시작
+            <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <h2 className="text-2xl font-semibold text-white">단일 영상 분석</h2>
+              <div className="bg-[#1a1b23] p-6 rounded-xl border border-white/8 space-y-4">
+                <textarea value={videoInput} onChange={(e) => setVideoInput(e.target.value)} className="w-full h-64 p-4 bg-white/5 rounded-xl text-zinc-100 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 border border-white/8 focus:border-violet-500/50 resize-none" placeholder="영상 URL을 입력하세요..." />
+                <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3 rounded-lg font-medium text-base flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50">
+                  {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <MonitorPlay size={18} />} 수집 시작
                 </button>
               </div>
             </div>
