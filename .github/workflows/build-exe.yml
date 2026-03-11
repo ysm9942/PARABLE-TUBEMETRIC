@@ -8,6 +8,9 @@ on:
       - 'v*'           # v1.0.0 같은 태그 push 시 자동 빌드+릴리스
   workflow_dispatch:   # Actions 탭에서 수동 실행 버튼
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
