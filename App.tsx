@@ -370,9 +370,10 @@ const App: React.FC = () => {
     }
 
     setIsProcessing(true);
-    setActiveTab('dashboard');
+    setShowAdResults(true);
+    setAdResultTab('table');
     setDashboardSubTab('ad');
-    
+
     setAdResults(inputs.map(input => ({
       channelId: input, channelName: '광고 판별 중...', thumbnail: '', adVideos: [], totalAdCount: 0, totalViews: 0, avgViews: 0, avgLikes: 0, avgComments: 0, status: 'pending'
     })));
