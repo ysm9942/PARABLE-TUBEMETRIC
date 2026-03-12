@@ -182,52 +182,52 @@ const App: React.FC = () => {
 
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i];
-      setChannelResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'processing' } : r));
+      setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'processing' }; return next; });
       try {
         const info = await getChannelInfo(input);
         const stats = await fetchChannelStats(
-          info.uploadsPlaylistId, 
-          { 
-            target: shortsVal, 
-            period: period, 
-            useDateFilter: useDateFilter, 
-            useCountFilter: useGlobalCountFilter, 
+          info.uploadsPlaylistId,
+          {
+            target: shortsVal,
+            period: period,
+            useDateFilter: useDateFilter,
+            useCountFilter: useGlobalCountFilter,
             // 개수 필터가 꺼지면(DISABLED) 숏폼/롱폼 가리지 않고 전체 분석을 위해 강제 true
-            enabled: useGlobalCountFilter ? useShorts : true 
+            enabled: useGlobalCountFilter ? useShorts : true
           },
-          { 
-            target: longsVal, 
-            period: period, 
-            useDateFilter: useDateFilter, 
-            useCountFilter: useGlobalCountFilter, 
+          {
+            target: longsVal,
+            period: period,
+            useDateFilter: useDateFilter,
+            useCountFilter: useGlobalCountFilter,
             // 개수 필터가 꺼지면(DISABLED) 숏폼/롱폼 가리지 않고 전체 분석을 위해 강제 true
-            enabled: useGlobalCountFilter ? useLongs : true 
+            enabled: useGlobalCountFilter ? useLongs : true
           }
         );
-        setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
-          ...r, 
-          channelId: info.id,
-          channelName: info.title, 
-          thumbnail: info.thumbnail,
-          subscriberCount: info.subscriberCount,
-          avgShortsViews: stats.avgShortsViews, 
-          shortsCountFound: stats.shortsCount,
-          avgLongViews: stats.avgLongViews,
-          longCountFound: stats.longCount,
-          avgTotalViews: stats.avgTotalViews,
-          totalCountFound: stats.totalCount,
-          shortsList: stats.shortsList,
-          longsList: stats.longsList,
-          liveList: stats.liveList,
-          status: 'completed' 
-        } : r));
+        setChannelResults(prev => {
+          const next = [...prev];
+          next[i] = {
+            ...next[i],
+            channelId: info.id,
+            channelName: info.title,
+            thumbnail: info.thumbnail,
+            subscriberCount: info.subscriberCount,
+            avgShortsViews: stats.avgShortsViews,
+            shortsCountFound: stats.shortsCount,
+            avgLongViews: stats.avgLongViews,
+            longCountFound: stats.longCount,
+            avgTotalViews: stats.avgTotalViews,
+            totalCountFound: stats.totalCount,
+            shortsList: stats.shortsList,
+            longsList: stats.longsList,
+            liveList: stats.liveList,
+            status: 'completed'
+          };
+          return next;
+        });
       } catch (err: any) {
         console.error('Channel analysis error:', err);
-        setChannelResults(prev => prev.map((r, idx) => idx === i ? { 
-          ...r, 
-          status: 'error', 
-          error: err.message || '데이터를 가져오지 못했습니다.' 
-        } : r));
+        setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: err.message || '데이터를 가져오지 못했습니다.' }; return next; });
       }
     }
     setIsProcessing(false);
