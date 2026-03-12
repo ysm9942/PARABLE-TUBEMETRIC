@@ -1064,23 +1064,323 @@ const App: React.FC = () => {
                       <button
                         onClick={handleChannelStart}
                         disabled={isProcessing}
-                        className="w-full bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-lg font-medium text-base flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                        className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50"
                       >
-                        {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play fill="currentColor" size={16} />} 분석 시작
+                        {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <Play fill="currentColor" size={14} />}
+                        {isProcessing ? '분석 중...' : '분석 시작'}
                       </button>
                     </div>
                   </div>
                </div>
+
+              {/* Progress */}
+              {isProcessing && channelResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-white">
+                      <Loader2 size={14} className="animate-spin text-violet-400" /> 분석 진행 중
+                    </div>
+                    <span className="text-xs text-zinc-500 tabular-nums">{channelDone} / {channelTotal} 완료 · {channelProgress}%</span>
+                  </div>
+                  <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
+                    <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${channelProgress}%` }} />
+                  </div>
+                  <div className="space-y-1 max-h-20 overflow-y-auto">
+                    {channelResults.filter(r => r.status !== 'pending').slice(-4).map((r, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-zinc-600">
+                        {r.status === 'completed' ? <CheckCircle2 size={11} className="text-emerald-500 shrink-0" /> : r.status === 'error' ? <AlertCircle size={11} className="text-red-500 shrink-0" /> : <Loader2 size={11} className="animate-spin text-violet-400 shrink-0" />}
+                        <span className="truncate">{r.channelName !== '데이터 수집 중...' ? r.channelName : r.channelId}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Results Panel */}
+              {channelResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <button onClick={() => setShowChannelResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      {showChannelResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      <span className="text-sm font-medium text-white">분석 결과</span>
+                      <span className="text-xs text-zinc-600">{channelResults.filter(r => r.status === 'completed').length}개 완료{channelResults.filter(r => r.status === 'error').length > 0 ? ` · ${channelResults.filter(r => r.status === 'error').length}개 오류` : ''}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isProcessing ? <Loader2 size={12} className="animate-spin text-violet-400" /> : channelResults.some(r => r.status === 'completed') ? <CheckCircle2 size={12} className="text-emerald-500" /> : null}
+                    </div>
+                  </button>
+                  {showChannelResults && (
+                    <div className="border-t border-white/8">
+                      <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
+                        <div className="flex gap-1">
+                          {(['table','chart','raw'] as ResultTab[]).map(t => (
+                            <button key={t} onClick={() => setChannelResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${channelResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                              {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                          <button onClick={() => navigator.clipboard.writeText(channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')).join('\n'))} className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all">Copy</button>
+                        </div>
+                      </div>
+                      {channelResultTab === 'table' && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                              <tr>
+                                <th className="px-6 py-3 font-medium">Channel</th>
+                                <th className="px-6 py-3 text-center font-medium">Subscribers</th>
+                                <th className="px-6 py-3 text-right font-medium">Shorts Avg</th>
+                                <th className="px-6 py-3 text-right font-medium">Longform Avg</th>
+                                <th className="px-6 py-3 text-center font-medium">Detail</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {channelResults.map(r => (
+                                <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
+                                  <td className="px-6 py-3.5 flex items-center gap-3">
+                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-700" size={13} /></div>}
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-medium text-zinc-200 group-hover:text-violet-400 transition-colors flex items-center gap-1.5 truncate max-w-[220px]">
+                                        {r.channelName}
+                                        {r.status === 'error' && <span className="text-[10px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded shrink-0">Error</span>}
+                                        {r.status === 'processing' && <Loader2 size={10} className="animate-spin text-violet-400 shrink-0" />}
+                                        {r.status === 'pending' && <span className="text-[10px] text-zinc-600 shrink-0">대기</span>}
+                                      </div>
+                                      <div className="text-[10px] text-zinc-700 font-mono mt-0.5 truncate max-w-[200px]">{r.status === 'error' ? r.error : r.channelId}</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-3.5 text-center"><span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-400">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-700 mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-zinc-200">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-700 mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {channelResultTab === 'chart' && (
+                        <div className="p-6 space-y-6">
+                          {(() => {
+                            const done = channelResults.filter(r => r.status === 'completed');
+                            if (!done.length) return <p className="text-xs text-zinc-600 text-center py-8">완료된 채널이 없습니다.</p>;
+                            const maxShorts = Math.max(...done.map(r => r.avgShortsViews), 1);
+                            const maxLong = Math.max(...done.map(r => r.avgLongViews), 1);
+                            return (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><Radio size={12} className="text-violet-400" /> Shorts 평균 조회수</p>
+                                  <div className="space-y-2">
+                                    {done.map(r => (
+                                      <div key={r.channelId} className="flex items-center gap-3">
+                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                          <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(r.avgShortsViews / maxShorts) * 100}%` }} />
+                                        </div>
+                                        <span className="text-xs text-zinc-400 w-20 text-right shrink-0 tabular-nums">{r.avgShortsViews.toLocaleString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><MonitorPlay size={12} className="text-zinc-400" /> Longform 평균 조회수</p>
+                                  <div className="space-y-2">
+                                    {done.map(r => (
+                                      <div key={r.channelId} className="flex items-center gap-3">
+                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                          <div className="h-full bg-zinc-400 rounded-full transition-all duration-500" style={{ width: `${(r.avgLongViews / maxLong) * 100}%` }} />
+                                        </div>
+                                        <span className="text-xs text-zinc-400 w-20 text-right shrink-0 tabular-nums">{r.avgLongViews.toLocaleString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {channelResultTab === 'raw' && (
+                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(channelResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, subscriberCount: r.subscriberCount, avgShortsViews: r.avgShortsViews, avgLongViews: r.avgLongViews, status: r.status })), null, 2)}</pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
           ) : activeTab === 'video-config' ? (
-            <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
-              <h2 className="text-2xl font-semibold text-white">단일 영상 분석</h2>
-              <div className="bg-[#1a1b23] p-6 rounded-xl border border-white/8 space-y-4">
-                <textarea value={videoInput} onChange={(e) => setVideoInput(e.target.value)} className="w-full h-64 p-4 bg-white/5 rounded-xl text-zinc-100 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 border border-white/8 focus:border-violet-500/50 resize-none" placeholder="영상 URL을 입력하세요..." />
-                <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3 rounded-lg font-medium text-base flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50">
-                  {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <MonitorPlay size={18} />} 수집 시작
-                </button>
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div>
+                <h2 className="text-xl font-semibold text-white">단일 영상 분석</h2>
+                <p className="text-xs text-zinc-600 mt-0.5">YouTube 영상 URL 또는 ID로 조회수·댓글 분석</p>
               </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: list input */}
+                <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                      <Video size={13} className="text-violet-500" /> Video List
+                      {videoList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{videoList.length}</span>}
+                    </label>
+                    {videoList.length > 0 && (
+                      <button onClick={() => setVideoInput('')} className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={videoDraft}
+                      onChange={e => setVideoDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addVideoItem()}
+                      placeholder="영상 URL 또는 ID 입력 후 Enter"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                    />
+                    <button onClick={addVideoItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
+                  </div>
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    {videoList.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-700 space-y-2"><Video size={26} strokeWidth={1} /><p className="text-xs">영상을 추가하세요</p></div>
+                    ) : videoList.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                        <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                        <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{v}</span>
+                        <button onClick={() => removeVideoItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"><X size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Right: Run */}
+                <div className="xl:col-span-2 flex flex-col gap-4">
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 flex-1">
+                    <h3 className="text-xs font-medium text-zinc-400">수집 설정</h3>
+                    <p className="text-xs text-zinc-600 leading-relaxed">URL 또는 11자리 영상 ID를 입력하세요. 중복은 자동으로 제거됩니다.</p>
+                    <div className="bg-white/[0.02] rounded-lg p-3 space-y-1">
+                      <p className="text-[10px] text-zinc-600">지원 형식</p>
+                      <p className="text-[10px] text-zinc-700 font-mono">youtube.com/watch?v=xxx</p>
+                      <p className="text-[10px] text-zinc-700 font-mono">youtu.be/xxx</p>
+                      <p className="text-[10px] text-zinc-700 font-mono">youtube.com/shorts/xxx</p>
+                    </div>
+                  </div>
+                  <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50">
+                    {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <MonitorPlay size={16} />}
+                    {isProcessing ? '수집 중...' : '수집 시작'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress */}
+              {isProcessing && videoResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-400" /> 수집 진행 중</div>
+                    <span className="text-xs text-zinc-500 tabular-nums">{videoDone} / {videoTotal} 완료 · {videoProgress}%</span>
+                  </div>
+                  <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
+                    <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${videoProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Results Panel */}
+              {videoResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <button onClick={() => setShowVideoResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      {showVideoResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-xs text-zinc-600">{videoResults.filter(v => v.status === 'completed').length}개 완료</span>
+                    </div>
+                    {!isProcessing && videoResults.some(v => v.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
+                  </button>
+                  {showVideoResults && (
+                    <div className="border-t border-white/8">
+                      <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
+                        <div className="flex gap-1">
+                          {(['table','chart','raw'] as ResultTab[]).map(t => (
+                            <button key={t} onClick={() => setVideoResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${videoResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                              {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                        </div>
+                      </div>
+                      {videoResultTab === 'table' && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                              <tr>
+                                <th className="px-6 py-3 font-medium">Video</th>
+                                <th className="px-6 py-3 font-medium">Channel</th>
+                                <th className="px-6 py-3 text-center font-medium">Likes / Comments</th>
+                                <th className="px-6 py-3 text-right font-medium">Views</th>
+                                <th className="px-6 py-3 text-center font-medium">Detail</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {videoResults.map(v => (
+                                <tr key={v.videoId} className="hover:bg-white/[0.02] transition-colors group">
+                                  <td className="px-6 py-3.5 flex items-center gap-3">
+                                    {v.thumbnail ? <img src={v.thumbnail} className={`rounded-lg object-cover border border-white/8 shrink-0 ${v.isShort ? 'w-7 h-10' : 'w-14 h-9'}`} /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-700" size={13} /></div>}
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-medium text-zinc-200 group-hover:text-violet-400 transition-colors truncate max-w-[280px]">{v.title}</div>
+                                      <div className="text-[10px] text-zinc-700 font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-3.5 text-xs text-zinc-400">{v.channelTitle || '—'}</td>
+                                  <td className="px-6 py-3.5 text-center">
+                                    <div className="text-xs text-violet-400 flex items-center justify-center gap-1"><ThumbsUp size={10} /> {v.likeCount.toLocaleString()}</div>
+                                    <div className="text-[10px] text-zinc-600 flex items-center justify-center gap-1 mt-0.5"><MessageSquare size={10} /> {v.commentCount.toLocaleString()}</div>
+                                  </td>
+                                  <td className="px-6 py-3.5 text-right text-sm font-semibold text-white tabular-nums">{v.viewCount.toLocaleString()}</td>
+                                  <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1.5">
+                                    <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-white/5 hover:bg-white/12 text-zinc-400 hover:text-white rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
+                                    <a href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} target="_blank" className="p-1.5 bg-white/5 hover:bg-violet-600 text-zinc-400 hover:text-white rounded-lg transition-all"><ExternalLink size={13} /></a>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {videoResultTab === 'chart' && (
+                        <div className="p-6">
+                          {(() => {
+                            const done = videoResults.filter(v => v.status === 'completed');
+                            if (!done.length) return <p className="text-xs text-zinc-600 text-center py-8">완료된 영상이 없습니다.</p>;
+                            const maxViews = Math.max(...done.map(v => v.viewCount), 1);
+                            return (
+                              <div>
+                                <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><Eye size={12} className="text-violet-400" /> 조회수 분포</p>
+                                <div className="space-y-2">
+                                  {done.slice(0, 20).map(v => (
+                                    <div key={v.videoId} className="flex items-center gap-3">
+                                      <span className="text-xs text-zinc-600 w-36 truncate shrink-0">{v.title}</span>
+                                      <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                        <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(v.viewCount / maxViews) * 100}%` }} />
+                                      </div>
+                                      <span className="text-xs text-zinc-400 w-20 text-right tabular-nums shrink-0">{v.viewCount.toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {videoResultTab === 'raw' && (
+                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(videoResults.map(v => ({ videoId: v.videoId, title: v.title, viewCount: v.viewCount, likeCount: v.likeCount, commentCount: v.commentCount, status: v.status })), null, 2)}</pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : activeTab === 'scraper-config' ? (
             /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
