@@ -943,6 +943,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Right: Options */}
                   <div className="xl:col-span-2 flex flex-col space-y-4">
                     {/* SECTION 1: 분석 기간 설정 (통합) */}
                     <div className="bg-[#1a1b23] p-5 rounded-xl border border-white/8 space-y-5">
