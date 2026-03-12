@@ -360,9 +360,10 @@ const App: React.FC = () => {
         const chunk = videoIds.slice(i, i + chunkSize);
         const fetched = await fetchVideosByIds(chunk);
         
+        const fetchedMap = new Map(fetched.map(f => [f.videoId, f]));
         setVideoResults(prev => prev.map(p => {
-          const match = fetched.find(f => f.videoId === p.videoId);
-          return match ? match : (p.status === 'processing' ? { ...p, status: 'error', error: '정보 없음' } : p);
+          const match = fetchedMap.get(p.videoId);
+          return match ?? (p.status === 'processing' ? { ...p, status: 'error', error: '정보 없음' } : p);
         }));
       }
     } catch (err: any) {
