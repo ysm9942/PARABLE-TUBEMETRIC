@@ -293,7 +293,7 @@ const App: React.FC = () => {
     if (activeTab === 'dashboard' && dashboardSubTab === 'scraper' && scraperResults.length === 0) {
       loadScraperResults();
     }
-  }, [activeTab, dashboardSubTab]);
+  }, [activeTab, dashboardSubTab, scraperResults.length]);
 
   const handleAdStart = async () => {
     const inputs = adChannelInput.split('\n').map(s => s.trim()).filter(s => s.length > 0);
