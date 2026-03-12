@@ -754,51 +754,98 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-[#16171f] border-r border-white/8 flex flex-col shrink-0 hidden xl:flex">
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="bg-violet-600 p-2 rounded-lg">
-              <Youtube className="text-white w-5 h-5" />
+      <aside className="w-60 bg-[#16171f] border-r border-white/8 flex flex-col shrink-0 hidden xl:flex h-screen overflow-y-auto">
+        {/* Logo */}
+        <div className="p-5 border-b border-white/8">
+          <div className="flex items-center gap-3">
+            <div className="bg-violet-600 p-2 rounded-lg shrink-0">
+              <Youtube className="text-white w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-white leading-tight">
-                Parable TubeMetric
-              </h1>
+              <div className="text-xs font-semibold text-white leading-tight">Parable</div>
+              <div className="text-xs text-zinc-500 leading-tight">TubeMetric</div>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-3 space-y-5 pt-4">
+          {/* ANALYSIS */}
+          <div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-600 tracking-widest uppercase">Analysis</div>
+            <div className="space-y-0.5">
+              {([
+                { id: 'channel-config',   label: '채널 통합 분석',    Icon: TrendingUp,  soon: false },
+                { id: 'video-config',     label: '단일 영상 분석',    Icon: Video,       soon: false },
+                { id: 'ad-config',        label: '광고 영상 분석',    Icon: Megaphone,   soon: false },
+                { id: 'scraper-config',   label: '로컬 스크래퍼',    Icon: Activity,    soon: false },
+                { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: true  },
+                { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: true  },
+              ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean }[]).map(({ id, label, Icon, soon }) => (
+                <button
+                  key={id}
+                  onClick={() => !soon && setActiveTab(id)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group ${
+                    activeTab === id
+                      ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
+                      : soon
+                        ? 'text-zinc-700 cursor-default'
+                        : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                  }`}
+                >
+                  <Icon size={14} className={activeTab === id ? 'text-violet-400' : soon ? 'text-zinc-700' : 'text-zinc-600 group-hover:text-zinc-400'} />
+                  <span className="flex-1 text-left">{label}</span>
+                  {soon && <span className="text-[9px] bg-zinc-800 text-zinc-600 px-1.5 py-0.5 rounded font-normal">Soon</span>}
+                  {!soon && activeTab === id && <div className="w-1 h-1 bg-violet-400 rounded-full" />}
+                </button>
+              ))}
             </div>
           </div>
 
-          <nav className="space-y-1">
-            {[
-              { id: 'channel-config', label: '채널 통합 분석', icon: TrendingUp },
-              { id: 'video-config', label: '단일 영상 분석', icon: Video },
-              { id: 'scraper-config', label: '로컬 스크래퍼', icon: Activity },
-              { id: 'dashboard', label: '데이터 대시보드', icon: BarChart3 },
-            ].map((item) => (
+          {/* DATA */}
+          <div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-600 tracking-widest uppercase">Data</div>
+            <div className="space-y-0.5">
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as TabType)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                  activeTab === item.id
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group ${
+                  activeTab === 'dashboard'
                     ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
                     : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
                 }`}
               >
-                <item.icon size={16} className={activeTab === item.id ? 'text-violet-400' : 'text-zinc-600 group-hover:text-zinc-400'} />
-                {item.label}
+                <History size={14} className={activeTab === 'dashboard' ? 'text-violet-400' : 'text-zinc-600 group-hover:text-zinc-400'} />
+                <span className="flex-1 text-left">Analysis History</span>
+                {(channelResults.length > 0 || videoResults.length > 0 || adResults.length > 0) && (
+                  <span className="text-[9px] bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded font-normal">
+                    {[channelResults.length > 0, videoResults.length > 0, adResults.length > 0, scraperResults.length > 0].filter(Boolean).length}
+                  </span>
+                )}
               </button>
-            ))}
-          </nav>
-        </div>
+            </div>
+          </div>
 
-        <div className="mt-auto p-6 border-t border-white/8">
-          <div className="bg-white/5 p-4 rounded-xl border border-white/8 space-y-2">
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <Settings2 size={12} className="text-violet-500" /> API Status
+          {/* SETTINGS */}
+          <div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-600 tracking-widest uppercase">Settings</div>
+            <div className="space-y-0.5">
+              {[
+                { label: 'API 설정', Icon: Settings2 },
+                { label: '내보내기 설정', Icon: FileSpreadsheet },
+              ].map(({ label, Icon }) => (
+                <div key={label} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-700 cursor-default">
+                  <Icon size={14} className="text-zinc-800" />
+                  <span>{label}</span>
+                  <span className="ml-auto text-[9px] bg-zinc-800 text-zinc-700 px-1.5 py-0.5 rounded">Soon</span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-emerald-500">Vercel Connected</span>
-            </div>
+          </div>
+        </nav>
+
+        <div className="p-4 border-t border-white/8">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
+            <span className="text-xs text-zinc-600">Vercel Connected</span>
           </div>
         </div>
       </aside>
