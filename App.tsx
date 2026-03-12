@@ -1222,8 +1222,8 @@ const App: React.FC = () => {
                             </td>
                           </tr>
                         ) : (
-                          scraperResults.map((r, i) => (
-                            <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                          scraperResults.map((r) => (
+                            <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
                               <td className="px-6 py-4 flex items-center gap-4">
                                 {r.thumbnail ? (
                                   <img src={r.thumbnail} className="w-10 h-10 rounded-lg object-cover border border-white/8" />
