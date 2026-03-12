@@ -858,54 +858,90 @@ const App: React.FC = () => {
           {/* inline below each tab */}
 
           {activeTab === 'channel-config' ? (
-            <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-semibold text-white">채널 통합 분석</h2>
-                  </div>
-                  <button
-                    onClick={() => setShowHelp(!showHelp)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${showHelp ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-zinc-200 hover:bg-white/8'}`}
-                  >
-                    <Info size={14} /> 분석 가이드 {showHelp ? '닫기' : '보기'}
-                  </button>
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">채널 통합 분석</h2>
+                  <p className="text-xs text-zinc-600 mt-0.5">YouTube 채널 평균 조회수 및 영상 데이터 수집</p>
                 </div>
+                <button
+                  onClick={() => setShowHelp(!showHelp)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showHelp ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <Info size={13} /> 가이드
+                </button>
+              </div>
 
-               {showHelp && (
-                 <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-6 animate-in fade-in duration-200">
-                    <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                      <HelpCircle size={16} className="text-violet-500" /> Analysis Guide
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-violet-400 text-xs">분석 기간 (Analysis Period)</h4>
-                        <p className="text-zinc-400 text-xs leading-relaxed">
-                          수집할 영상의 게시 기간을 필터링합니다. '전체' 선택 시 기간 제한 없이 최근 영상부터 수집합니다. 모든 영상 유형에 공통 적용됩니다.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-violet-400 text-xs">영상 수집 개수 (Collection Target)</h4>
-                        <p className="text-zinc-400 text-xs leading-relaxed">
-                          채널당 수집할 최대 영상 개수를 지정합니다. <br/>
-                          쇼츠와 롱폼에 대해 각각 다른 목표치를 설정할 수 있습니다.
-                        </p>
-                      </div>
+              {showHelp && (
+                <div className="bg-[#1a1b23] border border-violet-500/20 rounded-xl p-5 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <h4 className="font-medium text-violet-400 text-xs flex items-center gap-1.5"><CalendarDays size={12} /> 분석 기간</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">수집할 영상의 게시 기간을 필터링합니다. 전체 선택 시 기간 제한 없이 수집합니다.</p>
                     </div>
-                 </div>
-               )}
-
-               <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                  <div className="xl:col-span-3 flex flex-col space-y-3">
-                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                      <List size={14} className="text-violet-500" /> Channel List
-                    </label>
-                    <textarea
-                      value={channelInput}
-                      onChange={(e) => setChannelInput(e.target.value)}
-                      className="w-full h-[560px] p-5 bg-[#1a1b23] border border-white/8 rounded-xl text-sm font-mono focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none text-white"
-                      placeholder="UC-xxxxxxxxxxxx 를 줄바꿈으로 입력하세요."
-                    />
+                    <div className="space-y-1.5">
+                      <h4 className="font-medium text-violet-400 text-xs flex items-center gap-1.5"><Activity size={12} /> 수집 개수</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">채널당 수집할 최대 영상 수를 지정합니다. 쇼츠/롱폼 각각 설정 가능합니다.</p>
+                    </div>
                   </div>
+                </div>
+              )}
+
+              {/* Input + Options grid */}
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: List Input */}
+                <div className="xl:col-span-3">
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4 h-full">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                        <List size={13} className="text-violet-500" /> Channel List
+                        {channelList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{channelList.length}</span>}
+                      </label>
+                      {channelList.length > 0 && (
+                        <button onClick={clearChannelList} className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex items-center gap-1">
+                          <Trash2 size={11} /> 전체 삭제
+                        </button>
+                      )}
+                    </div>
+                    {/* Add field */}
+                    <div className="flex gap-2">
+                      <input
+                        value={channelDraft}
+                        onChange={e => setChannelDraft(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addChannelItem()}
+                        placeholder="UC코드 또는 채널 URL 입력 후 Enter"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                      />
+                      <button
+                        onClick={addChannelItem}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"
+                      >
+                        <Plus size={13} /> 추가
+                      </button>
+                    </div>
+                    {/* List */}
+                    <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                      {channelList.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-zinc-700 space-y-2">
+                          <List size={28} strokeWidth={1} />
+                          <p className="text-xs">채널을 추가하세요</p>
+                        </div>
+                      ) : channelList.map((ch, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                          <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                          <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{ch}</span>
+                          <button onClick={() => removeChannelItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all">
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {channelList.length > 0 && (
+                      <p className="text-[10px] text-zinc-700">{channelList.length}개 채널 · Enter 또는 추가 버튼으로 입력</p>
+                    )}
+                  </div>
+                </div>
 
                   <div className="xl:col-span-2 flex flex-col space-y-4">
                     {/* SECTION 1: 분석 기간 설정 (통합) */}
