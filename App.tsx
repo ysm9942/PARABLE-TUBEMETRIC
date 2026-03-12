@@ -312,20 +312,27 @@ const App: React.FC = () => {
 
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i];
-      setAdResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'processing' } : r));
+      setAdResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'processing' }; return next; });
       try {
         const info = await getChannelInfo(input);
         const ads = await analyzeAdVideos(info.uploadsPlaylistId, new Date(adStartDate), new Date(adEndDate));
-        
-        const totalViews = ads.reduce((acc, v) => acc + v.viewCount, 0);
-        const totalLikes = ads.reduce((acc, v) => acc + v.likeCount, 0);
-        const totalComments = ads.reduce((acc, v) => acc + v.commentCount, 0);
-        
-        setAdResults(prev => prev.map((r, idx) => idx === i ? { 
-          ...r, channelId: info.id, channelName: info.title, thumbnail: info.thumbnail, adVideos: ads, totalAdCount: ads.length, totalViews, avgViews: ads.length ? Math.round(totalViews / ads.length) : 0, avgLikes: ads.length ? Math.round(totalLikes / ads.length) : 0, avgComments: ads.length ? Math.round(totalComments / ads.length) : 0, status: 'completed' 
-        } : r));
+        const { totalViews, totalLikes, totalComments } = ads.reduce(
+          (acc, v) => ({ totalViews: acc.totalViews + v.viewCount, totalLikes: acc.totalLikes + v.likeCount, totalComments: acc.totalComments + v.commentCount }),
+          { totalViews: 0, totalLikes: 0, totalComments: 0 }
+        );
+        setAdResults(prev => {
+          const next = [...prev];
+          next[i] = {
+            ...next[i], channelId: info.id, channelName: info.title, thumbnail: info.thumbnail, adVideos: ads, totalAdCount: ads.length, totalViews,
+            avgViews: ads.length ? Math.round(totalViews / ads.length) : 0,
+            avgLikes: ads.length ? Math.round(totalLikes / ads.length) : 0,
+            avgComments: ads.length ? Math.round(totalComments / ads.length) : 0,
+            status: 'completed'
+          };
+          return next;
+        });
       } catch (err: any) {
-        setAdResults(prev => prev.map((r, idx) => idx === i ? { ...r, status: 'error', error: err.message } : r));
+        setAdResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: err.message }; return next; });
       }
     }
     setIsProcessing(false);
