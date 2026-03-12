@@ -50,7 +50,8 @@ import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, an
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults } from './services/githubResultsService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config';
+type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
