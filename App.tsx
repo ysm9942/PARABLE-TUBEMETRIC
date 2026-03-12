@@ -471,8 +471,6 @@ const App: React.FC = () => {
     'all': '전체'
   };
 
-  if (!isMounted) return null;
-
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex items-center justify-center p-6 selection:bg-violet-500/30">
