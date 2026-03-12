@@ -107,6 +107,36 @@ const App: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  // ── UI-only states ────────────────────────────────────────────────────────
+  const [channelDraft, setChannelDraft] = useState<string>('');
+  const [videoDraft, setVideoDraft] = useState<string>('');
+  const [adDraft, setAdDraft] = useState<string>('');
+  const [showChannelResults, setShowChannelResults] = useState<boolean>(false);
+  const [channelResultTab, setChannelResultTab] = useState<ResultTab>('table');
+  const [showVideoResults, setShowVideoResults] = useState<boolean>(false);
+  const [videoResultTab, setVideoResultTab] = useState<ResultTab>('table');
+  const [showAdResults, setShowAdResults] = useState<boolean>(false);
+  const [adResultTab, setAdResultTab] = useState<ResultTab>('table');
+
+  // ── Derived ──────────────────────────────────────────────────────────────
+  const channelList = channelInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const videoList = videoInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const adList = adChannelInput.split('\n').map(s => s.trim()).filter(Boolean);
+
+  const channelTotal = channelResults.length;
+  const channelDone = channelResults.filter(r => r.status === 'completed' || r.status === 'error').length;
+  const channelProgress = channelTotal > 0 ? Math.round((channelDone / channelTotal) * 100) : 0;
+  const channelCurrentItem = channelResults.find(r => r.status === 'processing');
+
+  const videoTotal = videoResults.length;
+  const videoDone = videoResults.filter(v => v.status !== 'processing').length;
+  const videoProgress = videoTotal > 0 ? Math.round((videoDone / videoTotal) * 100) : 0;
+
+  const adTotal = adResults.length;
+  const adDone = adResults.filter(r => r.status === 'completed' || r.status === 'error').length;
+  const adProgress = adTotal > 0 ? Math.round((adDone / adTotal) * 100) : 0;
+  const adCurrentItem = adResults.find(r => r.status === 'processing');
+
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinInput === '5350') {
