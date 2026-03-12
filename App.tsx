@@ -177,6 +177,32 @@ const App: React.FC = () => {
     return [start.toISOString().split('T')[0], end.toISOString().split('T')[0]];
   };
 
+  // ── List input helpers ───────────────────────────────────────────────────
+  const addChannelItem = () => {
+    const v = channelDraft.trim();
+    if (!v) return;
+    setChannelInput(prev => prev ? prev + '\n' + v : v);
+    setChannelDraft('');
+  };
+  const removeChannelItem = (idx: number) => setChannelInput(channelList.filter((_, i) => i !== idx).join('\n'));
+  const clearChannelList = () => setChannelInput('');
+
+  const addVideoItem = () => {
+    const v = videoDraft.trim();
+    if (!v) return;
+    setVideoInput(prev => prev ? prev + '\n' + v : v);
+    setVideoDraft('');
+  };
+  const removeVideoItem = (idx: number) => setVideoInput(videoList.filter((_, i) => i !== idx).join('\n'));
+
+  const addAdItem = () => {
+    const v = adDraft.trim();
+    if (!v) return;
+    setAdChannelInput(prev => prev ? prev + '\n' + v : v);
+    setAdDraft('');
+  };
+  const removeAdItem = (idx: number) => setAdChannelInput(adList.filter((_, i) => i !== idx).join('\n'));
+
   const handleChannelStart = async () => {
     const inputs = channelInput
       .split('\n')
