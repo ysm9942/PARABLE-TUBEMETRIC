@@ -852,7 +852,11 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#0f1117]">
-        <div className="p-8 md:pt-10 md:pb-16 md:px-12 max-w-7xl w-full mx-auto">
+        <div className="p-6 md:px-10 md:py-8 max-w-7xl w-full mx-auto">
+
+          {/* ── 공용 컴포넌트: Progress Bar ─────────────────────────────── */}
+          {/* inline below each tab */}
+
           {activeTab === 'channel-config' ? (
             <div className="space-y-8 animate-in fade-in duration-500">
                <div className="flex items-center justify-between">
