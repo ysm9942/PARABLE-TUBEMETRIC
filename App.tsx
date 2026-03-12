@@ -271,22 +271,22 @@ const App: React.FC = () => {
 
   // 큐 파일 폴링: pending → done 감지
   useEffect(() => {
-    if (scraperJobStatus !== 'pending' || !scraperJobId) return;
+    if (!scraperJobId) return;
+    let isActive = true;
     const interval = setInterval(async () => {
+      if (!isActive) return;
       const status = await checkQueueStatus(scraperJobId);
-      if (status === 'done') {
+      if (status === 'done' && isActive) {
         setScraperJobStatus('done');
-        clearInterval(interval);
         await loadScraperResults();
         setActiveTab('dashboard');
         setDashboardSubTab('scraper');
-      } else if (status === 'error') {
+      } else if (status === 'error' && isActive) {
         setScraperJobStatus('error');
-        clearInterval(interval);
       }
     }, 10000);
-    return () => clearInterval(interval);
-  }, [scraperJobStatus, scraperJobId]);
+    return () => { isActive = false; clearInterval(interval); };
+  }, [scraperJobId]);
 
   // 스크래퍼 대시보드 탭 진입 시 결과 로드
   useEffect(() => {
