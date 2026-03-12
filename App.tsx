@@ -224,9 +224,10 @@ const App: React.FC = () => {
     const longsVal = parseNumberInput(targetLong);
 
     setIsProcessing(true);
-    setActiveTab('dashboard');
+    setShowChannelResults(true);
+    setChannelResultTab('table');
     setDashboardSubTab('channel');
-    
+
     const initialResults: ChannelResult[] = inputs.map((input) => ({
       channelId: input,
       channelName: '데이터 수집 중...',
