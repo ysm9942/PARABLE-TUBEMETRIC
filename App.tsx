@@ -154,8 +154,8 @@ const App: React.FC = () => {
       return;
     }
 
-    const shortsVal = typeof targetShorts === 'string' ? parseInt(targetShorts, 10) || 1 : targetShorts;
-    const longsVal = typeof targetLong === 'string' ? parseInt(targetLong, 10) || 1 : targetLong;
+    const shortsVal = parseNumberInput(targetShorts);
+    const longsVal = parseNumberInput(targetLong);
 
     setIsProcessing(true);
     setActiveTab('dashboard');
