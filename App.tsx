@@ -121,16 +121,20 @@ const App: React.FC = () => {
     return match ? match[1] : input.trim();
   };
 
-  const setAdDatesByPeriod = (p: AnalysisPeriod) => {
+  const parseNumberInput = (value: number | string, defaultValue = 1): number => {
+    if (typeof value === 'number') return value;
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? defaultValue : parsed;
+  };
+
+  const getDateRange = (p: AnalysisPeriod): [string, string] => {
     const end = new Date();
     let start = new Date();
     if (p === '7d') start.setDate(end.getDate() - 7);
     else if (p === '30d') start.setDate(end.getDate() - 30);
     else if (p === '90d') start.setDate(end.getDate() - 90);
     else if (p === 'all') start = new Date('2005-01-01');
-
-    setAdStartDate(start.toISOString().split('T')[0]);
-    setAdEndDate(end.toISOString().split('T')[0]);
+    return [start.toISOString().split('T')[0], end.toISOString().split('T')[0]];
   };
 
   const handleChannelStart = async () => {
