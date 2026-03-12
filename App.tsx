@@ -96,11 +96,6 @@ const App: React.FC = () => {
   const [scraperEndDate, setScraperEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => { 
-    setIsMounted(true); 
-  }, []);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
