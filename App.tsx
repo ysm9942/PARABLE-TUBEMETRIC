@@ -1292,8 +1292,8 @@ const App: React.FC = () => {
                               </td>
                             </tr>
                           ) : (
-                            channelResults.map((r, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                            channelResults.map((r) => (
+                              <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
                                 <td className="px-6 py-4 flex items-center gap-4">
                                   <div className="relative">
                                     {r.thumbnail ? (
