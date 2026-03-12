@@ -416,7 +416,8 @@ const App: React.FC = () => {
     }
 
     setIsProcessing(true);
-    setActiveTab('dashboard');
+    setShowVideoResults(true);
+    setVideoResultTab('table');
     setDashboardSubTab('video');
     setVideoResults(videoIds.map(id => ({
       videoId: id, title: '로딩 중...', channelTitle: '', thumbnail: '', viewCount: 0, likeCount: 0, commentCount: 0, topComments: [], duration: '', isShort: false, status: 'processing'
