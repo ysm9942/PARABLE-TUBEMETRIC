@@ -1276,8 +1276,8 @@ const App: React.FC = () => {
                               </td>
                             </tr>
                           ) : (
-                            videoResults.map((v, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                            videoResults.map((v) => (
+                              <tr key={v.videoId} className="hover:bg-white/[0.02] transition-colors group">
                                 <td className="px-6 py-4 flex items-center gap-4">
                                   <div className="relative shrink-0">
                                     {v.thumbnail ? (
