@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Play, 
-  Download, 
-  Trash2, 
-  List, 
-  Youtube, 
-  Loader2, 
-  LayoutDashboard, 
-  ExternalLink, 
+import {
+  Play,
+  Download,
+  Trash2,
+  List,
+  Youtube,
+  Loader2,
+  LayoutDashboard,
+  ExternalLink,
   Calendar,
   TrendingUp,
   Video,
@@ -34,7 +34,16 @@ import {
   AlertCircle,
   ShieldCheck,
   HelpCircle,
-  Info
+  Info,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Database,
+  Instagram,
+  Tv2,
+  Camera,
+  History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
