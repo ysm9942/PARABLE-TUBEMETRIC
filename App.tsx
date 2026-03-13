@@ -1382,6 +1382,196 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+          ) : activeTab === 'ad-config' ? (
+            /* ── 광고 분석 탭 ─────────────────────────────────────────────────── */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div>
+                <h2 className="text-xl font-semibold text-white">채널 광고 분석</h2>
+                <p className="text-xs text-zinc-600 mt-0.5">채널별 광고 영상 수 및 광고 비율 분석</p>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: list input */}
+                <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                      <List size={13} className="text-violet-500" /> Channel List
+                      {adList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{adList.length}</span>}
+                    </label>
+                    {adList.length > 0 && (
+                      <button onClick={clearAdList} className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={adDraft}
+                      onChange={e => setAdDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addAdItem()}
+                      placeholder="UC코드 또는 채널 URL 입력 후 Enter"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                    />
+                    <button onClick={addAdItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
+                  </div>
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    {adList.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-700 space-y-2"><List size={26} strokeWidth={1} /><p className="text-xs">채널을 추가하세요</p></div>
+                    ) : adList.map((ch, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                        <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
+                        <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{ch}</span>
+                        <button onClick={() => removeAdItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"><X size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: options + run */}
+                <div className="xl:col-span-2 flex flex-col gap-4">
+                  {/* Date filter */}
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/8">
+                      <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Calendar size={13} className="text-violet-500" /> 분석 기간</h3>
+                      <button
+                        onClick={() => setAdUseDateFilter(!adUseDateFilter)}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${adUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
+                      >
+                        {adUseDateFilter ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </div>
+                    <div className={`grid grid-cols-4 gap-1.5 transition-opacity ${!adUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
+                      {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
+                        <button key={p} onClick={() => setAdPeriod(p)} className={`py-2 text-xs font-medium rounded-lg transition-all ${adPeriod === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}>
+                          {periodLabels[p]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-auto">
+                    <button
+                      onClick={handleAdStart}
+                      disabled={isProcessing}
+                      className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <Play fill="currentColor" size={14} />}
+                      {isProcessing ? '분석 중...' : '광고 분석 시작'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress */}
+              {isProcessing && adResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-400" /> 분석 진행 중</div>
+                    <span className="text-xs text-zinc-500 tabular-nums">{adDone} / {adTotal} 완료 · {adProgress}%</span>
+                  </div>
+                  <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
+                    <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${adProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Results Panel */}
+              {adResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <button onClick={() => setShowAdResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      {showAdResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      <span className="text-sm font-medium text-white">광고 분석 결과</span>
+                      <span className="text-xs text-zinc-600">{adResults.filter(r => r.status === 'completed').length}개 완료</span>
+                    </div>
+                    {!isProcessing && adResults.some(r => r.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
+                  </button>
+                  {showAdResults && (
+                    <div className="border-t border-white/8">
+                      <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
+                        <div className="flex gap-1">
+                          {(['table','chart','raw'] as ResultTab[]).map(t => (
+                            <button key={t} onClick={() => setAdResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${adResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                              {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
+                            </button>
+                          ))}
+                        </div>
+                        <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                      </div>
+                      {adResultTab === 'table' && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                              <tr>
+                                <th className="px-6 py-3 font-medium">Channel</th>
+                                <th className="px-6 py-3 text-right font-medium">Total Videos</th>
+                                <th className="px-6 py-3 text-right font-medium">Ad Videos</th>
+                                <th className="px-6 py-3 text-right font-medium">Ad Ratio</th>
+                                <th className="px-6 py-3 text-right font-medium">Avg Ad Views</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {adResults.map(r => (
+                                <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
+                                  <td className="px-6 py-3.5 flex items-center gap-3">
+                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-700" size={13} /></div>}
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-medium text-zinc-200 truncate max-w-[200px] group-hover:text-violet-400 transition-colors">{r.channelName}</div>
+                                      <div className="text-[10px] text-zinc-700 font-mono mt-0.5 truncate max-w-[180px]">{r.status === 'error' ? <span className="text-red-400">{r.error}</span> : r.channelId}</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-3.5 text-right text-xs text-zinc-400 tabular-nums">{r.status === 'completed' ? r.totalVideoCount.toLocaleString() : '—'}</td>
+                                  <td className="px-6 py-3.5 text-right text-xs text-violet-400 tabular-nums font-medium">{r.status === 'completed' ? r.totalAdCount.toLocaleString() : '—'}</td>
+                                  <td className="px-6 py-3.5 text-right">
+                                    {r.status === 'completed' ? (
+                                      <span className={`text-xs font-semibold ${r.adRatio >= 50 ? 'text-red-400' : r.adRatio >= 20 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                                        {r.adRatio.toFixed(1)}%
+                                      </span>
+                                    ) : '—'}
+                                  </td>
+                                  <td className="px-6 py-3.5 text-right text-xs text-zinc-300 tabular-nums">{r.status === 'completed' && r.avgAdViews > 0 ? r.avgAdViews.toLocaleString() : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {adResultTab === 'chart' && (
+                        <div className="p-6 space-y-6">
+                          {(() => {
+                            const done = adResults.filter(r => r.status === 'completed');
+                            if (!done.length) return <p className="text-xs text-zinc-600 text-center py-8">완료된 채널이 없습니다.</p>;
+                            const maxAd = Math.max(...done.map(r => r.totalAdCount), 1);
+                            return (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium text-zinc-400 mb-3">광고 영상 수</p>
+                                  <div className="space-y-2">
+                                    {done.map(r => (
+                                      <div key={r.channelId} className="flex items-center gap-3">
+                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                          <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(r.totalAdCount / maxAd) * 100}%` }} />
+                                        </div>
+                                        <span className="text-xs text-zinc-400 w-16 text-right shrink-0 tabular-nums">{r.totalAdCount}</span>
+                                        <span className={`text-xs w-14 text-right shrink-0 font-medium ${r.adRatio >= 50 ? 'text-red-400' : r.adRatio >= 20 ? 'text-yellow-400' : 'text-emerald-400'}`}>{r.adRatio.toFixed(1)}%</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {adResultTab === 'raw' && (
+                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(adResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, totalVideoCount: r.totalVideoCount, totalAdCount: r.totalAdCount, adRatio: r.adRatio, avgAdViews: r.avgAdViews, status: r.status })), null, 2)}</pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
           ) : activeTab === 'scraper-config' ? (
             /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
             <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
