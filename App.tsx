@@ -655,7 +655,71 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex overflow-hidden selection:bg-violet-500/30">
+    <div className="min-h-screen bg-[#0f1117] text-zinc-100 flex font-sans overflow-hidden selection:bg-violet-500/30">
+
+      {/* Modal: Instagram User Details */}
+      {selectedIgUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1a1b23] w-full max-w-4xl max-h-[85vh] rounded-2xl border border-white/8 overflow-hidden flex flex-col shadow-md">
+            <div className="p-5 border-b border-white/8 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-violet-600 flex items-center justify-center shrink-0">
+                  <span className="text-white text-sm font-bold">{selectedIgUser.username[0]?.toUpperCase()}</span>
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-white">@{selectedIgUser.username}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-3">
+                    <span>릴스 {selectedIgUser.reelCount}개</span>
+                    <span>평균 조회수 <span className="text-pink-400 font-medium">{selectedIgUser.avgViews.toLocaleString()}</span></span>
+                    <span>평균 좋아요 <span className="text-violet-400 font-medium">{selectedIgUser.avgLikes.toLocaleString()}</span></span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedIgUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-500 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-white/[0.02] text-zinc-500 text-xs sticky top-0">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Reel</th>
+                    <th className="px-5 py-3 text-right font-medium">Views</th>
+                    <th className="px-5 py-3 text-right font-medium">Likes</th>
+                    <th className="px-5 py-3 text-right font-medium">Comments</th>
+                    <th className="px-5 py-3 text-center font-medium">Duration</th>
+                    <th className="px-5 py-3 text-center font-medium">Date</th>
+                    <th className="px-5 py-3 text-center font-medium">Link</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {selectedIgUser.reels.map((reel, i) => (
+                    <tr key={reel.media_pk || i} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-3 flex items-center gap-3">
+                        {reel.thumbnail_url ? (
+                          <img src={reel.thumbnail_url} className="w-9 h-14 object-cover rounded-lg border border-white/8 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Instagram size={14} className="text-zinc-700" /></div>
+                        )}
+                        <span className="text-xs text-zinc-400 line-clamp-2 max-w-[260px]">{reel.caption_text || '(캡션 없음)'}</span>
+                      </td>
+                      <td className="px-5 py-3 text-right text-sm font-semibold text-pink-400 tabular-nums">{reel.view_count.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-xs text-violet-400 tabular-nums">{reel.like_count.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-xs text-zinc-400 tabular-nums">{reel.comment_count.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-500">{reel.video_duration ? `${Math.round(reel.video_duration)}s` : '—'}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-600 font-mono">{new Date(reel.taken_at).toLocaleDateString('ko-KR')}</td>
+                      <td className="px-5 py-3 text-center">
+                        {reel.url ? (
+                          <a href={reel.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-400 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Channel Details */}
       {selectedChannel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
