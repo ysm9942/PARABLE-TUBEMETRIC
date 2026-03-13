@@ -745,8 +745,8 @@ class VideoTab(tk.Frame):
         win.finish(bool(results))
         self.after(0, lambda: self.run_btn.configure(state="normal"))
         self.after(0, lambda: self._status.set(f"완료 ({len(results)}개)"))
-        self.after(0, lambda: self.app.switch_tab("dashboard"))
-        self.after(0, lambda: self.app.dashboard.show_video())
+        self.after(0, lambda: self._populate_vid_results(results))
+        self.after(0, lambda: self.app.glow_tab("video"))
 
 
 # ── Instagram 스크래퍼 (모듈 레벨) ────────────────────────────────────────────────
