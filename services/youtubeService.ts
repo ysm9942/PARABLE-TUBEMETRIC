@@ -212,6 +212,7 @@ export const getChannelInfo = async (input: string) => {
       title: channel.snippet.title,
       thumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.default.url,
       subscriberCount: channel.statistics.subscriberCount,
+      videoCount: channel.statistics.videoCount as string | undefined,
       uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads,
     };
   } catch (err) { throw new Error(`채널 조회 실패: ${getErrorMessage(err)}`); }
