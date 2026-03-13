@@ -83,6 +83,33 @@ export interface VideoResult {
   error?: string;
 }
 
+// ── Instagram ─────────────────────────────────────────────────────────────────
+
+export interface InstagramReel {
+  username: string;
+  media_pk: string;
+  code: string | null;
+  caption_text: string;
+  taken_at: string;
+  like_count: number;
+  comment_count: number;
+  view_count: number;
+  video_duration: number;
+  thumbnail_url: string;
+  url: string | null;
+}
+
+export interface InstagramUserResult {
+  username: string;
+  reelCount: number;
+  avgViews: number;
+  avgLikes: number;
+  avgComments: number;
+  scrapedAt: string;
+  reels: InstagramReel[];
+  error?: string;
+}
+
 export interface VideoDetail {
   id: string;
   title: string;
