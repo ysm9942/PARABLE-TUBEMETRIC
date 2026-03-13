@@ -852,7 +852,7 @@ const App: React.FC = () => {
                 { id: 'ad-config',        label: '광고 영상 분석',    Icon: Megaphone,   soon: false },
                 { id: 'scraper-config',   label: '로컬 스크래퍼',    Icon: Activity,    soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: true  },
-                { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: true  },
+                { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean }[]).map(({ id, label, Icon, soon }) => (
                 <button
                   key={id}
