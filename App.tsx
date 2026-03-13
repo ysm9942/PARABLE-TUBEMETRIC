@@ -379,8 +379,12 @@ const App: React.FC = () => {
     setAdResultTab('table');
     setDashboardSubTab('ad');
 
+    const [computedStart, computedEnd] = adUseDateFilter ? getDateRange(adPeriod) : ['2005-01-01', new Date().toISOString().split('T')[0]];
+
     setAdResults(inputs.map(input => ({
-      channelId: input, channelName: '광고 판별 중...', thumbnail: '', adVideos: [], totalAdCount: 0, totalViews: 0, avgViews: 0, avgLikes: 0, avgComments: 0, status: 'pending'
+      channelId: input, channelName: '광고 판별 중...', thumbnail: '', adVideos: [],
+      totalAdCount: 0, totalVideoCount: 0, adRatio: 0,
+      totalViews: 0, avgViews: 0, avgAdViews: 0, avgLikes: 0, avgComments: 0, status: 'pending'
     })));
 
     for (let i = 0; i < inputs.length; i++) {
@@ -388,16 +392,20 @@ const App: React.FC = () => {
       setAdResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'processing' }; return next; });
       try {
         const info = await getChannelInfo(input);
-        const ads = await analyzeAdVideos(info.uploadsPlaylistId, new Date(adStartDate), new Date(adEndDate));
+        const ads = await analyzeAdVideos(info.uploadsPlaylistId, new Date(computedStart), new Date(computedEnd));
         const { totalViews, totalLikes, totalComments } = ads.reduce(
           (acc, v) => ({ totalViews: acc.totalViews + v.viewCount, totalLikes: acc.totalLikes + v.likeCount, totalComments: acc.totalComments + v.commentCount }),
           { totalViews: 0, totalLikes: 0, totalComments: 0 }
         );
+        const totalVideoCount = parseInt(info.videoCount ?? '0', 10) || ads.length;
+        const adRatio = totalVideoCount > 0 ? Math.round((ads.length / totalVideoCount) * 1000) / 10 : 0;
+        const avgAdViews = ads.length ? Math.round(totalViews / ads.length) : 0;
         setAdResults(prev => {
           const next = [...prev];
           next[i] = {
-            ...next[i], channelId: info.id, channelName: info.title, thumbnail: info.thumbnail, adVideos: ads, totalAdCount: ads.length, totalViews,
-            avgViews: ads.length ? Math.round(totalViews / ads.length) : 0,
+            ...next[i], channelId: info.id, channelName: info.title, thumbnail: info.thumbnail, adVideos: ads,
+            totalAdCount: ads.length, totalVideoCount, adRatio, totalViews, avgAdViews,
+            avgViews: avgAdViews,
             avgLikes: ads.length ? Math.round(totalLikes / ads.length) : 0,
             avgComments: ads.length ? Math.round(totalComments / ads.length) : 0,
             status: 'completed'
