@@ -57,8 +57,11 @@ export interface AdAnalysisResult {
   thumbnail: string;
   adVideos: AdVideoDetail[];
   totalAdCount: number;
+  totalVideoCount: number;
+  adRatio: number;
   totalViews: number;
   avgViews: number;
+  avgAdViews: number;
   avgLikes: number;
   avgComments: number;
   status: 'pending' | 'processing' | 'completed' | 'error';
