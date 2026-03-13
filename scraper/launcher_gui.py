@@ -387,6 +387,120 @@ class ChannelTab(tk.Frame):
                  font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(4, 0))
         self._refresh_api_status()
 
+        # ── 인라인 결과 (분석 완료 후 표시) ──────────────────────────────────
+        self._result_frame = tk.Frame(wrap, bg=BG)
+        result_hdr = tk.Frame(self._result_frame, bg=BG)
+        result_hdr.pack(fill="x", pady=(8, 0))
+        tk.Frame(result_hdr, bg=BORDER, height=1).pack(fill="x")
+        self._result_open = tk.BooleanVar(value=True)
+        self._result_toggle_btn = tk.Button(
+            result_hdr, text="▼  분석 결과  (0개)",
+            command=self._toggle_ch_results,
+            font=("Arial", 9, "bold"), bg=BG, fg=FG, relief="flat",
+            anchor="w", cursor="hand2", activebackground=BG, activeforeground=ACCENT,
+            padx=0, pady=6,
+        )
+        self._result_toggle_btn.pack(fill="x")
+        self._result_body = tk.Frame(self._result_frame, bg=BG)
+        self._result_body.pack(fill="both", expand=True)
+        self._build_ch_result_tree()
+        self._result_frame.pack_forget()   # 초기에는 숨김
+
+    def _toggle_ch_results(self):
+        if self._result_open.get():
+            self._result_body.pack_forget()
+            self._result_open.set(False)
+            n = len(self.app.channel_results)
+            self._result_toggle_btn.configure(text=f"▶  분석 결과  ({n}개)")
+        else:
+            self._result_body.pack(fill="both", expand=True)
+            self._result_open.set(True)
+            n = len(self.app.channel_results)
+            self._result_toggle_btn.configure(text=f"▼  분석 결과  ({n}개)")
+
+    def _build_ch_result_tree(self):
+        cols   = ("구독자", "쇼츠 avg", "쇼츠 수", "롱폼 avg", "롱폼 수")
+        widths = (80,      85,         65,        85,         65)
+        tf = tk.Frame(self._result_body, bg=BG)
+        tf.pack(fill="both", expand=True)
+        self._ch_tree = ttk.Treeview(tf, columns=cols, show="tree headings",
+                                     style="Dark.Treeview", height=10)
+        self._ch_tree.heading("#0", text="채널명")
+        self._ch_tree.column("#0", width=220, minwidth=100, anchor="w", stretch=True)
+        for i, col in enumerate(cols):
+            self._ch_tree.heading(col, text=col)
+            self._ch_tree.column(col, width=widths[i], minwidth=40, anchor="w")
+        self._ch_tree.tag_configure("channel", font=("Arial", 9, "bold"), foreground=FG)
+        self._ch_tree.tag_configure("shorts",  foreground=BLUE)
+        self._ch_tree.tag_configure("longs",   foreground=GREEN)
+        self._ch_tree.tag_configure("ch_error", foreground=ACCENT2)
+        vsb = ttk.Scrollbar(tf, orient="vertical",   command=self._ch_tree.yview)
+        hsb = ttk.Scrollbar(tf, orient="horizontal", command=self._ch_tree.xview)
+        self._ch_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._ch_tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tf.grid_rowconfigure(0, weight=1)
+        tf.grid_columnconfigure(0, weight=1)
+        self._ch_vidmap: dict = {}
+        self._ch_tree.bind("<Double-Button-1>", self._ch_tree_open)
+
+    def _ch_tree_open(self, e):
+        sel = self._ch_tree.selection()
+        if not sel:
+            return
+        iid = sel[0]
+        if iid.startswith("chv:"):
+            data = self._ch_vidmap.get(iid)
+            if data:
+                v, is_short = data
+                url = (f"https://youtube.com/shorts/{v['id']}"
+                       if is_short else f"https://youtu.be/{v['id']}")
+                webbrowser.open(url)
+        elif iid.startswith("chc:"):
+            webbrowser.open(f"https://youtube.com/channel/{iid[4:]}")
+
+    def _populate_ch_results(self, results):
+        tree = self._ch_tree
+        tree.delete(*tree.get_children())
+        self._ch_vidmap.clear()
+        for r in results:
+            ch_id = r.get("id", "")
+            ok    = r.get("status") == "completed"
+            par   = tree.insert("", "end", iid=f"chc:{ch_id}",
+                text=f"  {r.get('title', r.get('id', ''))}",
+                values=(
+                    fmt_num(r.get("subscriberCount", 0)) if ok else "—",
+                    fmt_num(r.get("avgShortsViews",  0)) if ok else "—",
+                    r.get("shortsCount", 0)              if ok else "—",
+                    fmt_num(r.get("avgLongViews",    0)) if ok else "—",
+                    r.get("longCount",   0)              if ok else "—",
+                ),
+                open=False, tags=("channel" if ok else "ch_error",),
+            )
+            if ok:
+                for v in r.get("shortsList", []):
+                    iid = f"chv:{v.get('id','')}_s"
+                    self._ch_vidmap[iid] = (v, True)
+                    tree.insert(par, "end", iid=iid,
+                        text=f"    쇼츠  {v.get('title','')[:45]}",
+                        values=("", fmt_num(v.get("viewCount", 0)), "", "", ""),
+                        tags=("shorts",),
+                    )
+                for v in r.get("longsList", []):
+                    iid = f"chv:{v.get('id','')}_l"
+                    self._ch_vidmap[iid] = (v, False)
+                    tree.insert(par, "end", iid=iid,
+                        text=f"    롱폼  {v.get('title','')[:45]}",
+                        values=("", "", "", fmt_num(v.get("viewCount", 0)), ""),
+                        tags=("longs",),
+                    )
+        n = len(results)
+        self._result_toggle_btn.configure(text=f"▼  분석 결과  ({n}개)")
+        self._result_frame.pack(fill="both", expand=True)
+        self._result_body.pack(fill="both", expand=True)
+        self._result_open.set(True)
+
     def _refresh_api_status(self):
         key = _load_yt_api_key()
         if key:
