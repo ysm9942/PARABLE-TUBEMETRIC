@@ -107,7 +107,7 @@ def _delete_queue_file(filename: str, sha: str) -> bool:
 # ── 스크래퍼 실행 ─────────────────────────────────────────────────────────────
 
 def _run_scraper(job: dict) -> bool:
-    """job dict에 따라 main.py 실행"""
+    """job dict에 따라 스크래퍼 실행 (YouTube: main.py / Instagram: instagram_scraper.py)"""
     job_type = job.get("type", "channel")
     handles  = job.get("handles") or (
         [job["handle"]] if job.get("handle") else []
@@ -118,6 +118,29 @@ def _run_scraper(job: dict) -> bool:
         log(f"[오류] 핸들 목록이 비어있음: {job}")
         return False
 
+    # ── Instagram 릴스 스크래퍼 ──────────────────────────────────────────────
+    if job_type == "instagram":
+        cmd = [sys.executable, str(SCRAPER_DIR / "instagram_scraper.py")]
+        cmd.extend(handles)
+        cmd += ["--amount", str(opts.get("amount", 10))]
+        cmd.append("--push")
+
+        log(f"[실행] Instagram: {' '.join(cmd)}")
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(SCRAPER_DIR),
+                timeout=600,
+            )
+            return proc.returncode == 0
+        except subprocess.TimeoutExpired:
+            log("[오류] Instagram 스크래퍼 타임아웃 (10분)")
+            return False
+        except Exception as e:
+            log(f"[오류] Instagram 스크래퍼 실행 실패: {e}")
+            return False
+
+    # ── YouTube 스크래퍼 (기존) ───────────────────────────────────────────────
     cmd = [sys.executable, str(SCRAPER_DIR / "main.py")]
     if opts.get("headless", True):
         cmd.append("--headless")
@@ -131,7 +154,7 @@ def _run_scraper(job: dict) -> bool:
     if opts.get("start") and opts.get("end"):
         cmd += ["--start", opts["start"], "--end", opts["end"]]
 
-    log(f"[실행] {' '.join(cmd)}")
+    log(f"[실행] YouTube: {' '.join(cmd)}")
     try:
         proc = subprocess.run(
             cmd,
