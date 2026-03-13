@@ -206,6 +206,7 @@ const App: React.FC = () => {
     setAdDraft('');
   };
   const removeAdItem = (idx: number) => setAdChannelInput(adList.filter((_, i) => i !== idx).join('\n'));
+  const clearAdList = () => setAdChannelInput('');
 
   const handleChannelStart = async () => {
     const inputs = channelInput
