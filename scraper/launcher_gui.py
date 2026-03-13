@@ -3056,6 +3056,26 @@ class MainApp(tk.Frame):
             else:
                 page.pack_forget()
 
+    def glow_tab(self, key: str, _step: int = 0):
+        """분석 완료 시 사이드바 버튼을 펄스 애니메이션으로 강조하고 점 인디케이터를 표시."""
+        items = self._tab_items.get(key)
+        dot   = self._tab_dots.get(key)
+        if not items or not dot:
+            return
+        btn = items["btn"]
+        # 도트 인디케이터 켜기
+        dot.configure(fg=ACCENT)
+        # 펄스: ACCENT ↔ FG, 총 6스텝(약 0.9초)
+        colors = [ACCENT, FG, ACCENT, FG, ACCENT, FG]
+        if _step < len(colors):
+            btn.configure(fg=colors[_step])
+            self.after(150, lambda: self.glow_tab(key, _step + 1))
+        else:
+            # 애니메이션 종료 후 활성 탭이면 FG, 아니면 FG_DIM 복원
+            is_active = self._tab_items.get(key, {}).get("ind") and \
+                        self._tab_items[key]["ind"].cget("bg") == ACCENT
+            btn.configure(fg=FG if is_active else FG_DIM)
+
 
 # ── App ───────────────────────────────────────────────────────────────────────
 class App(tk.Tk):
