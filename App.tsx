@@ -107,6 +107,10 @@ const App: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  // Ad date filter
+  const [adUseDateFilter, setAdUseDateFilter] = useState<boolean>(false);
+  const [adPeriod, setAdPeriod] = useState<AnalysisPeriod>('all');
+
   // ── UI-only states ────────────────────────────────────────────────────────
   const [channelDraft, setChannelDraft] = useState<string>('');
   const [videoDraft, setVideoDraft] = useState<string>('');
