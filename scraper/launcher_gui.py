@@ -573,8 +573,8 @@ class ChannelTab(tk.Frame):
         win.finish(True)
         self.after(0, lambda: self.run_btn.configure(state="normal"))
         self.after(0, lambda: self._status.set(f"완료 ({len(results)}개)"))
-        self.after(0, lambda: self.app.switch_tab("dashboard"))
-        self.after(0, lambda: self.app.dashboard.show_channel())
+        self.after(0, lambda: self._populate_ch_results(results))
+        self.after(0, lambda: self.app.glow_tab("channel"))
 
 
 # ── 영상 분석 탭 ──────────────────────────────────────────────────────────────
