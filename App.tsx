@@ -136,6 +136,7 @@ const App: React.FC = () => {
   const channelList = channelInput.split('\n').map(s => s.trim()).filter(Boolean);
   const videoList = videoInput.split('\n').map(s => s.trim()).filter(Boolean);
   const adList = adChannelInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const igList = igInput.split('\n').map(s => s.trim()).filter(Boolean);
 
   const channelTotal = channelResults.length;
   const channelDone = channelResults.filter(r => r.status === 'completed' || r.status === 'error').length;
