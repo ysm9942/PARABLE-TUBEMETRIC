@@ -2954,6 +2954,372 @@ class DashboardTab(tk.Frame):
         messagebox.showinfo("저장 완료", f"Excel 파일이 저장되었습니다.\n{path}")
 
 
+# ── TikTok 분석 탭 ────────────────────────────────────────────────────────────
+class TikTokTab(tk.Frame):
+    def __init__(self, master, app):
+        super().__init__(master, bg=BG)
+        self.app = app
+        self.tiktok_results: list = []
+        self._build()
+
+    def _build(self):
+        _section_header(self, "TikTok 채널 분석",
+                        "TikTokApi (Playwright)  →  최근 영상 조회수 · 좋아요 · 댓글 수집")
+
+        wrap = tk.Frame(self, bg=BG, padx=28)
+        wrap.pack(fill="both", expand=True)
+
+        # ── 채널 목록 ─────────────────────────────────────────────────────────
+        tk.Label(wrap, text="TikTok 채널 목록  (한 줄에 하나 · @username 또는 URL)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG, anchor="w").pack(fill="x", pady=(16, 4))
+        tk.Label(wrap, text="예:  @tiktok  /  https://www.tiktok.com/@nba",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM, anchor="w").pack(fill="x", pady=(0, 4))
+        border = tk.Frame(wrap, bg=ACCENT, padx=1, pady=1)
+        border.pack(fill="x")
+        self.ch_txt = tk.Text(border, height=5, font=("Consolas", 10),
+                              bg=BG3, fg=FG, insertbackground=ACCENT,
+                              relief="flat", padx=10, pady=8)
+        self.ch_txt.pack(fill="both")
+
+        # ── 옵션 ──────────────────────────────────────────────────────────────
+        opt_row = tk.Frame(wrap, bg=BG, pady=8)
+        opt_row.pack(fill="x")
+        tk.Label(opt_row, text="영상 수 (계정당)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._count = tk.StringVar(value="20")
+        tk.Entry(opt_row, textvariable=self._count, width=5,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 20))
+        tk.Label(opt_row, text="ms_token  (선택)",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._ms_token = tk.StringVar()
+        tk.Entry(opt_row, textvariable=self._ms_token, width=30,
+                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 0))
+
+        # ── 버튼 행 ───────────────────────────────────────────────────────────
+        btn_row = tk.Frame(wrap, bg=BG, pady=6)
+        btn_row.pack(fill="x")
+        self.run_btn = _btn(btn_row, "▶  수집 시작", self._run,
+                            bg=ACCENT, fg="white", bold=True, padx=20, pady=10)
+        self.run_btn.pack(side="left")
+        self.export_btn = _btn(btn_row, "⬇  Excel 내보내기", self._export,
+                               padx=14, pady=10)
+        self.export_btn.pack(side="left", padx=6)
+        self._status_var = tk.StringVar(value="대기 중")
+        tk.Label(btn_row, textvariable=self._status_var,
+                 font=("Consolas", 9), bg=BG, fg=FG_DIM).pack(side="left", padx=14)
+
+        tk.Label(wrap,
+                 text="※ 최초 실행 시  python -m playwright install chromium  필요",
+                 font=("Arial", 8), bg=BG, fg=FG_MUTE, anchor="w").pack(fill="x", pady=(4, 0))
+
+        # ── 인라인 결과 ───────────────────────────────────────────────────────
+        self._result_frame = tk.Frame(wrap, bg=BG)
+        result_hdr = tk.Frame(self._result_frame, bg=BG)
+        result_hdr.pack(fill="x", pady=(8, 0))
+        tk.Frame(result_hdr, bg=BORDER, height=1).pack(fill="x")
+        self._result_open = tk.BooleanVar(value=True)
+        self._result_toggle_btn = tk.Button(
+            result_hdr, text="▼  수집 결과  (0행)",
+            command=self._toggle_results,
+            font=("Arial", 9, "bold"), bg=BG, fg=FG, relief="flat",
+            anchor="w", cursor="hand2", activebackground=BG, activeforeground=ACCENT,
+            padx=0, pady=6,
+        )
+        self._result_toggle_btn.pack(fill="x")
+        self._result_body = tk.Frame(self._result_frame, bg=BG)
+        self._result_body.pack(fill="both", expand=True)
+        self._build_result_tree()
+        self._result_frame.pack_forget()
+
+    def _toggle_results(self):
+        if self._result_open.get():
+            self._result_body.pack_forget()
+            self._result_open.set(False)
+            n = len(self.tiktok_results)
+            self._result_toggle_btn.configure(text=f"▶  수집 결과  ({n}행)")
+        else:
+            self._result_body.pack(fill="both", expand=True)
+            self._result_open.set(True)
+            n = len(self.tiktok_results)
+            self._result_toggle_btn.configure(text=f"▼  수집 결과  ({n}행)")
+
+    def _build_result_tree(self):
+        cols   = ("영상 수", "평균 조회수", "평균 좋아요", "평균 댓글", "평균 공유")
+        widths = (65,        95,           85,           80,          80)
+        tf = tk.Frame(self._result_body, bg=BG)
+        tf.pack(fill="both", expand=True)
+        self._tree = ttk.Treeview(tf, columns=cols, show="tree headings",
+                                  style="Dark.Treeview", height=12)
+        self._tree.heading("#0", text="계정 / 영상 설명")
+        self._tree.column("#0", width=240, minwidth=100, anchor="w", stretch=True)
+        for i, col in enumerate(cols):
+            self._tree.heading(col, text=col)
+            self._tree.column(col, width=widths[i], minwidth=40, anchor="w")
+        self._tree.tag_configure("account", font=("Arial", 9, "bold"), foreground=FG)
+        self._tree.tag_configure("video",   foreground=FG_DIM)
+        self._tree.tag_configure("vok",     foreground=FG)
+        self._tree.tag_configure("error",   foreground=ACCENT2)
+        vsb = ttk.Scrollbar(tf, orient="vertical",   command=self._tree.yview)
+        hsb = ttk.Scrollbar(tf, orient="horizontal", command=self._tree.xview)
+        self._tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tf.grid_rowconfigure(0, weight=1)
+        tf.grid_columnconfigure(0, weight=1)
+        self._url_map: dict = {}
+        self._tree.bind("<Double-Button-1>", self._on_dbl)
+
+    def _on_dbl(self, e):
+        sel = self._tree.selection()
+        if not sel:
+            return
+        url = self._url_map.get(sel[0])
+        if url:
+            webbrowser.open(url)
+
+    # ── 수집 ─────────────────────────────────────────────────────────────────
+    def _run(self):
+        lines = [
+            ln.strip() for ln in self.ch_txt.get("1.0", "end").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        if not lines:
+            messagebox.showwarning("입력 필요", "TikTok 채널을 입력하세요.")
+            return
+        try:
+            count = int(self._count.get() or 20)
+        except ValueError:
+            count = 20
+
+        self.run_btn.configure(state="disabled")
+        self._status_var.set("수집 중...")
+        win = ConsoleWindow(self.winfo_toplevel(), "TikTok 채널 분석")
+        win.append(f"[시작] {len(lines)}개 채널 수집\n", "info")
+        threading.Thread(target=self._analyze, args=(lines, count, win), daemon=True).start()
+
+    def _analyze(self, channel_inputs: list, count: int, win):
+        # ── TikTokApi 설치 확인 ───────────────────────────────────────────────
+        try:
+            from TikTokApi import TikTokApi as _TTA
+        except ImportError:
+            win.append(
+                "✗ TikTokApi 가 설치되어 있지 않습니다.\n"
+                "  pip install TikTokApi\n"
+                "  python -m playwright install chromium\n", "err"
+            )
+            win.finish(False)
+            self.after(0, lambda: self.run_btn.configure(state="normal"))
+            self.after(0, lambda: self._status_var.set("오류: TikTokApi 미설치"))
+            return
+
+        import asyncio
+        import re as _re
+        from datetime import datetime as _dt
+
+        def _extract_username(s: str):
+            m = _re.search(r"@([^/?#\s]+)", s)
+            if m:
+                return m.group(1).strip()
+            s2 = s.strip().lstrip("@")
+            if s2 and "/" not in s2 and "." not in s2:
+                return s2
+            return None
+
+        ms_token = self._ms_token.get().strip() or None
+
+        async def _run_all():
+            all_rows = []
+            init_kwargs = {}
+            if ms_token:
+                init_kwargs["ms_tokens"] = [ms_token]
+
+            async with _TTA(**init_kwargs) as api:
+                for inp in channel_inputs:
+                    username = _extract_username(inp)
+                    if not username:
+                        win.append(f"  ✗ username 추출 실패: {inp}\n", "err")
+                        continue
+                    win.append(f"\n[채널] @{username}\n", "info")
+                    try:
+                        user = api.user(username=username)
+                        idx = 0
+                        async for video in user.videos(count=count):
+                            idx += 1
+                            try:
+                                info  = await video.info()
+                                stats = info.get("stats", {}) or {}
+                                vid_id  = info.get("id")
+                                desc    = info.get("desc") or ""
+                                ctime   = info.get("createTime")
+                                date_str = (_dt.fromtimestamp(ctime).strftime("%Y-%m-%d")
+                                            if ctime else "")
+                                row = {
+                                    "username":      username,
+                                    "video_index":   idx,
+                                    "video_id":      vid_id or "",
+                                    "video_url":     (f"https://www.tiktok.com/@{username}/video/{vid_id}"
+                                                      if vid_id else ""),
+                                    "description":   desc,
+                                    "create_date":   date_str,
+                                    "view_count":    int(stats.get("playCount",    0) or 0),
+                                    "like_count":    int(stats.get("diggCount",    0) or 0),
+                                    "comment_count": int(stats.get("commentCount", 0) or 0),
+                                    "share_count":   int(stats.get("shareCount",   0) or 0),
+                                    "collect_count": int(stats.get("collectCount", 0) or 0),
+                                    "error":         "",
+                                }
+                                all_rows.append(row)
+                                win.append(
+                                    f"  [{idx:>3}]  조회 {fmt_num(row['view_count']):<9}"
+                                    f"좋아요 {fmt_num(row['like_count']):<8}"
+                                    f"{desc[:45]}\n"
+                                )
+                            except Exception as e:
+                                win.append(f"  ✗ 영상 {idx} 오류: {e}\n", "err")
+                                all_rows.append({
+                                    "username": username, "video_index": idx,
+                                    "video_id": "", "video_url": "",
+                                    "description": "", "create_date": "",
+                                    "view_count": 0, "like_count": 0,
+                                    "comment_count": 0, "share_count": 0,
+                                    "collect_count": 0, "error": str(e),
+                                })
+                        win.append(f"  ✓ {idx}개 수집 완료\n", "ok")
+                    except Exception as e:
+                        win.append(f"  ✗ 채널 오류: {e}\n", "err")
+                        all_rows.append({
+                            "username": username, "video_index": None,
+                            "video_id": "", "video_url": "",
+                            "description": "", "create_date": "",
+                            "view_count": 0, "like_count": 0,
+                            "comment_count": 0, "share_count": 0,
+                            "collect_count": 0, "error": str(e),
+                        })
+            return all_rows
+
+        try:
+            # Windows에서 Playwright 호환: SelectorEventLoopPolicy 사용
+            if hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
+                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            results = asyncio.run(_run_all())
+        except Exception as e:
+            win.append(f"\n✗ 치명적 오류: {e}\n", "err")
+            results = []
+
+        self.tiktok_results = results
+        win.finish(bool(results))
+        self.after(0, lambda: self.run_btn.configure(state="normal"))
+        self.after(0, lambda: self._status_var.set(f"완료 ({len(results)}행)"))
+        self.after(0, lambda: self._populate_results(results))
+        self.after(0, lambda: self.app.glow_tab("tiktok"))
+
+    # ── 결과 트리 채우기 ─────────────────────────────────────────────────────
+    def _populate_results(self, rows: list):
+        from collections import OrderedDict
+        tree = self._tree
+        tree.delete(*tree.get_children())
+        self._url_map.clear()
+
+        # 계정별 그루핑
+        acct_rows: dict = OrderedDict()
+        for r in rows:
+            acct_rows.setdefault(r.get("username", "?"), []).append(r)
+
+        for uname, vids in acct_rows.items():
+            ok   = [v for v in vids if not v.get("error")]
+            avg  = lambda lst: fmt_num(round(sum(lst) / len(lst))) if lst else "—"
+            par_iid = f"acc:{uname}"
+            tree.insert("", "end", iid=par_iid,
+                text=f"  @{uname}",
+                values=(
+                    len(vids),
+                    avg([v["view_count"]    for v in ok]),
+                    avg([v["like_count"]    for v in ok]),
+                    avg([v["comment_count"] for v in ok]),
+                    avg([v["share_count"]   for v in ok]),
+                ),
+                open=False, tags=("account",),
+            )
+            self._url_map[par_iid] = f"https://www.tiktok.com/@{uname}"
+
+            for v in vids:
+                has_err = bool(v.get("error"))
+                vid_iid = f"vid:{v.get('video_id') or id(v)}"
+                desc    = (v.get("description") or "")[:50] or "(설명 없음)"
+                tree.insert(par_iid, "end", iid=vid_iid,
+                    text=f"    {desc}",
+                    values=(
+                        "",
+                        fmt_num(v["view_count"])    if not has_err else f"오류: {v['error'][:30]}",
+                        fmt_num(v["like_count"])    if not has_err else "",
+                        fmt_num(v["comment_count"]) if not has_err else "",
+                        fmt_num(v["share_count"])   if not has_err else "",
+                    ),
+                    tags=("error" if has_err else "vok",),
+                )
+                if not has_err and v.get("video_url"):
+                    self._url_map[vid_iid] = v["video_url"]
+
+        n = len(rows)
+        self._result_toggle_btn.configure(text=f"▼  수집 결과  ({n}행)")
+        self._result_frame.pack(fill="both", expand=True)
+        self._result_body.pack(fill="both", expand=True)
+        self._result_open.set(True)
+
+    # ── Excel 내보내기 ───────────────────────────────────────────────────────
+    def _export(self):
+        if not self.tiktok_results:
+            messagebox.showwarning("데이터 없음", "수집된 TikTok 데이터가 없습니다.")
+            return
+        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel 파일", "*.xlsx")],
+            initialfile=f"TubeMetric_TikTok_{ts}.xlsx",
+        )
+        if not path:
+            return
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            messagebox.showerror("라이브러리 없음", "openpyxl 이 설치되어 있지 않습니다.")
+            return
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "TikTok 영상 데이터"
+        headers = ["계정", "순번", "영상ID", "영상URL", "설명", "게시일",
+                   "조회수", "좋아요", "댓글수", "공유수", "저장수", "오류"]
+        ws.append(headers)
+        HDR_FILL = PatternFill("solid", fgColor="1A1A1A")
+        HDR_FONT = Font(color="F4F4F5", bold=True)
+        for cell in ws[1]:
+            cell.fill = HDR_FILL
+            cell.font = HDR_FONT
+            cell.alignment = Alignment(horizontal="center")
+        for r in self.tiktok_results:
+            ws.append([
+                r.get("username",      ""),
+                r.get("video_index",   ""),
+                r.get("video_id",      ""),
+                r.get("video_url",     ""),
+                r.get("description",   ""),
+                r.get("create_date",   ""),
+                r.get("view_count",    0),
+                r.get("like_count",    0),
+                r.get("comment_count", 0),
+                r.get("share_count",   0),
+                r.get("collect_count", 0),
+                r.get("error",         ""),
+            ])
+        wb.save(path)
+        messagebox.showinfo("저장 완료", f"저장되었습니다:\n{path}")
+
+
 # ── 메인 앱 ──────────────────────────────────────────────────────────────────
 class MainApp(tk.Frame):
     def __init__(self, master):
