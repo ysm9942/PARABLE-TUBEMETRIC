@@ -178,3 +178,66 @@ export const checkQueueStatus = async (
     return 'error';
   }
 };
+
+// ──────────────────────────────────────────────
+// Instagram 스크래퍼
+// ──────────────────────────────────────────────
+
+import type { InstagramUserResult } from '../types';
+
+/**
+ * Instagram 릴스 수집 요청을 GitHub 큐에 등록합니다.
+ * local_server.py가 type: 'instagram' 을 감지하고 instagram_scraper.py를 실행합니다.
+ */
+export const submitInstagramRequest = async (
+  usernames: string[],
+  amount: number = 10
+): Promise<{ requestId: string } | null> => {
+  if (!WRITE_TOKEN || !REPO) return null;
+
+  const requestId = `ig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const path = `results/queue/${requestId}.json`;
+  const payload = {
+    requestId,
+    type: 'instagram',
+    handles: usernames.map(u => u.replace(/^@/, '')),
+    options: { amount },
+    requestedAt: new Date().toISOString(),
+  };
+
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+
+  const res = await fetch(`${GH_API}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${WRITE_TOKEN}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/vnd.github+json',
+    },
+    body: JSON.stringify({
+      message: `instagram: queue ${requestId}`,
+      content: encoded,
+      branch: BRANCH,
+    }),
+  });
+
+  return res.ok ? { requestId } : null;
+};
+
+/**
+ * Instagram 큐 파일 상태 확인 (checkQueueStatus와 동일 로직, ig_ 접두어 구분용)
+ */
+export const checkInstagramQueueStatus = (requestId: string) =>
+  checkQueueStatus(requestId);
+
+/**
+ * index.json의 instagram 섹션에서 모든 수집 결과를 가져옵니다.
+ */
+export const getAllInstagramResults = async (): Promise<InstagramUserResult[]> => {
+  const index = await fetchIndex();
+  if (!index?.instagram?.length) return [];
+  const results = await Promise.all(
+    index.instagram.map(e => fetchJSON<InstagramUserResult>(e.filename))
+  );
+  return results.filter((r): r is InstagramUserResult => r !== null);
+};
