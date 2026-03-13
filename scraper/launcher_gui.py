@@ -3362,6 +3362,7 @@ class MainApp(tk.Frame):
             ("video",     "▸", "단일 영상 분석"),
             ("live",      "▸", "라이브 지표 분석"),
             ("instagram", "▸", "Instagram 분석"),
+            ("tiktok",    "▸", "TikTok 분석"),
         ]:
             row = tk.Frame(sidebar, bg=BG2)
             row.pack(fill="x")
