@@ -47,8 +47,8 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
-import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult } from './types';
-import { submitScrapeRequest, checkQueueStatus, getAllChannelResults } from './services/githubResultsService';
+import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
+import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config';
 type ResultTab = 'table' | 'chart' | 'raw';
