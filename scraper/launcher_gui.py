@@ -3033,14 +3033,11 @@ class MainApp(tk.Frame):
         self.content = tk.Frame(self, bg=BG)
         self.content.pack(side="left", fill="both", expand=True)
 
-        self.dashboard = DashboardTab(self.content, self)
-
         self._pages = {
             "channel":   ChannelTab(self.content, self),
             "video":     VideoTab(self.content, self),
             "live":      LiveMetricsTab(self.content, self),
             "instagram": InstagramTab(self.content, self),
-            "dashboard": self.dashboard,
         }
         self.switch_tab("channel")
 
