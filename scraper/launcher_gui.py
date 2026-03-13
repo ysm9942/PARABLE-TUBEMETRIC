@@ -3405,6 +3405,7 @@ class MainApp(tk.Frame):
             "video":     VideoTab(self.content, self),
             "live":      LiveMetricsTab(self.content, self),
             "instagram": InstagramTab(self.content, self),
+            "tiktok":    TikTokTab(self.content, self),
         }
         self.switch_tab("channel")
 
