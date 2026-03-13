@@ -610,6 +610,100 @@ class VideoTab(tk.Frame):
         tk.Label(btn_row, textvariable=self._status, font=("Consolas", 9),
                  bg=BG, fg=FG_DIM).pack(side="left", padx=14)
 
+        # ── 인라인 결과 ────────────────────────────────────────────────────────
+        self._vid_result_frame = tk.Frame(wrap, bg=BG)
+        result_hdr = tk.Frame(self._vid_result_frame, bg=BG)
+        result_hdr.pack(fill="x", pady=(8, 0))
+        tk.Frame(result_hdr, bg=BORDER, height=1).pack(fill="x")
+        self._vid_result_open = tk.BooleanVar(value=True)
+        self._vid_result_toggle_btn = tk.Button(
+            result_hdr, text="▼  분석 결과  (0개)",
+            command=self._toggle_vid_results,
+            font=("Arial", 9, "bold"), bg=BG, fg=FG, relief="flat",
+            anchor="w", cursor="hand2", activebackground=BG, activeforeground=ACCENT,
+            padx=0, pady=6,
+        )
+        self._vid_result_toggle_btn.pack(fill="x")
+        self._vid_result_body = tk.Frame(self._vid_result_frame, bg=BG)
+        self._vid_result_body.pack(fill="both", expand=True)
+        self._build_vid_result_tree()
+        self._vid_result_frame.pack_forget()
+
+    def _toggle_vid_results(self):
+        if self._vid_result_open.get():
+            self._vid_result_body.pack_forget()
+            self._vid_result_open.set(False)
+            n = len(self.app.video_results)
+            self._vid_result_toggle_btn.configure(text=f"▶  분석 결과  ({n}개)")
+        else:
+            self._vid_result_body.pack(fill="both", expand=True)
+            self._vid_result_open.set(True)
+            n = len(self.app.video_results)
+            self._vid_result_toggle_btn.configure(text=f"▼  분석 결과  ({n}개)")
+
+    def _build_vid_result_tree(self):
+        cols   = ("채널", "유형", "조회수", "좋아요", "댓글", "게시일")
+        widths = (130,    55,     85,       75,       75,     85)
+        tf = tk.Frame(self._vid_result_body, bg=BG)
+        tf.pack(fill="both", expand=True)
+        self._vid_tree = ttk.Treeview(tf, columns=cols, show="tree headings",
+                                      style="Dark.Treeview", height=10)
+        self._vid_tree.heading("#0", text="영상 제목")
+        self._vid_tree.column("#0", width=240, minwidth=100, anchor="w", stretch=True)
+        for i, col in enumerate(cols):
+            self._vid_tree.heading(col, text=col)
+            self._vid_tree.column(col, width=widths[i], minwidth=40, anchor="w")
+        self._vid_tree.tag_configure("shorts", foreground=BLUE)
+        self._vid_tree.tag_configure("longs",  foreground=GREEN)
+        vsb = ttk.Scrollbar(tf, orient="vertical",   command=self._vid_tree.yview)
+        hsb = ttk.Scrollbar(tf, orient="horizontal", command=self._vid_tree.xview)
+        self._vid_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._vid_tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tf.grid_rowconfigure(0, weight=1)
+        tf.grid_columnconfigure(0, weight=1)
+        self._vid_map: dict = {}
+        self._vid_tree.bind("<Double-Button-1>", self._vid_tree_open)
+
+    def _vid_tree_open(self, e):
+        sel = self._vid_tree.selection()
+        if not sel:
+            return
+        iid = sel[0]
+        data = self._vid_map.get(iid)
+        if data:
+            v = data
+            url = (f"https://youtube.com/shorts/{v['videoId']}"
+                   if v.get("isShort") else f"https://youtube.com/watch?v={v['videoId']}")
+            webbrowser.open(url)
+
+    def _populate_vid_results(self, results):
+        tree = self._vid_tree
+        tree.delete(*tree.get_children())
+        self._vid_map.clear()
+        for i, r in enumerate(results):
+            iid = f"vid:{r.get('videoId', i)}"
+            self._vid_map[iid] = r
+            is_short = r.get("isShort", False)
+            tree.insert("", "end", iid=iid,
+                text=f"  {r.get('title', '')[:55]}",
+                values=(
+                    r.get("channelTitle", "")[:25],
+                    "쇼츠" if is_short else "롱폼",
+                    fmt_num(r.get("viewCount",    0)),
+                    fmt_num(r.get("likeCount",    0)),
+                    fmt_num(r.get("commentCount", 0)),
+                    r.get("publishedAt", "")[:10],
+                ),
+                tags=("shorts" if is_short else "longs",),
+            )
+        n = len(results)
+        self._vid_result_toggle_btn.configure(text=f"▼  분석 결과  ({n}개)")
+        self._vid_result_frame.pack(fill="both", expand=True)
+        self._vid_result_body.pack(fill="both", expand=True)
+        self._vid_result_open.set(True)
+
     def _run(self):
         from youtube_api import extract_video_id
         lines = [
