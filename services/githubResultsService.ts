@@ -37,6 +37,7 @@ export interface ResultIndex {
   channels: IndexEntry[];
   videos: IndexEntry[];
   ads: IndexEntry[];
+  instagram: IndexEntry[];
 }
 
 export interface IndexEntry {
