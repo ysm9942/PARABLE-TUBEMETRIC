@@ -2380,7 +2380,7 @@ class InstagramTab(tk.Frame):
                 self._driver = None
             count = len(self.ig_results)
             self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
-            self.after(0, lambda: self.app.dashboard.show_instagram())
+            self.after(0, lambda: self.app.glow_tab("instagram"))
         except Exception as e:
             self.after(0, lambda: self._status_var.set(f"오류: {e}"))
         finally:
