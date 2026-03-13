@@ -1807,20 +1807,60 @@ class LiveMetricsTab(tk.Frame):
                     platform, creator_id, start_dt, end_dt,
                     categories, self._stop_event, progress_cb=None,
                 )
+                for row in rows:
+                    row["creator_id"] = creator_id
                 all_results.extend(rows)
 
-                for row in rows:
-                    self.after(0, lambda r=row: self.result_tree.insert(
-                        "", "end", values=(
-                            r.get("platform",     ""),
-                            r.get("title",        "")[:50],
-                            r.get("category",     ""),
-                            fmt_num(r.get("peak_viewers", 0)),
-                            fmt_num(r.get("avg_viewers",  0)),
-                            r.get("date",         ""),
-                            r.get("duration_min", 0),
-                        )
-                    ))
+                if rows:
+                    peak_avg  = round(sum(r.get("peak_viewers", 0) for r in rows) / len(rows))
+                    avg_avg   = round(sum(r.get("avg_viewers",  0) for r in rows) / len(rows))
+                    dates     = sorted(r.get("date", "") for r in rows if r.get("date"))
+                    date_str  = (f"{dates[0]} ~ {dates[-1]}" if len(dates) > 1
+                                 else dates[0] if dates else "")
+                    total_dur = sum(r.get("duration_min", 0) for r in rows)
+                    plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP"}.get(
+                        platform, platform.upper())
+
+                    def _insert_group(
+                        pid=f"c_{idx}", cname=creator_id, pl=plat_lbl,
+                        cnt=len(rows), pk=peak_avg, av=avg_avg,
+                        ds=date_str, td=total_dur, child_rows=list(rows),
+                    ):
+                        try:
+                            self.result_tree.insert(
+                                "", "end", iid=pid,
+                                text=f"  {cname}",
+                                values=(pl, f"{cnt}건",
+                                        fmt_num(pk), fmt_num(av), ds, td),
+                                open=True,
+                                tags=("creator",),
+                            )
+                        except Exception:
+                            pid += "_dup"
+                            self.result_tree.insert(
+                                "", "end", iid=pid,
+                                text=f"  {cname}",
+                                values=(pl, f"{cnt}건",
+                                        fmt_num(pk), fmt_num(av), ds, td),
+                                open=True,
+                                tags=("creator",),
+                            )
+                        for r in child_rows:
+                            self.result_tree.insert(
+                                pid, "end",
+                                text=f"    {r.get('title', '')[:45]}",
+                                values=(
+                                    r.get("platform", ""),
+                                    r.get("category", ""),
+                                    fmt_num(r.get("peak_viewers", 0)),
+                                    fmt_num(r.get("avg_viewers",  0)),
+                                    r.get("date", ""),
+                                    r.get("duration_min", 0),
+                                ),
+                                tags=("broadcast",),
+                            )
+
+                    self.after(0, _insert_group)
             except Exception:
                 pass
 
