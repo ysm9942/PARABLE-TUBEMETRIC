@@ -2441,24 +2441,66 @@ class DashboardTab(tk.Frame):
                    font_size=10, color=FG_DIM).pack(expand=True)
             return
 
-        # ── 플랫폼별 집계 ─────────────────────────────────────────────────
-        from collections import defaultdict
-        plat_rows: dict = defaultdict(list)
+        # ── 크리에이터별 집계 + 토글 트리 ────────────────────────────────
+        from collections import defaultdict, OrderedDict
+        creator_rows: dict = OrderedDict()
         for r in results:
-            plat_rows[r.get("platform", "?").upper()].append(r)
+            cid = r.get("creator_id") or r.get("platform", "?")
+            creator_rows.setdefault(cid, []).append(r)
 
-        cols = ("플랫폼", "방송 수", "총 최고 시청자", "평균 최고 시청자", "평균 시청자")
-        tree, _ = self._make_tree(cols, widths=(80, 70, 120, 120, 100), height=8)
-        for plat, rows in sorted(plat_rows.items()):
-            peaks = [r.get("peak_viewers", 0) for r in rows]
-            avgs  = [r.get("avg_viewers",  0) for r in rows]
-            tree.insert("", "end", values=(
-                plat,
-                len(rows),
-                fmt_num(sum(peaks)),
-                fmt_num(round(sum(peaks) / len(peaks))) if peaks else 0,
-                fmt_num(round(sum(avgs)  / len(avgs)))  if avgs  else 0,
-            ))
+        cols = ("플랫폼", "방송 수/카테고리", "최고 시청자", "평균 시청자", "날짜", "시간(분)")
+        widths = (58, 90, 85, 85, 90, 62)
+
+        tree_frame = tk.Frame(self._content, bg=BG, padx=20)
+        tree_frame.pack(fill="both", expand=True, pady=(0, 4))
+
+        tree = ttk.Treeview(tree_frame, columns=cols,
+                            show="tree headings", style="Dark.Treeview", height=14)
+        tree.heading("#0", text="크리에이터 / 방송 제목")
+        tree.column("#0", width=200, minwidth=120, anchor="w", stretch=True)
+        for col, w in zip(cols, widths):
+            tree.heading(col, text=col)
+            tree.column(col, width=w, minwidth=40, anchor="w")
+        tree.tag_configure("creator",   font=("Arial", 9, "bold"), foreground=FG)
+        tree.tag_configure("broadcast", foreground=FG_MUTE)
+
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+        for i, (cid, rows) in enumerate(creator_rows.items()):
+            peaks     = [r.get("peak_viewers", 0) for r in rows]
+            avgs      = [r.get("avg_viewers",  0) for r in rows]
+            peak_avg  = round(sum(peaks) / len(peaks)) if peaks else 0
+            avg_avg   = round(sum(avgs)  / len(avgs))  if avgs  else 0
+            dates     = sorted(r.get("date", "") for r in rows if r.get("date"))
+            date_str  = (f"{dates[0]} ~ {dates[-1]}" if len(dates) > 1
+                         else dates[0] if dates else "")
+            total_dur = sum(r.get("duration_min", 0) for r in rows)
+            plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP"}.get(
+                rows[0].get("platform", ""), rows[0].get("platform", "?").upper())
+            pid = f"dash_c_{i}"
+            tree.insert("", "end", iid=pid,
+                        text=f"  {cid}",
+                        values=(plat_lbl, f"{len(rows)}건",
+                                fmt_num(peak_avg), fmt_num(avg_avg),
+                                date_str, total_dur),
+                        open=True, tags=("creator",))
+            for r in rows:
+                tree.insert(pid, "end",
+                            text=f"    {r.get('title', '')[:45]}",
+                            values=(r.get("platform", ""),
+                                    r.get("category", ""),
+                                    fmt_num(r.get("peak_viewers", 0)),
+                                    fmt_num(r.get("avg_viewers",  0)),
+                                    r.get("date", ""),
+                                    r.get("duration_min", 0)),
+                            tags=("broadcast",))
 
     # ── Instagram 결과 ───────────────────────────────────────────────────────
     def _build_instagram(self):
