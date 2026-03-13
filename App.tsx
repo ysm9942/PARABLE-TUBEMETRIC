@@ -100,6 +100,16 @@ const App: React.FC = () => {
   const [scraperResults, setScraperResults] = useState<ChannelResult[]>([]);
   const [scraperResultsLoading, setScraperResultsLoading] = useState(false);
 
+  // Instagram Queue 상태
+  const [igDraft, setIgDraft] = useState<string>('');
+  const [igInput, setIgInput] = useState<string>('');
+  const [igAmount, setIgAmount] = useState<number>(10);
+  const [igJobId, setIgJobId] = useState<string | null>(null);
+  const [igJobStatus, setIgJobStatus] = useState<'idle' | 'submitting' | 'pending' | 'done' | 'error'>('idle');
+  const [igResults, setIgResults] = useState<InstagramUserResult[]>([]);
+  const [igResultsLoading, setIgResultsLoading] = useState(false);
+  const [selectedIgUser, setSelectedIgUser] = useState<InstagramUserResult | null>(null);
+
   // 스크래퍼 날짜 필터
   const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
   const [scraperStartDate, setScraperStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
