@@ -1780,6 +1780,204 @@ const App: React.FC = () => {
                 <BarChart3 size={16} /> 스크래퍼 결과 대시보드 보기
               </button>
             </div>
+          ) : activeTab === 'instagram-config' ? (
+            /* ── Instagram 릴스 분석 탭 ──────────────────────────────────────── */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Instagram 릴스 분석</h2>
+                  <p className="text-xs text-zinc-600 mt-0.5">로컬 서버를 통해 릴스 조회수·좋아요·댓글 수집</p>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                  <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
+                </div>
+              </div>
+
+              {/* 작동 방식 안내 */}
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
+                <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-violet-500" /> 작동 방식</p>
+                <div className="space-y-1.5 text-xs text-zinc-500">
+                  <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                  <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_scraper.py</code> 실행.</p>
+                  <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
+                </div>
+                <div className="border-t border-white/8 pt-3 text-xs text-zinc-600">
+                  필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_PASSWORD</code> — scraper/.env에 설정
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: list input */}
+                <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                      <Instagram size={13} className="text-pink-500" /> Account List
+                      {igList.length > 0 && <span className="bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded text-[10px]">{igList.length}</span>}
+                    </label>
+                    {igList.length > 0 && (
+                      <button onClick={clearIgList} className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={igDraft}
+                      onChange={e => setIgDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addIgItem()}
+                      placeholder="@username 또는 username 입력 후 Enter"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
+                    />
+                    <button onClick={addIgItem} className="flex items-center gap-1.5 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
+                  </div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    {igList.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-700 space-y-2"><Instagram size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
+                    ) : igList.map((u, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                        <span className="text-pink-600 text-xs shrink-0">@</span>
+                        <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{u}</span>
+                        <button onClick={() => removeIgItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"><X size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: options + run */}
+                <div className="xl:col-span-2 flex flex-col gap-4">
+                  {/* Amount slider */}
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-pink-500" /> 수집 개수 설정</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-500">계정당 릴스 수</span>
+                        <span className="text-pink-400 font-medium">{igAmount}개</span>
+                      </div>
+                      <input
+                        type="range" min={5} max={50} step={5}
+                        value={igAmount}
+                        onChange={e => setIgAmount(Number(e.target.value))}
+                        className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-pink-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-zinc-700">
+                        <span>5개</span><span>50개</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-600">최신 릴스부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
+                  </div>
+
+                  {/* Status */}
+                  {igJobStatus !== 'idle' && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium ${
+                      igJobStatus === 'pending'    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                      igJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                      igJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                     'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {(igJobStatus === 'submitting' || igJobStatus === 'pending') && <Loader2 size={13} className="animate-spin shrink-0" />}
+                      {igJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
+                      {igJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
+                      <span>{{
+                        submitting: 'GitHub에 요청 전송 중...',
+                        pending:    `로컬 서버 처리 중... (10초마다 확인)`,
+                        done:       '완료! 아래에서 결과를 확인하세요.',
+                        error:      'GITHUB_TOKEN 미설정 또는 오류 발생',
+                        idle:       '',
+                      }[igJobStatus]}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-auto">
+                    <button
+                      onClick={handleIgRequest}
+                      disabled={igJobStatus === 'submitting' || igJobStatus === 'pending'}
+                      className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                    >
+                      {(igJobStatus === 'submitting' || igJobStatus === 'pending')
+                        ? <Loader2 className="animate-spin" size={16} />
+                        : <Instagram size={16} />}
+                      {igJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : '수집 요청 전송'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Results */}
+              {(igResults.length > 0 || igResultsLoading) && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                    <div className="flex items-center gap-2.5">
+                      <Instagram size={14} className="text-pink-500" />
+                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-xs text-zinc-600">{igResults.length}개 계정</span>
+                    </div>
+                    <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-zinc-400 hover:text-white transition-all">
+                      {igResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 새로고침
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                        <tr>
+                          <th className="px-6 py-3 font-medium">Account</th>
+                          <th className="px-6 py-3 text-center font-medium">Reels</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Views</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Likes</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Comments</th>
+                          <th className="px-6 py-3 text-center font-medium">Scraped At</th>
+                          <th className="px-6 py-3 text-center font-medium">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {igResultsLoading ? (
+                          <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-600" size={22} /></td></tr>
+                        ) : igResults.map(r => (
+                          <tr key={r.username} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-6 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-violet-600 flex items-center justify-center shrink-0">
+                                  <span className="text-white text-xs font-bold">{r.username[0]?.toUpperCase()}</span>
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium text-zinc-200 group-hover:text-pink-400 transition-colors">@{r.username}</div>
+                                  {r.error && <div className="text-[10px] text-red-400 mt-0.5">{r.error}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.reelCount}</span>
+                            </td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-xs text-violet-400 tabular-nums">{r.avgLikes.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-xs text-zinc-400 tabular-nums">{r.avgComments.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-center text-xs text-zinc-600 font-mono">
+                              {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <button
+                                onClick={() => setSelectedIgUser(r)}
+                                disabled={!r.reelCount}
+                                className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {igResults.length === 0 && !igResultsLoading && igJobStatus === 'idle' && (
+                <button onClick={loadIgResults} className="w-full bg-white/5 hover:bg-white/8 text-zinc-400 hover:text-zinc-200 py-3 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
+                  <Instagram size={15} /> 이전 수집 결과 불러오기
+                </button>
+              )}
+            </div>
+
           ) : (
             <div className="space-y-5 animate-in fade-in duration-300">
               {/* 헤더 */}
