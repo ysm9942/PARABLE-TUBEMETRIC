@@ -378,6 +378,55 @@ const App: React.FC = () => {
     }
   }, [activeTab, dashboardSubTab, scraperResults.length]);
 
+  // ── Instagram 핸들러 ────────────────────────────────────────────────────────
+  const addIgItem = () => {
+    const v = igDraft.trim().replace(/^@/, '');
+    if (!v) return;
+    setIgInput(prev => prev ? prev + '\n' + v : v);
+    setIgDraft('');
+  };
+  const removeIgItem = (idx: number) => setIgInput(igList.filter((_, i) => i !== idx).join('\n'));
+  const clearIgList = () => setIgInput('');
+
+  const handleIgRequest = async () => {
+    if (!igList.length) {
+      alert('수집할 Instagram 계정을 입력하세요.');
+      return;
+    }
+    setIgJobStatus('submitting');
+    const result = await submitInstagramRequest(igList, igAmount);
+    if (!result) {
+      setIgJobStatus('error');
+      return;
+    }
+    setIgJobId(result.requestId);
+    setIgJobStatus('pending');
+  };
+
+  const loadIgResults = async () => {
+    setIgResultsLoading(true);
+    const results = await getAllInstagramResults();
+    setIgResults(results);
+    setIgResultsLoading(false);
+  };
+
+  // Instagram 큐 폴링
+  useEffect(() => {
+    if (!igJobId) return;
+    let isActive = true;
+    const interval = setInterval(async () => {
+      if (!isActive) return;
+      const status = await checkInstagramQueueStatus(igJobId);
+      if (status === 'done' && isActive) {
+        setIgJobStatus('done');
+        await loadIgResults();
+      } else if (status === 'error' && isActive) {
+        setIgJobStatus('error');
+      }
+    }, 10000);
+    return () => { isActive = false; clearInterval(interval); };
+  }, [igJobId]);
+
   const handleAdStart = async () => {
     const inputs = adChannelInput.split('\n').map(s => s.trim()).filter(s => s.length > 0);
     if (inputs.length === 0) {
