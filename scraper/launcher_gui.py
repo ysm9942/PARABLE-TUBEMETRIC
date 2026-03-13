@@ -2990,12 +2990,12 @@ class MainApp(tk.Frame):
         # ── 탭 버튼 (인디케이터 바 포함) ────────────────────────────────────
         self._tab_items: dict = {}
         self._tab_btns:  dict = {}
+        self._tab_dots:  dict = {}
         for key, icon, label in [
             ("channel",   "▸", "채널 통합 분석"),
             ("video",     "▸", "단일 영상 분석"),
             ("live",      "▸", "라이브 지표 분석"),
             ("instagram", "▸", "Instagram 분석"),
-            ("dashboard", "▸", "데이터 대시보드"),
         ]:
             row = tk.Frame(sidebar, bg=BG2)
             row.pack(fill="x")
@@ -3010,9 +3010,15 @@ class MainApp(tk.Frame):
                 font=("Arial", 10), relief="flat",
                 anchor="w", padx=16, pady=12, cursor="hand2",
             )
-            btn.pack(fill="both", expand=True)
+            btn.pack(side="left", fill="both", expand=True)
+            dot = tk.Label(row, text="●", font=("Arial", 8), bg=BG2,
+                           fg=ACCENT, width=2)
+            dot.pack(side="right", padx=(0, 8))
+            dot.lower()   # 초기에는 보이지 않도록 (배경색으로 숨김)
+            dot.configure(fg=BG2)
             self._tab_items[key] = {"btn": btn, "ind": ind}
-            self._tab_btns[key] = btn
+            self._tab_btns[key]  = btn
+            self._tab_dots[key]  = dot
 
         # ── 하단 시스템 정보 ─────────────────────────────────────────────────
         mf = tk.Frame(sidebar, bg=BG2)
