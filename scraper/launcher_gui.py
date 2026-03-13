@@ -1396,14 +1396,18 @@ class LiveMetricsTab(tk.Frame):
         tree_frame = tk.Frame(right, bg=BG)
         tree_frame.pack(fill="both", expand=True)
 
-        cols = ("플랫폼", "방송 제목", "카테고리",
-                "최고 시청자", "평균 시청자", "날짜", "방송시간(분)")
-        widths = (55, 220, 110, 80, 80, 85, 70)
+        cols = ("플랫폼", "방송 수/카테고리", "최고 시청자", "평균 시청자", "날짜", "시간(분)")
+        widths = (58, 90, 82, 82, 88, 62)
         self.result_tree = ttk.Treeview(tree_frame, columns=cols,
-                                        show="headings", style="Dark.Treeview", height=10)
+                                        show="tree headings", style="Dark.Treeview", height=10)
+        self.result_tree.heading("#0", text="크리에이터 / 방송 제목")
+        self.result_tree.column("#0", width=210, minwidth=120, anchor="w", stretch=True)
         for i, col in enumerate(cols):
             self.result_tree.heading(col, text=col)
             self.result_tree.column(col, width=widths[i], minwidth=40, anchor="w")
+        # 크리에이터 행 강조 스타일
+        self.result_tree.tag_configure("creator",   font=("Arial", 9, "bold"), foreground=FG)
+        self.result_tree.tag_configure("broadcast", foreground=FG_MUTE)
 
         vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=self.result_tree.yview)
         hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.result_tree.xview)
