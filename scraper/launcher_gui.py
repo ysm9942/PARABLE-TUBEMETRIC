@@ -6,7 +6,7 @@ Vercel 대시보드의 모든 기능을 로컬 exe에 구현:
   - 광고 영상 분석  (YouTube API + NLP)
   - 로컬 스크래퍼   (undetected-chromedriver → GitHub push)
   - 라이브 지표 분석 (CHZZK/SOOP · viewership.softc.one)
-  - Instagram 분석  (undetected-chromedriver → 릴스 지표 수집)
+  - Instagram 분석  (instagrapi → user_clips() → 릴스 지표 수집)
 """
 import sys
 import re
@@ -749,460 +749,95 @@ class VideoTab(tk.Frame):
         self.after(0, lambda: self.app.glow_tab("video"))
 
 
-# ── Instagram 스크래퍼 (모듈 레벨) ────────────────────────────────────────────────
+# ── Instagram 스크래퍼 (instagrapi) ─────────────────────────────────────────────
 
-def _ig_sleep(a: float = 1.3, b: float = 2.8) -> None:
+_IG_SESSION_FILE = str(SCRIPT_DIR / "ig_session.json")
+
+
+def _ig_sleep(a: float = 1.5, b: float = 3.5) -> None:
     time.sleep(random.uniform(a, b))
 
-def _ig_normalize_url(url: str) -> str:
-    return url.split("?")[0].rstrip("/") + "/"
 
-def _ig_parse_number(text) -> "int | None":
-    if not text:
-        return None
-    compact = str(text).replace(",", "").replace(" ", "").upper()
-    for unit, mul in [("억", 100_000_000), ("만", 10_000), ("천", 1_000)]:
-        m = re.search(rf"(\d+(?:\.\d+)?){unit}", compact)
-        if m:
-            try:
-                return int(float(m.group(1)) * mul)
-            except ValueError:
-                return None
-    m = re.search(r"(\d+(?:\.\d+)?)([KMB])\b", compact)
-    if m:
-        mul_map = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}
-        try:
-            return int(float(m.group(1)) * mul_map[m.group(2)])
-        except ValueError:
-            return None
-    m = re.search(r"(\d+)", compact)
-    if m:
-        try:
-            return int(m.group(1))
-        except ValueError:
-            return None
-    return None
+def _ig_build_client():
+    from instagrapi import Client
+    return Client()
 
-def _ig_get_chrome_ver():
-    import subprocess, re as _re2
-    cmds = [
-        r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version',
-        r'reg query "HKEY_LOCAL_MACHINE\Software\Google\Chrome\BLBeacon" /v version',
-        r'reg query "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Google\Chrome\BLBeacon" /v version',
-    ]
-    for cmd in cmds:
-        try:
-            out = subprocess.check_output(cmd, shell=True, text=True,
-                                          encoding="utf-8", errors="ignore")
-            m = _re2.search(r"(\d+)\.\d+\.\d+\.\d+", out)
-            if m:
-                return int(m.group(1))
-        except Exception:
-            continue
-    return None
 
-def _ig_create_driver(headless: bool = False):
-    import undetected_chromedriver as uc
-    opts = uc.ChromeOptions()
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--start-maximized")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_argument("--lang=ko-KR")
-    chrome_major = _ig_get_chrome_ver()
+def _ig_login_with_session(username: str, password: str, session_file: str = "") -> "Client":
+    from instagrapi import Client
+    from instagrapi.exceptions import LoginRequired, ChallengeRequired, PleaseWaitFewMinutes
+    from pathlib import Path as _P
+    if not session_file:
+        session_file = _IG_SESSION_FILE
+    cl = _ig_build_client()
+    sp = _P(session_file)
     try:
-        if chrome_major:
-            driver = uc.Chrome(options=opts, version_main=chrome_major, headless=headless)
-        else:
-            driver = uc.Chrome(options=opts, headless=headless)
-    except Exception:
-        driver = uc.Chrome(options=opts, headless=headless)
-    driver.implicitly_wait(3)
-    return driver
-
-def _ig_save_cookies(driver, path: str) -> None:
-    with open(path, "wb") as f:
-        pickle.dump(driver.get_cookies(), f)
-
-def _ig_load_cookies(driver, path: str) -> bool:
-    import os
-    if not os.path.exists(path):
-        return False
-    try:
-        driver.get("https://www.instagram.com/")
-        _ig_sleep(2, 3)
-        with open(path, "rb") as f:
-            cookies = pickle.load(f)
-        for cookie in cookies:
-            c = cookie.copy()
-            if "sameSite" in c and c["sameSite"] not in ("Strict", "Lax", "None"):
-                c.pop("sameSite", None)
-            try:
-                driver.add_cookie(c)
-            except Exception:
-                continue
-        driver.get("https://www.instagram.com/")
-        _ig_sleep(3, 4)
-        return True
-    except Exception:
-        return False
-
-def _ig_is_logged_in(driver) -> bool:
-    try:
-        driver.get("https://www.instagram.com/")
-        _ig_sleep(2, 3)
-        return "accounts/login" not in driver.current_url.lower()
-    except Exception:
-        return False
-
-def _ig_dismiss_popups(driver) -> None:
-    """팝업 버튼이 있으면 한 번만 탐지·클릭 (단일 XPath OR로 불필요한 대기 제거)."""
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    _texts = ["나중에 하기", "나중에", "취소", "Not Now", "Cancel"]
-    _xp = " | ".join(
-        f"//button[normalize-space()='{t}'] | //div[@role='button' and normalize-space()='{t}']"
-        for t in _texts
-    )
-    try:
-        btn = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, _xp)))
-        try:
-            btn.click()
-        except Exception:
-            driver.execute_script("arguments[0].click();", btn)
-        time.sleep(0.5)
-    except Exception:
-        pass
-
-def _ig_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.keys import Keys
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    driver.get("https://www.instagram.com/accounts/login/")
-    # Instagram은 name 속성이 "username"/"password" 또는 "email"/"pass" 로 변경될 수 있음
-    WebDriverWait(driver, 15).until(
-        lambda d: d.find_elements(By.CSS_SELECTOR, "input[name='username'], input[name='email']")
-    )
-    user_el = (
-        driver.find_elements(By.NAME, "username") or
-        driver.find_elements(By.NAME, "email")
-    )[0]
-    pw_el = (
-        driver.find_elements(By.NAME, "password") or
-        driver.find_elements(By.NAME, "pass")
-    )[0]
-    user_el.clear(); user_el.send_keys(ig_id)
-    _ig_sleep(0.5, 1.0)
-    pw_el.clear(); pw_el.send_keys(ig_pw)
-    _ig_sleep(0.5, 1.0)
-    pw_el.send_keys(Keys.ENTER)
-    time.sleep(6)
-    _ig_dismiss_popups(driver)
-    if not _ig_is_logged_in(driver):
-        raise RuntimeError("Instagram 로그인 실패 — ID/PW 확인 또는 2FA 비활성화 필요")
-    _ig_save_cookies(driver, cookie_path)
-
-def _ig_ensure_login(driver, ig_id: str, ig_pw: str, cookie_path: str) -> None:
-    if _ig_load_cookies(driver, cookie_path) and _ig_is_logged_in(driver):
-        return
-    _ig_login(driver, ig_id, ig_pw, cookie_path)
-
-def _ig_open_reels_tab(driver, username: str) -> None:
-    """릴스 탭으로 이동. /username/reels/ 직접 이동 → 실패 시 프로필에서 탭 클릭."""
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-
-    reels_url = f"https://www.instagram.com/{username}/reels/"
-    driver.get(reels_url)
-    _ig_dismiss_popups(driver)
-    # 릴스 링크가 1개라도 나타나면 바로 진행 (최대 6s 대기)
-    try:
-        WebDriverWait(driver, 6).until(
-            lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
-        )
-        if f"/{username.lower()}/reels" in driver.current_url.lower():
-            return
-    except Exception:
-        pass
-
-    # 백업: 프로필 진입 후 릴스 탭 클릭
-    driver.get(f"https://www.instagram.com/{username}/")
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.TAG_NAME, "header"))
-    )
-    css_selectors = [
-        f"a[href='/{username}/reels/']",
-        f"a[href='/{username.lower()}/reels/']",
-        "a[href$='/reels/']",
-    ]
-    for sel in css_selectors:
-        try:
-            el = WebDriverWait(driver, 4).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, sel))
-            )
-            try:
-                el.click()
-            except Exception:
-                driver.execute_script("arguments[0].click();", el)
-            WebDriverWait(driver, 6).until(
-                lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
-            )
-            return
-        except Exception:
-            pass
-    # XPath 백업
-    try:
-        el = WebDriverWait(driver, 4).until(EC.element_to_be_clickable((
-            By.XPATH,
-            "//a[contains(@href, '/reels/') and (@role='link' or @tabindex='0')]",
-        )))
-        try:
-            el.click()
-        except Exception:
-            driver.execute_script("arguments[0].click();", el)
-        WebDriverWait(driver, 6).until(
-            lambda d: d.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
-        )
-    except Exception:
-        driver.get(reels_url)
-        _ig_sleep(2, 3)
+        if sp.exists():
+            cl.load_settings(session_file)
+        cl.login(username, password)
+        cl.dump_settings(session_file)
+        return cl
+    except LoginRequired:
+        sp.unlink(missing_ok=True)
+        cl = _ig_build_client()
+        cl.login(username, password)
+        cl.dump_settings(session_file)
+        return cl
+    except ChallengeRequired as e:
+        raise RuntimeError(
+            "Instagram 챌린지 인증이 필요합니다.
+앱/웹에서 직접 인증 후 다시 시도하세요."
+        ) from e
+    except PleaseWaitFewMinutes as e:
+        raise RuntimeError(
+            "Instagram이 요청을 일시 제한했습니다. 잠시 후 다시 시도하세요."
+        ) from e
 
 
-def _ig_collect_reel_links(driver, username: str, max_reels: int = 10) -> list:
-    """/username/reels/ 탭으로 이동 후 /reel/ 링크만 수집."""
-    from selenium.webdriver.common.by import By
-    _ig_open_reels_tab(driver, username)
-    links: dict = {}  # url → None, 삽입 순서(최신순) 유지 + 중복 제거
-    retry = last_count = 0
-    while len(links) < max_reels and retry < 6:
-        for elem in driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']"):
-            href = elem.get_attribute("href")
-            if href and "/reel/" in href:
-                links[_ig_normalize_url(href)] = None
-        if len(links) == last_count:
-            retry += 1
-        else:
-            retry = 0
-            last_count = len(links)
-        driver.execute_script("window.scrollBy(0, 1400);")
-        _ig_sleep(1.0, 1.6)
-    return list(links)[:max_reels]
-
-def _ig_scrape_reels_from_grid(driver, username: str, max_reels: int = 10) -> list:
-    """릴스 탭 그리드에서 개별 페이지 방문 없이 지표 수집.
-    - 조회수: 그리드 셀 내 span[dir] 안의 html-span (항상 노출)
-    - 좋아요·댓글: 셀에 마우스오버 후 dir 없는 html-span 숫자들 (좋아요, 댓글 순)
-    탐색 범위는 <a> 태그가 아닌 '그리드 셀 컨테이너' 기준으로 수행.
-    """
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.action_chains import ActionChains
-
-    _ig_open_reels_tab(driver, username)
-    _ig_dismiss_popups(driver)
-
-    results: dict = {}  # url -> row (삽입 순서 = 최신순)
-    retry = last_count = 0
-    actions = ActionChains(driver)
-
-    def _cell_of(anchor):
-        """anchor의 가장 가까운 그리드 셀(reel 링크가 하나만 있는 최소 조상) 반환."""
-        return driver.execute_script(
-            "let e = arguments[0].parentElement;"
-            "while(e && e.querySelectorAll('a[href*=\"/reel/\"]').length !== 1)"
-            "{ e = e.parentElement; }"
-            "return e || arguments[0].parentElement;",
-            anchor,
-        )
-
-    def _parse_nums(elements):
-        """span 목록에서 숫자 파싱 (만/천/K/M 등 모두 처리)."""
-        nums = []
-        for s in elements:
-            t = s.text.strip()
-            if t:
-                n = _ig_parse_number(t)
-                if n is not None:
-                    nums.append(n)
-        return nums
-
-    while len(results) < max_reels and retry < 6:
-        anchors = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
-        for a in anchors:
-            if len(results) >= max_reels:
-                break
-            href = a.get_attribute("href")
-            if not href or "/reel/" not in href:
-                continue
-            url = _ig_normalize_url(href)
-            if url in results:
-                continue
-
-            # 그리드 셀 컨테이너 (stats overlay가 <a> 바깥에 있을 수 있음)
-            try:
-                cell = _cell_of(a)
-            except Exception:
-                cell = a
-
-            # 조회수 — dir="auto" wrapper 내부 html-span (항상 노출)
-            view_count = None
-            try:
-                vspan = cell.find_element(
-                    By.XPATH, ".//span[@dir]//span[contains(@class,'html-span')]"
-                )
-                view_count = _ig_parse_number(vspan.text.strip())
-            except Exception:
-                pass
-
-            # 썸네일
-            thumbnail_url = ""
-            try:
-                img = a.find_element(By.TAG_NAME, "img")
-                thumbnail_url = img.get_attribute("src") or ""
-            except Exception:
-                pass
-
-            # 마우스오버 → 좋아요·댓글 (dir 없는 html-span, 셀 전체 기준)
-            like_count = comment_count = None
-            try:
-                driver.execute_script(
-                    "arguments[0].scrollIntoView({block:'center',behavior:'instant'});", a
-                )
-                _ig_sleep(0.15, 0.3)
-                actions.move_to_element(a).perform()
-                _ig_sleep(0.6, 1.0)
-                hover_spans = cell.find_elements(
-                    By.XPATH,
-                    ".//span[contains(@class,'html-span')"
-                    " and not(ancestor::span[@dir])]",
-                )
-                nums = _parse_nums(hover_spans)
-                if len(nums) >= 2:
-                    like_count, comment_count = nums[0], nums[1]
-                elif len(nums) == 1:
-                    like_count = nums[0]
-            except Exception:
-                pass
-
-            results[url] = {
-                "account":        username,
-                "reel_url":       url,
-                "caption":        "",
-                "thumbnail_url":  thumbnail_url,
-                "video_url":      "",
-                "like_count":     like_count,
-                "like_raw":       str(like_count) if like_count is not None else "",
-                "view_count":     view_count,
-                "view_raw":       str(view_count) if view_count is not None else "",
-                "comment_count":  comment_count,
-                "comment_raw":    str(comment_count) if comment_count is not None else "",
-                "posted_at":      "",
-                "scraped_at":     datetime.now().isoformat(),
-            }
-
-        if len(results) == last_count:
-            retry += 1
-        else:
-            retry = 0
-            last_count = len(results)
-        if len(results) < max_reels:
-            driver.execute_script("window.scrollBy(0, 1400);")
-            _ig_sleep(1.0, 1.6)
-
-    return list(results.values())[:max_reels]
-
-
-def _ig_scrape_post(driver, post_url: str, account: str) -> dict:
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    driver.get(post_url)
-    _ig_dismiss_popups(driver)
-
-    # 날짜 — 페이지 핵심 요소 로드 대기 겸용
-    posted_at = ""
-    try:
-        tel = WebDriverWait(driver, 8).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "time[datetime]"))
-        )
-        posted_at = (tel.get_attribute("datetime") or "")[:10]
-    except Exception:
-        _ig_sleep(1.0, 1.8)  # time 태그 없으면 최소 대기
-
-    # 캡션
-    caption = ""
-    for sel in ["h1", "article h1", "div[role='dialog'] h1"]:
-        try:
-            caption = driver.find_element(By.CSS_SELECTOR, sel).text.strip()
-            if caption:
-                break
-        except Exception:
-            pass
-    if not caption:
-        try:
-            caption = driver.find_element(By.TAG_NAME, "article").text.strip()[:500]
-        except Exception:
-            pass
-
-    # 이미지 / 비디오
-    all_image_urls: list = []
-    seen: set = set()
-    for img in driver.find_elements(By.CSS_SELECTOR, "article img, img"):
-        src = img.get_attribute("src")
-        if src and src.startswith("http") and src not in seen:
-            seen.add(src)
-            all_image_urls.append(src)
-    video_url = ""
-    for v in driver.find_elements(By.CSS_SELECTOR, "video"):
-        src = v.get_attribute("src")
-        if src and src.startswith("http"):
-            video_url = src
-            break
-
-    # 좋아요 / 조회수 / 댓글수
-    like_count = view_count = comment_count = None
-    like_raw = view_raw = comment_raw = ""
-    candidates = driver.find_elements(
-        By.XPATH,
-        "//*[contains(text(),'좋아요') or contains(text(),'likes') "
-        "or contains(text(),'조회') or contains(text(),'views') "
-        "or contains(text(),'댓글') or contains(text(),'comments')]",
-    )
-    for el in candidates:
-        txt = (el.text or "").strip()
-        if not txt:
-            continue
-        if like_count is None and ("좋아요" in txt or "like" in txt.lower()):
-            like_raw   = txt
-            like_count = _ig_parse_number(txt)
-        if view_count is None and ("조회" in txt or "view" in txt.lower()):
-            view_raw   = txt
-            view_count = _ig_parse_number(txt)
-        if comment_count is None and ("댓글" in txt or "comment" in txt.lower()):
-            comment_raw   = txt
-            comment_count = _ig_parse_number(txt)
-
-    is_carousel = len(all_image_urls) >= 2
-
+def _ig_media_to_row(media, username: str) -> dict:
+    code  = getattr(media, "code", None)
+    taken = getattr(media, "taken_at", None)
     return {
-        "account":        account,
-        "reel_url":       post_url,
-        "caption":        caption[:200],
-        "thumbnail_url":  all_image_urls[0] if all_image_urls else "",
-        "video_url":      video_url,
-        "like_count":     like_count,
-        "like_raw":       like_raw,
-        "view_count":     view_count,
-        "view_raw":       view_raw,
-        "comment_count":  comment_count,
-        "comment_raw":    comment_raw,
-        "posted_at":      posted_at,
+        "account":        username,
+        "media_pk":       str(getattr(media, "pk", "") or ""),
+        "product_type":   getattr(media, "product_type", None) or "",
+        "caption":        (getattr(media, "caption_text", None) or "")[:300],
+        "like_count":     getattr(media, "like_count", None),
+        "comment_count":  getattr(media, "comment_count", None),
+        "view_count":     getattr(media, "view_count", None),
+        "video_duration": getattr(media, "video_duration", None),
+        "thumbnail_url":  str(getattr(media, "thumbnail_url", "") or ""),
+        "video_url":      str(getattr(media, "video_url", "") or ""),
+        "reel_url":       f"https://www.instagram.com/reel/{code}/" if code else "",
+        "posted_at":      str(taken)[:10] if taken else "",
         "scraped_at":     datetime.now().isoformat(),
     }
 
+
+def _ig_fetch_reels(
+    username: str,
+    amount: int,
+    ig_id: str,
+    ig_pw: str,
+    session_file: str,
+    stop_event: threading.Event,
+) -> list:
+    from instagrapi.exceptions import ClientError
+    cl = _ig_login_with_session(ig_id, ig_pw, session_file)
+    user_id = cl.user_id_from_username(username)
+    _ig_sleep(1.0, 2.5)
+    clips = cl.user_clips(user_id, amount=amount)
+    rows: list = []
+    for clip in clips:
+        if stop_event.is_set():
+            break
+        try:
+            detail = cl.media_info(clip.pk)
+            rows.append(_ig_media_to_row(detail, username))
+        except ClientError:
+            rows.append(_ig_media_to_row(clip, username))
+        _ig_sleep(0.8, 2.0)
+    return rows
 
 # ── 라이브 지표 크롤러 (모듈 레벨) ───────────────────────────────────────────────
 
@@ -2186,14 +1821,13 @@ class InstagramTab(tk.Frame):
         self.app = app
         self._stop_event = threading.Event()
         self._thread = None
-        self._driver = None
         self.ig_results: list = []
         self._tree_row = [0]
         self._build()
 
     def _build(self):
         _section_header(self, "Instagram 릴스 분석",
-                        "undetected-chromedriver  →  릴스 탭(/reels/)  →  지표 수집")
+                        "instagrapi  →  user_clips()  →  좋아요·조회수·댓글수·재생시간 수집")
 
         wrap = tk.Frame(self, bg=BG, padx=28)
         wrap.pack(fill="both", expand=True)
@@ -2226,6 +1860,20 @@ class InstagramTab(tk.Frame):
                  bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
                  font=("Consolas", 10), show="●").pack(side="left", padx=(6, 0))
 
+        # ── 세션 파일 상태 ────────────────────────────────────────────────────
+        sess_row = tk.Frame(wrap, bg=BG, pady=2)
+        sess_row.pack(fill="x")
+        tk.Label(sess_row, text="세션 파일:",
+                 font=("Arial", 8), bg=BG, fg=FG_DIM).pack(side="left")
+        tk.Label(sess_row, text=_IG_SESSION_FILE,
+                 font=("Consolas", 8), bg=BG, fg=FG_DIM, anchor="w").pack(side="left", padx=(4, 12))
+        _btn(sess_row, "세션 초기화", self._clear_session,
+             padx=8, pady=3).pack(side="left")
+        self._sess_status = tk.Label(sess_row, text="",
+                                     font=("Consolas", 8), bg=BG, fg=FG_DIM)
+        self._sess_status.pack(side="left", padx=6)
+        self._refresh_sess_status()
+
         # ── 옵션 ─────────────────────────────────────────────────────────────
         opt_row = tk.Frame(wrap, bg=BG, pady=4)
         opt_row.pack(fill="x")
@@ -2234,12 +1882,7 @@ class InstagramTab(tk.Frame):
         self._max_posts = tk.StringVar(value="10")
         tk.Entry(opt_row, textvariable=self._max_posts, width=5,
                  bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
-                 font=("Consolas", 10)).pack(side="left", padx=(6, 20))
-        self._headless = tk.BooleanVar(value=False)
-        tk.Checkbutton(opt_row, text="헤드리스  (Chrome 창 없이 실행)",
-                       variable=self._headless, bg=BG, fg=FG_DIM,
-                       activebackground=BG, selectcolor=BG3,
-                       font=("Arial", 9), activeforeground=FG).pack(side="left")
+                 font=("Consolas", 10)).pack(side="left", padx=(6, 0))
 
         # ── 버튼 행 ──────────────────────────────────────────────────────────
         btn_row = tk.Frame(wrap, bg=BG, pady=6)
@@ -2264,8 +1907,8 @@ class InstagramTab(tk.Frame):
         tree_frame = tk.Frame(wrap, bg=BG)
         tree_frame.pack(fill="both", expand=True)
 
-        cols   = ("계정", "좋아요", "조회수", "댓글수", "게시일", "캡션")
-        widths = (120,    80,      80,       70,       90,      290)
+        cols   = ("계정",  "좋아요", "조회수", "댓글수", "재생시간(초)", "게시일", "캡션")
+        widths = (120,     80,       80,       70,       90,             90,       250)
         self.result_tree = ttk.Treeview(tree_frame, columns=cols,
                                         show="headings", style="Dark.Treeview", height=10)
         for i, col in enumerate(cols):
@@ -2275,8 +1918,7 @@ class InstagramTab(tk.Frame):
         self.result_tree.tag_configure("even", background=BG5)
         _orig = self.result_tree.insert
         def _striped(*a, **kw):
-            kw["tags"] = list(kw.get("tags", ())) + \
-                         ["odd" if self._tree_row[0] % 2 == 0 else "even"]
+            kw["tags"] = list(kw.get("tags", ())) +                          ["odd" if self._tree_row[0] % 2 == 0 else "even"]
             r = _orig(*a, **kw)
             self._tree_row[0] += 1
             return r
@@ -2291,12 +1933,29 @@ class InstagramTab(tk.Frame):
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
+    # ── 세션 관리 ─────────────────────────────────────────────────────────────
+    def _refresh_sess_status(self):
+        from pathlib import Path as _P
+        if _P(_IG_SESSION_FILE).exists():
+            self._sess_status.configure(text="[세션 존재]", fg="#4ADE80")
+        else:
+            self._sess_status.configure(text="[세션 없음]",  fg=FG_DIM)
+
+    def _clear_session(self):
+        from pathlib import Path as _P
+        sp = _P(_IG_SESSION_FILE)
+        if sp.exists():
+            sp.unlink()
+            self._refresh_sess_status()
+            messagebox.showinfo("세션 초기화", "세션 파일이 삭제되었습니다.
+다음 수집 시 재로그인합니다.")
+        else:
+            messagebox.showinfo("세션 초기화", "세션 파일이 없습니다.")
+
     # ── 수집 실행 ─────────────────────────────────────────────────────────────
     def _run(self):
         def _parse_account(raw: str) -> str:
             s = raw.strip().lstrip("@")
-            # URL 형식이면 경로에서 첫 세그먼트 추출
-            # e.g. https://www.instagram.com/eia_asmr/  →  eia_asmr
             m = re.search(r"instagram\.com/([^/?#]+)", s)
             if m:
                 return m.group(1).strip("/")
@@ -2329,71 +1988,64 @@ class InstagramTab(tk.Frame):
         for row in self.result_tree.get_children():
             self.result_tree.delete(row)
 
-        cookie_path = str(SCRIPT_DIR / "instagram_cookies.pkl")
         self._thread = threading.Thread(
             target=self._crawl_thread,
-            args=(accounts, ig_id, ig_pw, max_posts, cookie_path),
+            args=(accounts, ig_id, ig_pw, max_posts, _IG_SESSION_FILE),
             daemon=True,
         )
         self._thread.start()
 
-    def _crawl_thread(self, accounts, ig_id, ig_pw, max_posts, cookie_path):
+    def _crawl_thread(self, accounts, ig_id, ig_pw, max_posts, session_file):
+        total = len(accounts)
+        all_results: list = []
         try:
-            self.after(0, lambda: self._status_var.set("드라이버 시작 중..."))
-            driver = _ig_create_driver(headless=self._headless.get())
-            self._driver = driver
-            try:
-                _ig_ensure_login(driver, ig_id, ig_pw, cookie_path)
-                total = len(accounts)
-                all_results = []
-                for idx, account in enumerate(accounts, 1):
+            for idx, account in enumerate(accounts, 1):
+                if self._stop_event.is_set():
+                    break
+                self.after(0, lambda i=idx, t=total, a=account:
+                           self._status_var.set(f"수집 중... ({i}/{t})  @{a}"))
+                try:
+                    rows = _ig_fetch_reels(
+                        account, max_posts, ig_id, ig_pw,
+                        session_file, self._stop_event,
+                    )
+                except Exception as e:
+                    self.after(0, lambda err=str(e):
+                               self._status_var.set(f"오류: {err[:80]}"))
+                    _ig_sleep(2.0, 4.0)
+                    continue
+                for row in rows:
                     if self._stop_event.is_set():
                         break
-                    self.after(0, lambda i=idx, t=total, a=account:
-                               self._status_var.set(f"수집 중... ({i}/{t})  @{a}"))
-                    try:
-                        rows = _ig_scrape_reels_from_grid(driver, account, max_posts)
-                    except Exception:
-                        continue
-                    for row in rows:
-                        if self._stop_event.is_set():
-                            break
-                        all_results.append(row)
-                        self.after(0, lambda r=row: self.result_tree.insert(
-                            "", "end", values=(
-                                r["account"],
-                                fmt_num(r["like_count"])    if r["like_count"]    else "-",
-                                fmt_num(r["view_count"])    if r["view_count"]    else "-",
-                                fmt_num(r["comment_count"]) if r["comment_count"] else "-",
-                                r["posted_at"],
-                                r["caption"][:60],
-                            )
-                        ))
-                    _ig_sleep(2.0, 3.5)
-                self.ig_results = all_results
-                self.app.instagram_results = all_results
-            finally:
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
-                self._driver = None
-            count = len(self.ig_results)
+                    all_results.append(row)
+                    dur = row.get("video_duration")
+                    dur_str = f"{dur:.1f}" if dur else "-"
+                    self.after(0, lambda r=row, d=dur_str: self.result_tree.insert(
+                        "", "end", values=(
+                            r["account"],
+                            fmt_num(r["like_count"])    if r["like_count"]    else "-",
+                            fmt_num(r["view_count"])    if r["view_count"]    else "-",
+                            fmt_num(r["comment_count"]) if r["comment_count"] else "-",
+                            d,
+                            r["posted_at"],
+                            r["caption"][:60],
+                        )
+                    ))
+                _ig_sleep(2.0, 4.0)
+
+            self.ig_results = all_results
+            self.app.instagram_results = all_results
+            count = len(all_results)
             self.after(0, lambda: self._status_var.set(f"완료 ({count}건)"))
             self.after(0, lambda: self.app.glow_tab("instagram"))
         except Exception as e:
             self.after(0, lambda: self._status_var.set(f"오류: {e}"))
         finally:
             self.after(0, self._done)
+            self.after(0, self._refresh_sess_status)
 
     def _stop(self):
         self._stop_event.set()
-        if self._driver:
-            try:
-                self._driver.quit()
-            except Exception:
-                pass
-            self._driver = None
         self._done()
 
     def _done(self):
@@ -2418,17 +2070,26 @@ class InstagramTab(tk.Frame):
             from openpyxl.styles import Font, PatternFill, Alignment
         except ImportError:
             messagebox.showerror("라이브러리 없음",
-                                 "openpyxl 이 필요합니다.\npip install openpyxl")
+                                 "openpyxl 이 필요합니다.
+pip install openpyxl")
             return
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Instagram"
         HDR_FILL = PatternFill("solid", fgColor="1A1A1A")
         headers = [
-            ("account","계정"), ("reel_url","릴스URL"),
-            ("caption","캡션"), ("thumbnail_url","썸네일URL"), ("video_url","비디오URL"),
-            ("like_count","좋아요"), ("view_count","조회수"), ("comment_count","댓글수"),
-            ("posted_at","게시일"), ("scraped_at","수집일시"),
+            ("account",        "계정"),
+            ("product_type",   "게시물 유형"),
+            ("reel_url",       "릴스 URL"),
+            ("caption",        "캡션"),
+            ("like_count",     "좋아요"),
+            ("view_count",     "조회수"),
+            ("comment_count",  "댓글수"),
+            ("video_duration", "재생시간(초)"),
+            ("thumbnail_url",  "썸네일 URL"),
+            ("video_url",      "비디오 URL"),
+            ("posted_at",      "게시일"),
+            ("scraped_at",     "수집일시"),
         ]
         for ci, (_, hdr) in enumerate(headers, 1):
             cell = ws.cell(row=1, column=ci, value=hdr)
@@ -2439,9 +2100,8 @@ class InstagramTab(tk.Frame):
             for ci, (key, _) in enumerate(headers, 1):
                 ws.cell(row=ri, column=ci, value=row.get(key, ""))
         wb.save(path)
-        messagebox.showinfo("저장 완료", f"저장되었습니다:\n{path}")
-
-
+        messagebox.showinfo("저장 완료", f"저장되었습니다:
+{path}")
 # ── 대시보드 탭 ───────────────────────────────────────────────────────────────
 class DashboardTab(tk.Frame):
     def __init__(self, master, app):
