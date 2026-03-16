@@ -26,7 +26,7 @@ a = Analysis(
         'shorts_detector',
         'uploader',
         'local_server',
-        # 외부 패키지
+        # selenium / undetected-chromedriver (라이브 지표 탭)
         'undetected_chromedriver',
         'selenium',
         'selenium.webdriver',
@@ -37,6 +37,27 @@ a = Analysis(
         'selenium.webdriver.support.expected_conditions',
         'selenium.webdriver.common.by',
         'selenium.webdriver.common.keys',
+        # instagrapi (Instagram 탭)
+        'instagrapi',
+        'instagrapi.client',
+        'instagrapi.exceptions',
+        'instagrapi.types',
+        'instagrapi.mixins',
+        # TikTokApi + Playwright (TikTok 탭)
+        'TikTokApi',
+        'TikTokApi.api',
+        'TikTokApi.api.user',
+        'TikTokApi.api.video',
+        'playwright',
+        'playwright.async_api',
+        'playwright.sync_api',
+        # 데이터 처리
+        'openpyxl',
+        'openpyxl.styles',
+        'openpyxl.utils',
+        'pandas',
+        'pandas.core',
+        # 네트워크 / 기타
         'requests',
         'dotenv',
         'tkinter',
@@ -46,6 +67,7 @@ a = Analysis(
         'certifi',
         'urllib3',
         'charset_normalizer',
+        'asyncio',
     ],
     hookspath=[],
     hooksconfig={},
