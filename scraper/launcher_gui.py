@@ -785,8 +785,7 @@ def _ig_login_with_session(username: str, password: str, session_file: str = "")
         return cl
     except ChallengeRequired as e:
         raise RuntimeError(
-            "Instagram 챌린지 인증이 필요합니다.
-앱/웹에서 직접 인증 후 다시 시도하세요."
+            "Instagram 챌린지 인증이 필요합니다.\n앱/웹에서 직접 인증 후 다시 시도하세요."
         ) from e
     except PleaseWaitFewMinutes as e:
         raise RuntimeError(
@@ -1947,8 +1946,7 @@ class InstagramTab(tk.Frame):
         if sp.exists():
             sp.unlink()
             self._refresh_sess_status()
-            messagebox.showinfo("세션 초기화", "세션 파일이 삭제되었습니다.
-다음 수집 시 재로그인합니다.")
+            messagebox.showinfo("세션 초기화", "세션 파일이 삭제되었습니다.\n다음 수집 시 재로그인합니다.")
         else:
             messagebox.showinfo("세션 초기화", "세션 파일이 없습니다.")
 
@@ -2070,8 +2068,7 @@ class InstagramTab(tk.Frame):
             from openpyxl.styles import Font, PatternFill, Alignment
         except ImportError:
             messagebox.showerror("라이브러리 없음",
-                                 "openpyxl 이 필요합니다.
-pip install openpyxl")
+                                 "openpyxl 이 필요합니다.\npip install openpyxl")
             return
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -2100,8 +2097,7 @@ pip install openpyxl")
             for ci, (key, _) in enumerate(headers, 1):
                 ws.cell(row=ri, column=ci, value=row.get(key, ""))
         wb.save(path)
-        messagebox.showinfo("저장 완료", f"저장되었습니다:
-{path}")
+        messagebox.showinfo("저장 완료", f"저장되었습니다:\n{path}")
 # ── 대시보드 탭 ───────────────────────────────────────────────────────────────
 class DashboardTab(tk.Frame):
     def __init__(self, master, app):
