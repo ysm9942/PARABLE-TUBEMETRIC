@@ -2647,6 +2647,18 @@ class TikTokTab(tk.Frame):
                  bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
                  font=("Consolas", 10)).pack(side="left", padx=(6, 20))
 
+        tk.Label(opt_row, text="쿠키 브라우저",
+                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
+        self._cookie_var = tk.StringVar(value="자동")
+        ttk.Combobox(
+            opt_row, textvariable=self._cookie_var,
+            values=["자동", "Chrome", "Edge", "Firefox", "없음"],
+            state="readonly", width=9,
+            font=("Consolas", 10),
+        ).pack(side="left", padx=(6, 0))
+        tk.Label(opt_row, text="  (TikTok 로그인된 브라우저 쿠키 자동 주입)",
+                 font=("Arial", 8), bg=BG, fg=FG_MUTE).pack(side="left")
+
         # ── 버튼 행 ───────────────────────────────────────────────────────────
         btn_row = tk.Frame(wrap, bg=BG, pady=6)
         btn_row.pack(fill="x")
