@@ -2620,7 +2620,7 @@ class TikTokTab(tk.Frame):
 
     def _build(self):
         _section_header(self, "TikTok 채널 분석",
-                        "TikTokApi (Playwright)  →  최근 영상 조회수 · 좋아요 · 댓글 수집")
+                        "yt-dlp  →  최근 영상 조회수 · 좋아요 · 댓글 수집")
 
         wrap = tk.Frame(self, bg=BG, padx=28)
         wrap.pack(fill="both", expand=True)
@@ -2646,12 +2646,6 @@ class TikTokTab(tk.Frame):
         tk.Entry(opt_row, textvariable=self._count, width=5,
                  bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
                  font=("Consolas", 10)).pack(side="left", padx=(6, 20))
-        tk.Label(opt_row, text="ms_token  (선택)",
-                 font=("Arial", 9, "bold"), bg=BG, fg=FG).pack(side="left")
-        self._ms_token = tk.StringVar()
-        tk.Entry(opt_row, textvariable=self._ms_token, width=30,
-                 bg=BG3, fg=FG, insertbackground=ACCENT, relief="flat",
-                 font=("Consolas", 10)).pack(side="left", padx=(6, 0))
 
         # ── 버튼 행 ───────────────────────────────────────────────────────────
         btn_row = tk.Frame(wrap, bg=BG, pady=6)
@@ -2666,9 +2660,6 @@ class TikTokTab(tk.Frame):
         tk.Label(btn_row, textvariable=self._status_var,
                  font=("Consolas", 9), bg=BG, fg=FG_DIM).pack(side="left", padx=14)
 
-        tk.Label(wrap,
-                 text="※ 최초 실행 시  python -m playwright install chromium  필요",
-                 font=("Arial", 8), bg=BG, fg=FG_MUTE, anchor="w").pack(fill="x", pady=(4, 0))
 
         # ── 인라인 결과 ───────────────────────────────────────────────────────
         self._result_frame = tk.Frame(wrap, bg=BG)
@@ -2757,21 +2748,18 @@ class TikTokTab(tk.Frame):
         threading.Thread(target=self._analyze, args=(lines, count, win), daemon=True).start()
 
     def _analyze(self, channel_inputs: list, count: int, win):
-        # ── TikTokApi 설치 확인 ───────────────────────────────────────────────
         try:
-            from TikTokApi import TikTokApi as _TTA
+            import yt_dlp
         except ImportError:
             win.append(
-                "✗ TikTokApi 가 설치되어 있지 않습니다.\n"
-                "  pip install TikTokApi\n"
-                "  python -m playwright install chromium\n", "err"
+                "✗ yt-dlp 가 설치되어 있지 않습니다.\n"
+                "  pip install yt-dlp\n", "err"
             )
             win.finish(False)
             self.after(0, lambda: self.run_btn.configure(state="normal"))
-            self.after(0, lambda: self._status_var.set("오류: TikTokApi 미설치"))
+            self.after(0, lambda: self._status_var.set("오류: yt-dlp 미설치"))
             return
 
-        import asyncio
         import re as _re
         from datetime import datetime as _dt
 
@@ -2784,92 +2772,80 @@ class TikTokTab(tk.Frame):
                 return s2
             return None
 
-        ms_token = self._ms_token.get().strip() or None
+        class _Logger:
+            def __init__(self, w): self._w = w
+            def debug(self, msg):
+                if not msg.startswith("[debug]"):
+                    self._w.append(msg + "\n")
+            def warning(self, msg): self._w.append(f"  ⚠ {msg}\n", "warn")
+            def error(self, msg):   self._w.append(f"  ✗ {msg}\n", "err")
 
-        async def _run_all():
-            all_rows = []
-            init_kwargs = {}
-            if ms_token:
-                init_kwargs["ms_tokens"] = [ms_token]
-
-            async with _TTA(**init_kwargs) as api:
-                for inp in channel_inputs:
-                    username = _extract_username(inp)
-                    if not username:
-                        win.append(f"  ✗ username 추출 실패: {inp}\n", "err")
+        all_rows = []
+        for inp in channel_inputs:
+            username = _extract_username(inp)
+            if not username:
+                win.append(f"  ✗ username 추출 실패: {inp}\n", "err")
+                continue
+            win.append(f"\n[채널] @{username}\n", "info")
+            ydl_opts = {
+                "quiet":        True,
+                "no_warnings":  True,
+                "playlistend":  count,
+                "ignoreerrors": True,
+                "logger":       _Logger(win),
+                "extract_flat": False,
+            }
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(
+                        f"https://www.tiktok.com/@{username}",
+                        download=False,
+                    )
+                entries = (info or {}).get("entries") or []
+                for idx, entry in enumerate(entries, 1):
+                    if entry is None:
                         continue
-                    win.append(f"\n[채널] @{username}\n", "info")
-                    try:
-                        user = api.user(username=username)
-                        idx = 0
-                        async for video in user.videos(count=count):
-                            idx += 1
-                            try:
-                                info  = await video.info()
-                                stats = info.get("stats", {}) or {}
-                                vid_id  = info.get("id")
-                                desc    = info.get("desc") or ""
-                                ctime   = info.get("createTime")
-                                date_str = (_dt.fromtimestamp(ctime).strftime("%Y-%m-%d")
-                                            if ctime else "")
-                                row = {
-                                    "username":      username,
-                                    "video_index":   idx,
-                                    "video_id":      vid_id or "",
-                                    "video_url":     (f"https://www.tiktok.com/@{username}/video/{vid_id}"
-                                                      if vid_id else ""),
-                                    "description":   desc,
-                                    "create_date":   date_str,
-                                    "view_count":    int(stats.get("playCount",    0) or 0),
-                                    "like_count":    int(stats.get("diggCount",    0) or 0),
-                                    "comment_count": int(stats.get("commentCount", 0) or 0),
-                                    "share_count":   int(stats.get("shareCount",   0) or 0),
-                                    "collect_count": int(stats.get("collectCount", 0) or 0),
-                                    "error":         "",
-                                }
-                                all_rows.append(row)
-                                win.append(
-                                    f"  [{idx:>3}]  조회 {fmt_num(row['view_count']):<9}"
-                                    f"좋아요 {fmt_num(row['like_count']):<8}"
-                                    f"{desc[:45]}\n"
-                                )
-                            except Exception as e:
-                                win.append(f"  ✗ 영상 {idx} 오류: {e}\n", "err")
-                                all_rows.append({
-                                    "username": username, "video_index": idx,
-                                    "video_id": "", "video_url": "",
-                                    "description": "", "create_date": "",
-                                    "view_count": 0, "like_count": 0,
-                                    "comment_count": 0, "share_count": 0,
-                                    "collect_count": 0, "error": str(e),
-                                })
-                        win.append(f"  ✓ {idx}개 수집 완료\n", "ok")
-                    except Exception as e:
-                        win.append(f"  ✗ 채널 오류: {e}\n", "err")
-                        all_rows.append({
-                            "username": username, "video_index": None,
-                            "video_id": "", "video_url": "",
-                            "description": "", "create_date": "",
-                            "view_count": 0, "like_count": 0,
-                            "comment_count": 0, "share_count": 0,
-                            "collect_count": 0, "error": str(e),
-                        })
-            return all_rows
+                    ts = entry.get("timestamp")
+                    date_str = (_dt.fromtimestamp(ts).strftime("%Y-%m-%d") if ts else "")
+                    vid_id = entry.get("id", "")
+                    row = {
+                        "username":      username,
+                        "video_index":   idx,
+                        "video_id":      vid_id,
+                        "video_url":     (entry.get("webpage_url")
+                                         or f"https://www.tiktok.com/@{username}/video/{vid_id}"),
+                        "description":   entry.get("title") or entry.get("description") or "",
+                        "create_date":   date_str,
+                        "view_count":    int(entry.get("view_count")    or 0),
+                        "like_count":    int(entry.get("like_count")    or 0),
+                        "comment_count": int(entry.get("comment_count") or 0),
+                        "share_count":   int(entry.get("repost_count")  or 0),
+                        "collect_count": 0,
+                        "error":         "",
+                    }
+                    all_rows.append(row)
+                    win.append(
+                        f"  [{idx:>3}]  조회 {fmt_num(row['view_count']):<9}"
+                        f"좋아요 {fmt_num(row['like_count']):<8}"
+                        f"{row['description'][:45]}\n"
+                    )
+                win.append(f"  ✓ {len(entries)}개 수집 완료\n", "ok")
+            except Exception as e:
+                win.append(f"  ✗ 채널 오류: {e}\n", "err")
+                all_rows.append({
+                    "username": username, "video_index": None,
+                    "video_id": "", "video_url": "",
+                    "description": "", "create_date": "",
+                    "view_count": 0, "like_count": 0,
+                    "comment_count": 0, "share_count": 0,
+                    "collect_count": 0, "error": str(e),
+                })
 
-        try:
-            # Windows에서 Playwright 호환: SelectorEventLoopPolicy 사용
-            if hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-            results = asyncio.run(_run_all())
-        except Exception as e:
-            win.append(f"\n✗ 치명적 오류: {e}\n", "err")
-            results = []
-
-        self.tiktok_results = results
-        win.finish(bool(results))
+        self.tiktok_results = all_rows
+        win.finish(bool(all_rows))
         self.after(0, lambda: self.run_btn.configure(state="normal"))
-        self.after(0, lambda: self._status_var.set(f"완료 ({len(results)}행)"))
-        self.after(0, lambda: self._populate_results(results))
+        self.after(0, lambda: self._status_var.set(f"완료 ({len(all_rows)}행)"))
+        self.after(0, lambda: self._populate_results(all_rows))
         self.after(0, lambda: self.app.glow_tab("tiktok"))
 
     # ── 결과 트리 채우기 ─────────────────────────────────────────────────────

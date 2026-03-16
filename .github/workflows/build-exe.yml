@@ -81,8 +81,6 @@ jobs:
 
             ### 주의사항
             - Windows Defender 경고 시: "추가 정보" → "실행" 클릭
-            - **TikTok 분석** 최초 1회 실행 전 터미널에서 실행 필요:
-              `pip install TikTokApi && python -m playwright install chromium`
-            - **Instagram 분석** 은 별도 설치 없이 바로 사용 가능 (instagrapi 내장)
+            - TikTok 분석 · Instagram 분석 모두 별도 설치 없이 바로 사용 가능
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
