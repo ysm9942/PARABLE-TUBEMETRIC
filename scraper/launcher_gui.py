@@ -2775,6 +2775,34 @@ class TikTokTab(tk.Frame):
         import re as _re
         from datetime import datetime as _dt
 
+        # ── 쿠키 브라우저 결정 ───────────────────────────────────────────────
+        _BROWSER_MAP = {"Chrome": "chrome", "Edge": "edge", "Firefox": "firefox"}
+        cookie_sel = self._cookie_var.get()
+
+        if cookie_sel == "없음":
+            resolved_browser: str | None = None
+            win.append("[쿠키] 쿠키 없이 진행합니다.\n", "dim")
+        elif cookie_sel in _BROWSER_MAP:
+            resolved_browser = _BROWSER_MAP[cookie_sel]
+            win.append(f"[쿠키] {cookie_sel} 쿠키 사용\n", "info")
+        else:  # "자동" — chrome → edge → firefox 순서로 감지
+            win.append("[쿠키] 브라우저 자동 감지 중...\n", "info")
+            resolved_browser = None
+            for _b in ["chrome", "edge", "firefox"]:
+                try:
+                    with yt_dlp.YoutubeDL({
+                        "quiet": True, "no_warnings": True,
+                        "cookiesfrombrowser": (_b,),
+                    }):
+                        pass
+                    resolved_browser = _b
+                    win.append(f"[쿠키] {_b} ✓  사용\n", "info")
+                    break
+                except Exception:
+                    win.append(f"[쿠키] {_b} ✗\n", "dim")
+            if resolved_browser is None:
+                win.append("[쿠키] 브라우저 쿠키를 찾을 수 없어 비로그인 모드로 진행합니다.\n")
+
         def _extract_username(s: str):
             m = _re.search(r"@([^/?#\s]+)", s)
             if m:
@@ -2807,6 +2835,8 @@ class TikTokTab(tk.Frame):
                 "logger":       _Logger(win),
                 "extract_flat": False,
             }
+            if resolved_browser:
+                ydl_opts["cookiesfrombrowser"] = (resolved_browser,)
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(
