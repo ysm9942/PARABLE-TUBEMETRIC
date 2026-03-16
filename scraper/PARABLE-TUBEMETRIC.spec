@@ -43,14 +43,11 @@ a = Analysis(
         'instagrapi.exceptions',
         'instagrapi.types',
         'instagrapi.mixins',
-        # TikTokApi + Playwright (TikTok 탭)
-        'TikTokApi',
-        'TikTokApi.api',
-        'TikTokApi.api.user',
-        'TikTokApi.api.video',
-        'playwright',
-        'playwright.async_api',
-        'playwright.sync_api',
+        # yt-dlp (TikTok 탭)
+        'yt_dlp',
+        'yt_dlp.extractor',
+        'yt_dlp.extractor.tiktok',
+        'yt_dlp.utils',
         # 데이터 처리
         'openpyxl',
         'openpyxl.styles',
