@@ -33,6 +33,11 @@ except ImportError:
 
 QUEUE_DIR = ROOT_DIR / "results" / "queue"
 
+# CI에서는 결과를 프로젝트 루트의 results/ 에 저장해야 함
+# (uploader.py 기본값은 scraper/results/ 이므로 덮어쓰기)
+import uploader
+uploader.RESULTS_DIR = ROOT_DIR / "results"
+
 
 def _ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
