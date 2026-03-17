@@ -134,3 +134,45 @@ export const fetchTikTokVideos = async (
   });
   return res.data;
 };
+
+// ── 라이브 지표 (CHZZK/SOOP · softc.one 기반) ──────────────────────────
+
+export interface LiveStreamRecord {
+  creator: string;
+  platform: string;
+  title: string;
+  category: string;
+  peakViewers: number;
+  avgViewers: number;
+  date: string;
+  durationMin: number;
+}
+
+export interface LiveCreatorResult {
+  creatorId: string;
+  platform: string;
+  streamCount: number;
+  streams: LiveStreamRecord[];
+  avgViewers: number;
+  peakViewers: number;
+  totalDurationMin: number;
+  status: string;
+  error?: string;
+  scrapedAt: string;
+}
+
+export const fetchLiveStreams = async (
+  creators: Array<{ platform: string; creatorId: string }>,
+  startDate: string,
+  endDate: string,
+  categories: string[] = []
+): Promise<LiveCreatorResult[]> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/live/streams`, {
+    creators,
+    startDate,
+    endDate,
+    categories,
+  });
+  return res.data;
+};

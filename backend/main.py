@@ -14,11 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-from routers import youtube, instagram, tiktok  # noqa: E402
+from routers import youtube, instagram, tiktok, live  # noqa: E402
 
 app = FastAPI(
     title="PARABLE-TUBEMETRIC API",
-    description="YouTube/Instagram/TikTok 분석 백엔드 (브라우저 불필요)",
+    description="YouTube/Instagram/TikTok/Live 분석 백엔드",
     version="1.0.0",
 )
 
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(youtube.router, prefix="/api/youtube", tags=["YouTube"])
 app.include_router(instagram.router, prefix="/api/instagram", tags=["Instagram"])
 app.include_router(tiktok.router, prefix="/api/tiktok", tags=["TikTok"])
+app.include_router(live.router, prefix="/api/live", tags=["Live"])
 
 
 @app.get("/api/health")
