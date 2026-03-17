@@ -222,7 +222,8 @@ def process_tiktok(job: dict) -> None:
 
         ydl_opts: dict = {
             "quiet": True,
-            "extract_flat": True,
+            "extract_flat": False,
+            "ignoreerrors": True,
             "playlistend": opts.get("limit", 30),
         }
         if browser:
