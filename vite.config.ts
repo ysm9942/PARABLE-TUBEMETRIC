@@ -13,6 +13,8 @@ export default defineConfig({
     'process.env.GITHUB_BRANCH': JSON.stringify(process.env.GITHUB_BRANCH ?? 'main'),
     // 로컬 스크래퍼 Queue 방식 - GitHub API write 권한 토큰
     'process.env.GITHUB_TOKEN': JSON.stringify(process.env.GITHUB_TOKEN ?? ''),
+    // Backend API URL (Render/Railway 등에 배포된 Python 백엔드)
+    'process.env.BACKEND_URL': JSON.stringify(process.env.BACKEND_URL ?? ''),
   },
   build: {
     outDir: 'dist',

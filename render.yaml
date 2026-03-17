@@ -1,0 +1,19 @@
+# Render.com 배포 설정
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: tubemetric-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: IG_USERNAME
+        sync: false
+      - key: IG_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+    healthCheckPath: /api/health
