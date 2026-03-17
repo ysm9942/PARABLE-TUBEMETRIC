@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r scraper/requirements-ci.txt
 
+      - name: Ensure results directory exists
+        run: mkdir -p results/channels results/videos results/ads results/instagram results/tiktok
+
       - name: Run scraper
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -50,13 +53,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 결과 파일 스테이징
+          # 결과 파일 + index.json 스테이징
           git add results/
 
           # 처리된 큐 파일 삭제
-          if ls results/queue/*.json 2>/dev/null | grep -q .; then
-            git rm --ignore-unmatch results/queue/*.json
-          fi
+          git rm --ignore-unmatch results/queue/*.json 2>/dev/null || true
 
           # 변경사항 있을 때만 커밋
           if git diff --staged --quiet; then
