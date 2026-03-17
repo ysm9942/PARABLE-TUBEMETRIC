@@ -706,7 +706,7 @@ const App: React.FC = () => {
               <h1 className="text-3xl font-semibold text-white">
                 Parable TubeMetric
               </h1>
-              <p className="text-zinc-500 text-sm">Enter your PIN to continue</p>
+              <p className="text-zinc-300 text-sm">Enter your PIN to continue</p>
             </div>
           </div>
 
@@ -718,7 +718,7 @@ const App: React.FC = () => {
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="PIN Code"
                 autoFocus
-                className="w-full bg-[#1a1b23] border border-white/8 rounded-xl py-4 px-6 text-center text-2xl font-medium tracking-[0.4em] text-white focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-zinc-400 placeholder:tracking-normal placeholder:text-base"
+                className="w-full bg-[#1a1b23] border border-white/8 rounded-xl py-4 px-6 text-center text-2xl font-medium tracking-[0.4em] text-white focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-zinc-200 placeholder:tracking-normal placeholder:text-base"
               />
             </div>
             <button
@@ -729,7 +729,7 @@ const App: React.FC = () => {
             </button>
           </form>
 
-          <p className="text-center text-xs text-zinc-400">Authorized access only</p>
+          <p className="text-center text-xs text-zinc-200">Authorized access only</p>
         </div>
       </div>
     );
@@ -749,18 +749,18 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-base font-semibold text-white">@{selectedIgUser.username}</div>
-                  <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-3">
+                  <div className="text-xs text-zinc-300 mt-0.5 flex items-center gap-3">
                     <span>릴스 {selectedIgUser.reelCount}개</span>
                     <span>평균 조회수 <span className="text-pink-400 font-medium">{selectedIgUser.avgViews.toLocaleString()}</span></span>
                     <span>평균 좋아요 <span className="text-violet-400 font-medium">{selectedIgUser.avgLikes.toLocaleString()}</span></span>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedIgUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-500 hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedIgUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-300 hover:text-white"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-white/[0.02] text-zinc-500 text-xs sticky top-0">
+                <thead className="bg-white/[0.02] text-zinc-300 text-xs sticky top-0">
                   <tr>
                     <th className="px-5 py-3 font-medium">Reel</th>
                     <th className="px-5 py-3 text-right font-medium">Views</th>
@@ -778,18 +778,18 @@ const App: React.FC = () => {
                         {reel.thumbnail_url ? (
                           <img src={reel.thumbnail_url} className="w-9 h-14 object-cover rounded-lg border border-white/8 shrink-0" />
                         ) : (
-                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Instagram size={14} className="text-zinc-400" /></div>
+                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Instagram size={14} className="text-zinc-200" /></div>
                         )}
-                        <span className="text-xs text-zinc-400 line-clamp-2 max-w-[260px]">{reel.caption_text || '(캡션 없음)'}</span>
+                        <span className="text-xs text-zinc-200 line-clamp-2 max-w-[260px]">{reel.caption_text || '(캡션 없음)'}</span>
                       </td>
                       <td className="px-5 py-3 text-right text-sm font-semibold text-pink-400 tabular-nums">{reel.view_count.toLocaleString()}</td>
                       <td className="px-5 py-3 text-right text-xs text-violet-400 tabular-nums">{reel.like_count.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right text-xs text-zinc-400 tabular-nums">{reel.comment_count.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-center text-xs text-zinc-500">{reel.video_duration ? `${Math.round(reel.video_duration)}s` : '—'}</td>
-                      <td className="px-5 py-3 text-center text-xs text-zinc-400 font-mono">{new Date(reel.taken_at).toLocaleDateString('ko-KR')}</td>
+                      <td className="px-5 py-3 text-right text-xs text-zinc-200 tabular-nums">{reel.comment_count.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-300">{reel.video_duration ? `${Math.round(reel.video_duration)}s` : '—'}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-200 font-mono">{new Date(reel.taken_at).toLocaleDateString('ko-KR')}</td>
                       <td className="px-5 py-3 text-center">
                         {reel.url ? (
-                          <a href={reel.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-400 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
+                          <a href={reel.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-200 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
                         ) : '—'}
                       </td>
                     </tr>
@@ -812,17 +812,17 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-base font-semibold text-white">@{selectedTkUser.username}</div>
-                  <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-3">
+                  <div className="text-xs text-zinc-300 mt-0.5 flex items-center gap-3">
                     <span>영상 {selectedTkUser.videoCount}개</span>
                     <span>평균 조회수 <span className="text-cyan-400 font-medium">{selectedTkUser.avgViews.toLocaleString()}</span></span>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedTkUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-500 hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedTkUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-300 hover:text-white"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-white/[0.02] text-zinc-500 text-xs sticky top-0">
+                <thead className="bg-white/[0.02] text-zinc-300 text-xs sticky top-0">
                   <tr>
                     <th className="px-5 py-3 font-medium">Video</th>
                     <th className="px-5 py-3 text-right font-medium">Views</th>
@@ -840,18 +840,18 @@ const App: React.FC = () => {
                         {v.thumbnail ? (
                           <img src={v.thumbnail} className="w-9 h-14 object-cover rounded-lg border border-white/8 shrink-0" />
                         ) : (
-                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Music size={14} className="text-zinc-400" /></div>
+                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Music size={14} className="text-zinc-200" /></div>
                         )}
-                        <span className="text-xs text-zinc-400 line-clamp-2 max-w-[260px]">{v.title || '(제목 없음)'}</span>
+                        <span className="text-xs text-zinc-200 line-clamp-2 max-w-[260px]">{v.title || '(제목 없음)'}</span>
                       </td>
                       <td className="px-5 py-3 text-right text-sm font-semibold text-cyan-400 tabular-nums">{v.viewCount.toLocaleString()}</td>
                       <td className="px-5 py-3 text-right text-xs text-pink-400 tabular-nums">{v.likeCount.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right text-xs text-zinc-400 tabular-nums">{v.commentCount.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-center text-xs text-zinc-500">{v.duration ? `${v.duration}s` : '—'}</td>
-                      <td className="px-5 py-3 text-center text-xs text-zinc-400 font-mono">{v.uploadDate ? `${v.uploadDate.slice(0,4)}-${v.uploadDate.slice(4,6)}-${v.uploadDate.slice(6,8)}` : '—'}</td>
+                      <td className="px-5 py-3 text-right text-xs text-zinc-200 tabular-nums">{v.commentCount.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-300">{v.duration ? `${v.duration}s` : '—'}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-200 font-mono">{v.uploadDate ? `${v.uploadDate.slice(0,4)}-${v.uploadDate.slice(4,6)}-${v.uploadDate.slice(6,8)}` : '—'}</td>
                       <td className="px-5 py-3 text-center">
                         {v.url ? (
-                          <a href={v.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-400 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
+                          <a href={v.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-200 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
                         ) : '—'}
                       </td>
                     </tr>
@@ -878,18 +878,18 @@ const App: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                     {selectedChannel.channelName}
-                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-500 hover:text-violet-400 transition-all"><ExternalLink size={16} /></a>
+                    <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-zinc-300 hover:text-violet-400 transition-all"><ExternalLink size={16} /></a>
                   </h3>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="flex items-center gap-1 text-xs font-medium text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-full">
                       <Users size={11} /> {formatNumber(selectedChannel.subscriberCount)} Subscribers
                     </span>
-                    <p className="text-xs text-zinc-500">Analytics Results</p>
+                    <p className="text-xs text-zinc-300">Analytics Results</p>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={() => setSelectedChannel(null)} className="p-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg transition-all">
+                <button onClick={() => setSelectedChannel(null)} className="p-2 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded-lg transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -901,10 +901,10 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between border-b border-white/8 pb-3">
                     <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                       <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
-                      Shorts <span className="text-zinc-500 font-normal">({selectedChannel.shortsList.length})</span>
+                      Shorts <span className="text-zinc-300 font-normal">({selectedChannel.shortsList.length})</span>
                     </h4>
                     <div className="text-right">
-                      <div className="text-xs text-zinc-500 mb-0.5">Avg Views</div>
+                      <div className="text-xs text-zinc-300 mb-0.5">Avg Views</div>
                       <div className="text-base font-semibold text-violet-400">{selectedChannel.avgShortsViews.toLocaleString()}</div>
                     </div>
                   </div>
@@ -916,10 +916,10 @@ const App: React.FC = () => {
                           <div className="text-sm font-medium text-zinc-200 truncate leading-snug group-hover:text-white">{v.title}</div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-violet-400 font-medium">{v.viewCount.toLocaleString()} views</span>
-                            <span className="text-xs text-zinc-400">{new Date(v.publishedAt).toLocaleDateString()}</span>
+                            <span className="text-xs text-zinc-200">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-400 hover:text-white hover:bg-violet-600 rounded-lg transition-all">
+                        <a href={`https://youtube.com/shorts/${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-200 hover:text-white hover:bg-violet-600 rounded-lg transition-all">
                           <ExternalLink size={14} />
                         </a>
                       </div>
@@ -931,10 +931,10 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between border-b border-white/8 pb-3">
                     <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                       <div className="w-1.5 h-5 bg-zinc-500 rounded-full"></div>
-                      Longform <span className="text-zinc-500 font-normal">({selectedChannel.longsList.length})</span>
+                      Longform <span className="text-zinc-300 font-normal">({selectedChannel.longsList.length})</span>
                     </h4>
                     <div className="text-right">
-                      <div className="text-xs text-zinc-500 mb-0.5">Avg Views</div>
+                      <div className="text-xs text-zinc-300 mb-0.5">Avg Views</div>
                       <div className="text-base font-semibold text-zinc-200">{selectedChannel.avgLongViews.toLocaleString()}</div>
                     </div>
                   </div>
@@ -945,11 +945,11 @@ const App: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-zinc-200 truncate leading-snug">{v.title}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-zinc-400 font-medium">{v.viewCount.toLocaleString()} views</span>
-                            <span className="text-xs text-zinc-400">{new Date(v.publishedAt).toLocaleDateString()}</span>
+                            <span className="text-xs text-zinc-200 font-medium">{v.viewCount.toLocaleString()} views</span>
+                            <span className="text-xs text-zinc-200">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-all">
+                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 bg-white/5 text-zinc-200 hover:text-white hover:bg-zinc-700 rounded-lg transition-all">
                           <ExternalLink size={14} />
                         </a>
                       </div>
@@ -979,18 +979,18 @@ const App: React.FC = () => {
                     <span className="flex items-center gap-1 text-xs font-medium text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-full">
                       <Megaphone size={11} /> {selectedAdResult.totalAdCount} Detected Ads
                     </span>
-                    <p className="text-xs text-zinc-500">Ad Detection Details</p>
+                    <p className="text-xs text-zinc-300">Ad Detection Details</p>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedAdResult(null)} className="p-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg transition-all">
+              <button onClick={() => setSelectedAdResult(null)} className="p-2 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded-lg transition-all">
                 <X size={20} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-5">
               {selectedAdResult.adVideos.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-zinc-400 text-sm">분석된 광고 영상이 없습니다.</div>
+                <div className="h-full flex items-center justify-center text-zinc-200 text-sm">분석된 광고 영상이 없습니다.</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedAdResult.adVideos.map((v) => (
@@ -1001,13 +1001,13 @@ const App: React.FC = () => {
                           <div>
                             <div className="text-sm font-medium text-white line-clamp-2 leading-snug group-hover:text-violet-400 transition-colors">{v.title}</div>
                             <div className="flex items-center gap-3 mt-2">
-                              <span className="text-xs text-zinc-400 flex items-center gap-1"><Eye size={11}/> {v.viewCount.toLocaleString()}</span>
-                              <span className="text-xs text-zinc-500 flex items-center gap-1"><ThumbsUp size={11}/> {v.likeCount.toLocaleString()}</span>
+                              <span className="text-xs text-zinc-200 flex items-center gap-1"><Eye size={11}/> {v.viewCount.toLocaleString()}</span>
+                              <span className="text-xs text-zinc-300 flex items-center gap-1"><ThumbsUp size={11}/> {v.likeCount.toLocaleString()}</span>
                             </div>
                           </div>
 
                           <div className="mt-3 pt-3 border-t border-white/8 space-y-1.5">
-                             <div className="text-xs text-zinc-400">Detection Evidence</div>
+                             <div className="text-xs text-zinc-200">Detection Evidence</div>
                              <div className="flex flex-wrap gap-1.5">
                                {v.detection.evidence.map((ev, idx) => (
                                  <span key={idx} className="text-xs bg-violet-600/10 text-violet-400 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -1019,7 +1019,7 @@ const App: React.FC = () => {
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between">
-                         <div className="text-xs text-zinc-400">Published: {new Date(v.publishedAt).toLocaleDateString()}</div>
+                         <div className="text-xs text-zinc-200">Published: {new Date(v.publishedAt).toLocaleDateString()}</div>
                          <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" className="bg-white/8 hover:bg-violet-600 text-white p-2 rounded-lg transition-all">
                            <ExternalLink size={16} />
                          </a>
@@ -1043,7 +1043,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <div className="text-xs font-semibold text-white leading-tight">Parable</div>
-              <div className="text-xs text-zinc-500 leading-tight">TubeMetric</div>
+              <div className="text-xs text-zinc-300 leading-tight">TubeMetric</div>
             </div>
           </div>
         </div>
@@ -1051,7 +1051,7 @@ const App: React.FC = () => {
         <nav className="flex-1 p-3 space-y-5 pt-4">
           {/* ANALYSIS */}
           <div>
-            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-400 tracking-widest uppercase">Analysis</div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-200 tracking-widest uppercase">Analysis</div>
             <div className="space-y-0.5">
               {([
                 { id: 'channel-config',   label: '채널 통합 분석',    Icon: TrendingUp,  soon: false },
@@ -1069,13 +1069,13 @@ const App: React.FC = () => {
                     activeTab === id
                       ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
                       : soon
-                        ? 'text-zinc-400 cursor-default'
-                        : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                        ? 'text-zinc-200 cursor-default'
+                        : 'text-zinc-300 hover:bg-white/5 hover:text-zinc-300'
                   }`}
                 >
-                  <Icon size={14} className={activeTab === id ? 'text-violet-400' : soon ? 'text-zinc-400' : 'text-zinc-400 group-hover:text-zinc-400'} />
+                  <Icon size={14} className={activeTab === id ? 'text-violet-400' : soon ? 'text-zinc-200' : 'text-zinc-200 group-hover:text-zinc-200'} />
                   <span className="flex-1 text-left">{label}</span>
-                  {soon && <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded font-normal">Soon</span>}
+                  {soon && <span className="text-[9px] bg-zinc-800 text-zinc-200 px-1.5 py-0.5 rounded font-normal">Soon</span>}
                   {!soon && activeTab === id && <div className="w-1 h-1 bg-violet-400 rounded-full" />}
                 </button>
               ))}
@@ -1084,17 +1084,17 @@ const App: React.FC = () => {
 
           {/* DATA */}
           <div>
-            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-400 tracking-widest uppercase">Data</div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-200 tracking-widest uppercase">Data</div>
             <div className="space-y-0.5">
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group ${
                   activeTab === 'dashboard'
                     ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
-                    : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                    : 'text-zinc-300 hover:bg-white/5 hover:text-zinc-300'
                 }`}
               >
-                <History size={14} className={activeTab === 'dashboard' ? 'text-violet-400' : 'text-zinc-400 group-hover:text-zinc-400'} />
+                <History size={14} className={activeTab === 'dashboard' ? 'text-violet-400' : 'text-zinc-200 group-hover:text-zinc-200'} />
                 <span className="flex-1 text-left">Analysis History</span>
                 {(channelResults.length > 0 || videoResults.length > 0 || adResults.length > 0) && (
                   <span className="text-[9px] bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded font-normal">
@@ -1107,16 +1107,16 @@ const App: React.FC = () => {
 
           {/* SETTINGS */}
           <div>
-            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-400 tracking-widest uppercase">Settings</div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-200 tracking-widest uppercase">Settings</div>
             <div className="space-y-0.5">
               {[
                 { label: 'API 설정', Icon: Settings2 },
                 { label: '내보내기 설정', Icon: FileSpreadsheet },
               ].map(({ label, Icon }) => (
-                <div key={label} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-400 cursor-default">
+                <div key={label} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-200 cursor-default">
                   <Icon size={14} className="text-zinc-800" />
                   <span>{label}</span>
-                  <span className="ml-auto text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">Soon</span>
+                  <span className="ml-auto text-[9px] bg-zinc-800 text-zinc-200 px-1.5 py-0.5 rounded">Soon</span>
                 </div>
               ))}
             </div>
@@ -1126,7 +1126,7 @@ const App: React.FC = () => {
         <div className="p-4 border-t border-white/8">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
-            <span className="text-xs text-zinc-400">Vercel Connected</span>
+            <span className="text-xs text-zinc-200">Vercel Connected</span>
           </div>
         </div>
       </aside>
@@ -1144,11 +1144,11 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">채널 통합 분석</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">YouTube 채널 평균 조회수 및 영상 데이터 수집</p>
+                  <p className="text-xs text-zinc-200 mt-0.5">YouTube 채널 평균 조회수 및 영상 데이터 수집</p>
                 </div>
                 <button
                   onClick={() => setShowHelp(!showHelp)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showHelp ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showHelp ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30' : 'bg-white/5 text-zinc-300 hover:text-zinc-300'}`}
                 >
                   <Info size={13} /> 가이드
                 </button>
@@ -1159,11 +1159,11 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
                       <h4 className="font-medium text-violet-400 text-xs flex items-center gap-1.5"><CalendarDays size={12} /> 분석 기간</h4>
-                      <p className="text-zinc-500 text-xs leading-relaxed">수집할 영상의 게시 기간을 필터링합니다. 전체 선택 시 기간 제한 없이 수집합니다.</p>
+                      <p className="text-zinc-300 text-xs leading-relaxed">수집할 영상의 게시 기간을 필터링합니다. 전체 선택 시 기간 제한 없이 수집합니다.</p>
                     </div>
                     <div className="space-y-1.5">
                       <h4 className="font-medium text-violet-400 text-xs flex items-center gap-1.5"><Activity size={12} /> 수집 개수</h4>
-                      <p className="text-zinc-500 text-xs leading-relaxed">채널당 수집할 최대 영상 수를 지정합니다. 쇼츠/롱폼 각각 설정 가능합니다.</p>
+                      <p className="text-zinc-300 text-xs leading-relaxed">채널당 수집할 최대 영상 수를 지정합니다. 쇼츠/롱폼 각각 설정 가능합니다.</p>
                     </div>
                   </div>
                 </div>
@@ -1175,12 +1175,12 @@ const App: React.FC = () => {
                 <div className="xl:col-span-3">
                   <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4 h-full">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                      <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                         <List size={13} className="text-violet-500" /> Channel List
                         {channelList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{channelList.length}</span>}
                       </label>
                       {channelList.length > 0 && (
-                        <button onClick={clearChannelList} className="text-xs text-zinc-400 hover:text-red-400 transition-colors flex items-center gap-1">
+                        <button onClick={clearChannelList} className="text-xs text-zinc-200 hover:text-red-400 transition-colors flex items-center gap-1">
                           <Trash2 size={11} /> 전체 삭제
                         </button>
                       )}
@@ -1192,7 +1192,7 @@ const App: React.FC = () => {
                         onChange={e => setChannelDraft(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addChannelItem()}
                         placeholder="UC코드 또는 채널 URL 입력 후 Enter"
-                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-400 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                       />
                       <button
                         onClick={addChannelItem}
@@ -1204,7 +1204,7 @@ const App: React.FC = () => {
                     {/* List */}
                     <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
                       {channelList.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-zinc-400 space-y-2">
+                        <div className="flex flex-col items-center justify-center py-12 text-zinc-200 space-y-2">
                           <List size={28} strokeWidth={1} />
                           <p className="text-xs">채널을 추가하세요</p>
                         </div>
@@ -1212,14 +1212,14 @@ const App: React.FC = () => {
                         <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
                           <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
                           <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{ch}</span>
-                          <button onClick={() => removeChannelItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 transition-all">
+                          <button onClick={() => removeChannelItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-200 hover:text-red-400 transition-all">
                             <X size={13} />
                           </button>
                         </div>
                       ))}
                     </div>
                     {channelList.length > 0 && (
-                      <p className="text-[10px] text-zinc-400">{channelList.length}개 채널 · Enter 또는 추가 버튼으로 입력</p>
+                      <p className="text-[10px] text-zinc-200">{channelList.length}개 채널 · Enter 또는 추가 버튼으로 입력</p>
                     )}
                   </div>
                 </div>
@@ -1234,12 +1234,12 @@ const App: React.FC = () => {
 
                         <div className="space-y-4">
                            <div className="flex justify-between items-center">
-                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                              <label className="text-xs text-zinc-200 flex items-center gap-1.5">
                                 <CalendarDays size={13} className="text-violet-400" /> 전체 영상 기준 기간
                               </label>
                               <button
                                 onClick={() => setUseDateFilter(!useDateFilter)}
-                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-300'}`}
                               >
                                 {useDateFilter ? 'Enabled' : 'Disabled'}
                               </button>
@@ -1250,13 +1250,13 @@ const App: React.FC = () => {
                                  key={p}
                                  disabled={!useDateFilter}
                                  onClick={() => setPeriod(p)}
-                                 className={`py-2 text-xs font-medium rounded-lg transition-all ${period === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+                                 className={`py-2 text-xs font-medium rounded-lg transition-all ${period === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white'}`}
                                >
                                  {periodLabels[p]}
                                </button>
                              ))}
                            </div>
-                           <p className="text-xs text-zinc-400 text-center">설정한 기간 내의 영상만 수집 대상에 포함됩니다.</p>
+                           <p className="text-xs text-zinc-200 text-center">설정한 기간 내의 영상만 수집 대상에 포함됩니다.</p>
                         </div>
                     </div>
 
@@ -1277,14 +1277,14 @@ const App: React.FC = () => {
                         {/* Shorts Count Filter */}
                         <div className="space-y-3">
                            <div className="flex justify-between items-center">
-                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                              <label className="text-xs text-zinc-200 flex items-center gap-1.5">
                                 <Radio size={13} className="text-violet-400" /> Shorts Target
                               </label>
                               <div className="flex items-center gap-3">
                                 <button
                                   disabled={!useGlobalCountFilter}
                                   onClick={() => setUseShorts(!useShorts)}
-                                  className={`${(useShorts && useGlobalCountFilter) ? 'text-violet-500' : 'text-zinc-400'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                  className={`${(useShorts && useGlobalCountFilter) ? 'text-violet-500' : 'text-zinc-200'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
                                 >
                                   {(useShorts && useGlobalCountFilter) ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
                                 </button>
@@ -1292,7 +1292,7 @@ const App: React.FC = () => {
                            </div>
                            <div className={`space-y-2 transition-opacity ${(!useShorts || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between text-xs">
-                                <span className="text-zinc-500">Max Target</span>
+                                <span className="text-zinc-300">Max Target</span>
                                 <span className="text-violet-400 font-medium">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
                               </div>
                               <input
@@ -1310,14 +1310,14 @@ const App: React.FC = () => {
                         {/* Longform Count Filter */}
                         <div className="space-y-3">
                            <div className="flex justify-between items-center">
-                              <label className="text-xs text-zinc-400 flex items-center gap-1.5">
-                                <MonitorPlay size={13} className="text-zinc-400" /> Longform Target
+                              <label className="text-xs text-zinc-200 flex items-center gap-1.5">
+                                <MonitorPlay size={13} className="text-zinc-200" /> Longform Target
                               </label>
                               <div className="flex items-center gap-3">
                                 <button
                                   disabled={!useGlobalCountFilter}
                                   onClick={() => setUseLongs(!useLongs)}
-                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-zinc-400'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-zinc-200'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
                                 >
                                   {(useLongs && useGlobalCountFilter) ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
                                 </button>
@@ -1325,7 +1325,7 @@ const App: React.FC = () => {
                            </div>
                            <div className={`space-y-2 transition-opacity ${(!useLongs || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
                               <div className="flex justify-between text-xs">
-                                <span className="text-zinc-500">Max Target</span>
+                                <span className="text-zinc-300">Max Target</span>
                                 <span className="text-zinc-300 font-medium">{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
                               </div>
                               <input
@@ -1361,14 +1361,14 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 text-sm font-medium text-white">
                       <Loader2 size={14} className="animate-spin text-violet-400" /> 분석 진행 중
                     </div>
-                    <span className="text-xs text-zinc-500 tabular-nums">{channelDone} / {channelTotal} 완료 · {channelProgress}%</span>
+                    <span className="text-xs text-zinc-300 tabular-nums">{channelDone} / {channelTotal} 완료 · {channelProgress}%</span>
                   </div>
                   <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
                     <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${channelProgress}%` }} />
                   </div>
                   <div className="space-y-1 max-h-20 overflow-y-auto">
                     {channelResults.filter(r => r.status !== 'pending').slice(-4).map((r, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-zinc-400">
+                      <div key={i} className="flex items-center gap-2 text-xs text-zinc-200">
                         {r.status === 'completed' ? <CheckCircle2 size={11} className="text-emerald-500 shrink-0" /> : r.status === 'error' ? <AlertCircle size={11} className="text-red-500 shrink-0" /> : <Loader2 size={11} className="animate-spin text-violet-400 shrink-0" />}
                         <span className="truncate">{r.channelName !== '데이터 수집 중...' ? r.channelName : r.channelId}</span>
                       </div>
@@ -1382,9 +1382,9 @@ const App: React.FC = () => {
                 <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
                   <button onClick={() => setShowChannelResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2.5">
-                      {showChannelResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      {showChannelResults ? <ChevronDown size={15} className="text-zinc-300" /> : <ChevronRight size={15} className="text-zinc-300" />}
                       <span className="text-sm font-medium text-white">분석 결과</span>
-                      <span className="text-xs text-zinc-400">{channelResults.filter(r => r.status === 'completed').length}개 완료{channelResults.filter(r => r.status === 'error').length > 0 ? ` · ${channelResults.filter(r => r.status === 'error').length}개 오류` : ''}</span>
+                      <span className="text-xs text-zinc-200">{channelResults.filter(r => r.status === 'completed').length}개 완료{channelResults.filter(r => r.status === 'error').length > 0 ? ` · ${channelResults.filter(r => r.status === 'error').length}개 오류` : ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {isProcessing ? <Loader2 size={12} className="animate-spin text-violet-400" /> : channelResults.some(r => r.status === 'completed') ? <CheckCircle2 size={12} className="text-emerald-500" /> : null}
@@ -1395,20 +1395,20 @@ const App: React.FC = () => {
                       <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
                         <div className="flex gap-1">
                           {(['table','chart','raw'] as ResultTab[]).map(t => (
-                            <button key={t} onClick={() => setChannelResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${channelResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                            <button key={t} onClick={() => setChannelResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${channelResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-300 hover:text-zinc-300 hover:bg-white/5'}`}>
                               {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
                             </button>
                           ))}
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => navigator.clipboard.writeText(channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')).join('\n'))} className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all">Copy</button>
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                          <button onClick={() => navigator.clipboard.writeText(channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')).join('\n'))} className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded text-xs transition-all">Copy</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
-                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                            <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                               <tr>
                                 <th className="px-6 py-3 font-medium">Channel</th>
                                 <th className="px-6 py-3 text-center font-medium">Subscribers</th>
@@ -1421,21 +1421,21 @@ const App: React.FC = () => {
                               {channelResults.map(r => (
                                 <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
                                   <td className="px-6 py-3.5 flex items-center gap-3">
-                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-400" size={13} /></div>}
+                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-200" size={13} /></div>}
                                     <div className="min-w-0">
                                       <div className="text-xs font-medium text-zinc-200 group-hover:text-violet-400 transition-colors flex items-center gap-1.5 truncate max-w-[220px]">
                                         {r.channelName}
                                         {r.status === 'error' && <span className="text-[10px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded shrink-0">Error</span>}
                                         {r.status === 'processing' && <Loader2 size={10} className="animate-spin text-violet-400 shrink-0" />}
-                                        {r.status === 'pending' && <span className="text-[10px] text-zinc-400 shrink-0">대기</span>}
+                                        {r.status === 'pending' && <span className="text-[10px] text-zinc-200 shrink-0">대기</span>}
                                       </div>
-                                      <div className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate max-w-[200px]">{r.status === 'error' ? r.error : r.channelId}</div>
+                                      <div className="text-[10px] text-zinc-200 font-mono mt-0.5 truncate max-w-[200px]">{r.status === 'error' ? r.error : r.channelId}</div>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-3.5 text-center"><span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-400">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-400 mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-zinc-200">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-400 mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
+                                  <td className="px-6 py-3.5 text-center"><span className="bg-white/5 px-2.5 py-1 rounded text-zinc-200 text-xs border border-white/8">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-400">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-200 mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-zinc-200">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-zinc-200 mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1446,35 +1446,35 @@ const App: React.FC = () => {
                         <div className="p-6 space-y-6">
                           {(() => {
                             const done = channelResults.filter(r => r.status === 'completed');
-                            if (!done.length) return <p className="text-xs text-zinc-400 text-center py-8">완료된 채널이 없습니다.</p>;
+                            if (!done.length) return <p className="text-xs text-zinc-200 text-center py-8">완료된 채널이 없습니다.</p>;
                             const maxShorts = Math.max(...done.map(r => r.avgShortsViews), 1);
                             const maxLong = Math.max(...done.map(r => r.avgLongViews), 1);
                             return (
                               <>
                                 <div>
-                                  <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><Radio size={12} className="text-violet-400" /> Shorts 평균 조회수</p>
+                                  <p className="text-xs font-medium text-zinc-200 mb-3 flex items-center gap-1.5"><Radio size={12} className="text-violet-400" /> Shorts 평균 조회수</p>
                                   <div className="space-y-2">
                                     {done.map(r => (
                                       <div key={r.channelId} className="flex items-center gap-3">
-                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <span className="text-xs text-zinc-300 w-28 truncate shrink-0">{r.channelName}</span>
                                         <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
                                           <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(r.avgShortsViews / maxShorts) * 100}%` }} />
                                         </div>
-                                        <span className="text-xs text-zinc-400 w-20 text-right shrink-0 tabular-nums">{r.avgShortsViews.toLocaleString()}</span>
+                                        <span className="text-xs text-zinc-200 w-20 text-right shrink-0 tabular-nums">{r.avgShortsViews.toLocaleString()}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><MonitorPlay size={12} className="text-zinc-400" /> Longform 평균 조회수</p>
+                                  <p className="text-xs font-medium text-zinc-200 mb-3 flex items-center gap-1.5"><MonitorPlay size={12} className="text-zinc-200" /> Longform 평균 조회수</p>
                                   <div className="space-y-2">
                                     {done.map(r => (
                                       <div key={r.channelId} className="flex items-center gap-3">
-                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <span className="text-xs text-zinc-300 w-28 truncate shrink-0">{r.channelName}</span>
                                         <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
                                           <div className="h-full bg-zinc-400 rounded-full transition-all duration-500" style={{ width: `${(r.avgLongViews / maxLong) * 100}%` }} />
                                         </div>
-                                        <span className="text-xs text-zinc-400 w-20 text-right shrink-0 tabular-nums">{r.avgLongViews.toLocaleString()}</span>
+                                        <span className="text-xs text-zinc-200 w-20 text-right shrink-0 tabular-nums">{r.avgLongViews.toLocaleString()}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -1485,7 +1485,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                       {channelResultTab === 'raw' && (
-                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(channelResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, subscriberCount: r.subscriberCount, avgShortsViews: r.avgShortsViews, avgLongViews: r.avgLongViews, status: r.status })), null, 2)}</pre>
+                        <pre className="p-6 text-[11px] text-zinc-300 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(channelResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, subscriberCount: r.subscriberCount, avgShortsViews: r.avgShortsViews, avgLongViews: r.avgLongViews, status: r.status })), null, 2)}</pre>
                       )}
                     </div>
                   )}
@@ -1498,19 +1498,19 @@ const App: React.FC = () => {
               {/* Header */}
               <div>
                 <h2 className="text-xl font-semibold text-white">단일 영상 분석</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">YouTube 영상 URL 또는 ID로 조회수·댓글 분석</p>
+                <p className="text-xs text-zinc-200 mt-0.5">YouTube 영상 URL 또는 ID로 조회수·댓글 분석</p>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
                 {/* Left: list input */}
                 <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                       <Video size={13} className="text-violet-500" /> Video List
                       {videoList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{videoList.length}</span>}
                     </label>
                     {videoList.length > 0 && (
-                      <button onClick={() => setVideoInput('')} className="text-xs text-zinc-400 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                      <button onClick={() => setVideoInput('')} className="text-xs text-zinc-200 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -1519,18 +1519,18 @@ const App: React.FC = () => {
                       onChange={e => setVideoDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addVideoItem()}
                       placeholder="영상 URL 또는 ID 입력 후 Enter"
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-400 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     />
                     <button onClick={addVideoItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
                   <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                     {videoList.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-zinc-400 space-y-2"><Video size={26} strokeWidth={1} /><p className="text-xs">영상을 추가하세요</p></div>
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-200 space-y-2"><Video size={26} strokeWidth={1} /><p className="text-xs">영상을 추가하세요</p></div>
                     ) : videoList.map((v, i) => (
                       <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
                         <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
                         <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{v}</span>
-                        <button onClick={() => removeVideoItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 transition-all"><X size={13} /></button>
+                        <button onClick={() => removeVideoItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-200 hover:text-red-400 transition-all"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
@@ -1538,13 +1538,13 @@ const App: React.FC = () => {
                 {/* Right: Run */}
                 <div className="xl:col-span-2 flex flex-col gap-4">
                   <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 flex-1">
-                    <h3 className="text-xs font-medium text-zinc-400">수집 설정</h3>
-                    <p className="text-xs text-zinc-400 leading-relaxed">URL 또는 11자리 영상 ID를 입력하세요. 중복은 자동으로 제거됩니다.</p>
+                    <h3 className="text-xs font-medium text-zinc-200">수집 설정</h3>
+                    <p className="text-xs text-zinc-200 leading-relaxed">URL 또는 11자리 영상 ID를 입력하세요. 중복은 자동으로 제거됩니다.</p>
                     <div className="bg-white/[0.02] rounded-lg p-3 space-y-1">
-                      <p className="text-[10px] text-zinc-400">지원 형식</p>
-                      <p className="text-[10px] text-zinc-400 font-mono">youtube.com/watch?v=xxx</p>
-                      <p className="text-[10px] text-zinc-400 font-mono">youtu.be/xxx</p>
-                      <p className="text-[10px] text-zinc-400 font-mono">youtube.com/shorts/xxx</p>
+                      <p className="text-[10px] text-zinc-200">지원 형식</p>
+                      <p className="text-[10px] text-zinc-200 font-mono">youtube.com/watch?v=xxx</p>
+                      <p className="text-[10px] text-zinc-200 font-mono">youtu.be/xxx</p>
+                      <p className="text-[10px] text-zinc-200 font-mono">youtube.com/shorts/xxx</p>
                     </div>
                   </div>
                   <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50">
@@ -1559,7 +1559,7 @@ const App: React.FC = () => {
                 <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-400" /> 수집 진행 중</div>
-                    <span className="text-xs text-zinc-500 tabular-nums">{videoDone} / {videoTotal} 완료 · {videoProgress}%</span>
+                    <span className="text-xs text-zinc-300 tabular-nums">{videoDone} / {videoTotal} 완료 · {videoProgress}%</span>
                   </div>
                   <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
                     <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${videoProgress}%` }} />
@@ -1572,9 +1572,9 @@ const App: React.FC = () => {
                 <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
                   <button onClick={() => setShowVideoResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2.5">
-                      {showVideoResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      {showVideoResults ? <ChevronDown size={15} className="text-zinc-300" /> : <ChevronRight size={15} className="text-zinc-300" />}
                       <span className="text-sm font-medium text-white">수집 결과</span>
-                      <span className="text-xs text-zinc-400">{videoResults.filter(v => v.status === 'completed').length}개 완료</span>
+                      <span className="text-xs text-zinc-200">{videoResults.filter(v => v.status === 'completed').length}개 완료</span>
                     </div>
                     {!isProcessing && videoResults.some(v => v.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
                   </button>
@@ -1583,19 +1583,19 @@ const App: React.FC = () => {
                       <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
                         <div className="flex gap-1">
                           {(['table','chart','raw'] as ResultTab[]).map(t => (
-                            <button key={t} onClick={() => setVideoResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${videoResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                            <button key={t} onClick={() => setVideoResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${videoResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-300 hover:text-zinc-300 hover:bg-white/5'}`}>
                               {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
                             </button>
                           ))}
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                         </div>
                       </div>
                       {videoResultTab === 'table' && (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
-                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                            <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                               <tr>
                                 <th className="px-6 py-3 font-medium">Video</th>
                                 <th className="px-6 py-3 font-medium">Channel</th>
@@ -1608,21 +1608,21 @@ const App: React.FC = () => {
                               {videoResults.map(v => (
                                 <tr key={v.videoId} className="hover:bg-white/[0.02] transition-colors group">
                                   <td className="px-6 py-3.5 flex items-center gap-3">
-                                    {v.thumbnail ? <img src={v.thumbnail} className={`rounded-lg object-cover border border-white/8 shrink-0 ${v.isShort ? 'w-7 h-10' : 'w-14 h-9'}`} /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-400" size={13} /></div>}
+                                    {v.thumbnail ? <img src={v.thumbnail} className={`rounded-lg object-cover border border-white/8 shrink-0 ${v.isShort ? 'w-7 h-10' : 'w-14 h-9'}`} /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-200" size={13} /></div>}
                                     <div className="min-w-0">
                                       <div className="text-xs font-medium text-zinc-200 group-hover:text-violet-400 transition-colors truncate max-w-[280px]">{v.title}</div>
-                                      <div className="text-[10px] text-zinc-400 font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
+                                      <div className="text-[10px] text-zinc-200 font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-3.5 text-xs text-zinc-400">{v.channelTitle || '—'}</td>
+                                  <td className="px-6 py-3.5 text-xs text-zinc-200">{v.channelTitle || '—'}</td>
                                   <td className="px-6 py-3.5 text-center">
                                     <div className="text-xs text-violet-400 flex items-center justify-center gap-1"><ThumbsUp size={10} /> {v.likeCount.toLocaleString()}</div>
-                                    <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1 mt-0.5"><MessageSquare size={10} /> {v.commentCount.toLocaleString()}</div>
+                                    <div className="text-[10px] text-zinc-200 flex items-center justify-center gap-1 mt-0.5"><MessageSquare size={10} /> {v.commentCount.toLocaleString()}</div>
                                   </td>
                                   <td className="px-6 py-3.5 text-right text-sm font-semibold text-white tabular-nums">{v.viewCount.toLocaleString()}</td>
                                   <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1.5">
-                                    <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-white/5 hover:bg-white/12 text-zinc-400 hover:text-white rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
-                                    <a href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} target="_blank" className="p-1.5 bg-white/5 hover:bg-violet-600 text-zinc-400 hover:text-white rounded-lg transition-all"><ExternalLink size={13} /></a>
+                                    <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-white/5 hover:bg-white/12 text-zinc-200 hover:text-white rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
+                                    <a href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} target="_blank" className="p-1.5 bg-white/5 hover:bg-violet-600 text-zinc-200 hover:text-white rounded-lg transition-all"><ExternalLink size={13} /></a>
                                   </td>
                                 </tr>
                               ))}
@@ -1634,19 +1634,19 @@ const App: React.FC = () => {
                         <div className="p-6">
                           {(() => {
                             const done = videoResults.filter(v => v.status === 'completed');
-                            if (!done.length) return <p className="text-xs text-zinc-400 text-center py-8">완료된 영상이 없습니다.</p>;
+                            if (!done.length) return <p className="text-xs text-zinc-200 text-center py-8">완료된 영상이 없습니다.</p>;
                             const maxViews = Math.max(...done.map(v => v.viewCount), 1);
                             return (
                               <div>
-                                <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1.5"><Eye size={12} className="text-violet-400" /> 조회수 분포</p>
+                                <p className="text-xs font-medium text-zinc-200 mb-3 flex items-center gap-1.5"><Eye size={12} className="text-violet-400" /> 조회수 분포</p>
                                 <div className="space-y-2">
                                   {done.slice(0, 20).map(v => (
                                     <div key={v.videoId} className="flex items-center gap-3">
-                                      <span className="text-xs text-zinc-400 w-36 truncate shrink-0">{v.title}</span>
+                                      <span className="text-xs text-zinc-200 w-36 truncate shrink-0">{v.title}</span>
                                       <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
                                         <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(v.viewCount / maxViews) * 100}%` }} />
                                       </div>
-                                      <span className="text-xs text-zinc-400 w-20 text-right tabular-nums shrink-0">{v.viewCount.toLocaleString()}</span>
+                                      <span className="text-xs text-zinc-200 w-20 text-right tabular-nums shrink-0">{v.viewCount.toLocaleString()}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -1656,7 +1656,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                       {videoResultTab === 'raw' && (
-                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(videoResults.map(v => ({ videoId: v.videoId, title: v.title, viewCount: v.viewCount, likeCount: v.likeCount, commentCount: v.commentCount, status: v.status })), null, 2)}</pre>
+                        <pre className="p-6 text-[11px] text-zinc-300 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(videoResults.map(v => ({ videoId: v.videoId, title: v.title, viewCount: v.viewCount, likeCount: v.likeCount, commentCount: v.commentCount, status: v.status })), null, 2)}</pre>
                       )}
                     </div>
                   )}
@@ -1669,19 +1669,19 @@ const App: React.FC = () => {
               {/* Header */}
               <div>
                 <h2 className="text-xl font-semibold text-white">채널 광고 분석</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">채널별 광고 영상 수 및 광고 비율 분석</p>
+                <p className="text-xs text-zinc-200 mt-0.5">채널별 광고 영상 수 및 광고 비율 분석</p>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
                 {/* Left: list input */}
                 <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                       <List size={13} className="text-violet-500" /> Channel List
                       {adList.length > 0 && <span className="bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded text-[10px]">{adList.length}</span>}
                     </label>
                     {adList.length > 0 && (
-                      <button onClick={clearAdList} className="text-xs text-zinc-400 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                      <button onClick={clearAdList} className="text-xs text-zinc-200 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -1690,18 +1690,18 @@ const App: React.FC = () => {
                       onChange={e => setAdDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addAdItem()}
                       placeholder="UC코드 또는 채널 URL 입력 후 Enter"
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-400 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     />
                     <button onClick={addAdItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
                   <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                     {adList.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-zinc-400 space-y-2"><List size={26} strokeWidth={1} /><p className="text-xs">채널을 추가하세요</p></div>
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-200 space-y-2"><List size={26} strokeWidth={1} /><p className="text-xs">채널을 추가하세요</p></div>
                     ) : adList.map((ch, i) => (
                       <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
                         <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full shrink-0" />
                         <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{ch}</span>
-                        <button onClick={() => removeAdItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 transition-all"><X size={13} /></button>
+                        <button onClick={() => removeAdItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-200 hover:text-red-400 transition-all"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
@@ -1715,14 +1715,14 @@ const App: React.FC = () => {
                       <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Calendar size={13} className="text-violet-500" /> 분석 기간</h3>
                       <button
                         onClick={() => setAdUseDateFilter(!adUseDateFilter)}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${adUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${adUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-300'}`}
                       >
                         {adUseDateFilter ? 'Enabled' : 'Disabled'}
                       </button>
                     </div>
                     <div className={`grid grid-cols-4 gap-1.5 transition-opacity ${!adUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
                       {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
-                        <button key={p} onClick={() => setAdPeriod(p)} className={`py-2 text-xs font-medium rounded-lg transition-all ${adPeriod === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}>
+                        <button key={p} onClick={() => setAdPeriod(p)} className={`py-2 text-xs font-medium rounded-lg transition-all ${adPeriod === p ? 'bg-white text-black' : 'bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white'}`}>
                           {periodLabels[p]}
                         </button>
                       ))}
@@ -1747,7 +1747,7 @@ const App: React.FC = () => {
                 <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-400" /> 분석 진행 중</div>
-                    <span className="text-xs text-zinc-500 tabular-nums">{adDone} / {adTotal} 완료 · {adProgress}%</span>
+                    <span className="text-xs text-zinc-300 tabular-nums">{adDone} / {adTotal} 완료 · {adProgress}%</span>
                   </div>
                   <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
                     <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${adProgress}%` }} />
@@ -1760,9 +1760,9 @@ const App: React.FC = () => {
                 <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
                   <button onClick={() => setShowAdResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
                     <div className="flex items-center gap-2.5">
-                      {showAdResults ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+                      {showAdResults ? <ChevronDown size={15} className="text-zinc-300" /> : <ChevronRight size={15} className="text-zinc-300" />}
                       <span className="text-sm font-medium text-white">광고 분석 결과</span>
-                      <span className="text-xs text-zinc-400">{adResults.filter(r => r.status === 'completed').length}개 완료</span>
+                      <span className="text-xs text-zinc-200">{adResults.filter(r => r.status === 'completed').length}개 완료</span>
                     </div>
                     {!isProcessing && adResults.some(r => r.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
                   </button>
@@ -1771,17 +1771,17 @@ const App: React.FC = () => {
                       <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0f1117]/50">
                         <div className="flex gap-1">
                           {(['table','chart','raw'] as ResultTab[]).map(t => (
-                            <button key={t} onClick={() => setAdResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${adResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}>
+                            <button key={t} onClick={() => setAdResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${adResultTab === t ? 'bg-violet-600 text-white' : 'text-zinc-300 hover:text-zinc-300 hover:bg-white/5'}`}>
                               {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
                             </button>
                           ))}
                         </div>
-                        <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                        <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                       </div>
                       {adResultTab === 'table' && (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
-                            <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                            <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                               <tr>
                                 <th className="px-6 py-3 font-medium">Channel</th>
                                 <th className="px-6 py-3 text-right font-medium">Total Videos</th>
@@ -1794,13 +1794,13 @@ const App: React.FC = () => {
                               {adResults.map(r => (
                                 <tr key={r.channelId} className="hover:bg-white/[0.02] transition-colors group">
                                   <td className="px-6 py-3.5 flex items-center gap-3">
-                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-400" size={13} /></div>}
+                                    {r.thumbnail ? <img src={r.thumbnail} className="w-8 h-8 rounded-lg object-cover border border-white/8 shrink-0" /> : <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Loader2 className="animate-spin text-zinc-200" size={13} /></div>}
                                     <div className="min-w-0">
                                       <div className="text-xs font-medium text-zinc-200 truncate max-w-[200px] group-hover:text-violet-400 transition-colors">{r.channelName}</div>
-                                      <div className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate max-w-[180px]">{r.status === 'error' ? <span className="text-red-400">{r.error}</span> : r.channelId}</div>
+                                      <div className="text-[10px] text-zinc-200 font-mono mt-0.5 truncate max-w-[180px]">{r.status === 'error' ? <span className="text-red-400">{r.error}</span> : r.channelId}</div>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-3.5 text-right text-xs text-zinc-400 tabular-nums">{r.status === 'completed' ? r.totalVideoCount.toLocaleString() : '—'}</td>
+                                  <td className="px-6 py-3.5 text-right text-xs text-zinc-200 tabular-nums">{r.status === 'completed' ? r.totalVideoCount.toLocaleString() : '—'}</td>
                                   <td className="px-6 py-3.5 text-right text-xs text-violet-400 tabular-nums font-medium">{r.status === 'completed' ? r.totalAdCount.toLocaleString() : '—'}</td>
                                   <td className="px-6 py-3.5 text-right">
                                     {r.status === 'completed' ? (
@@ -1820,20 +1820,20 @@ const App: React.FC = () => {
                         <div className="p-6 space-y-6">
                           {(() => {
                             const done = adResults.filter(r => r.status === 'completed');
-                            if (!done.length) return <p className="text-xs text-zinc-400 text-center py-8">완료된 채널이 없습니다.</p>;
+                            if (!done.length) return <p className="text-xs text-zinc-200 text-center py-8">완료된 채널이 없습니다.</p>;
                             const maxAd = Math.max(...done.map(r => r.totalAdCount), 1);
                             return (
                               <>
                                 <div>
-                                  <p className="text-xs font-medium text-zinc-400 mb-3">광고 영상 수</p>
+                                  <p className="text-xs font-medium text-zinc-200 mb-3">광고 영상 수</p>
                                   <div className="space-y-2">
                                     {done.map(r => (
                                       <div key={r.channelId} className="flex items-center gap-3">
-                                        <span className="text-xs text-zinc-500 w-28 truncate shrink-0">{r.channelName}</span>
+                                        <span className="text-xs text-zinc-300 w-28 truncate shrink-0">{r.channelName}</span>
                                         <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
                                           <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(r.totalAdCount / maxAd) * 100}%` }} />
                                         </div>
-                                        <span className="text-xs text-zinc-400 w-16 text-right shrink-0 tabular-nums">{r.totalAdCount}</span>
+                                        <span className="text-xs text-zinc-200 w-16 text-right shrink-0 tabular-nums">{r.totalAdCount}</span>
                                         <span className={`text-xs w-14 text-right shrink-0 font-medium ${r.adRatio >= 50 ? 'text-red-400' : r.adRatio >= 20 ? 'text-yellow-400' : 'text-emerald-400'}`}>{r.adRatio.toFixed(1)}%</span>
                                       </div>
                                     ))}
@@ -1845,7 +1845,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                       {adResultTab === 'raw' && (
-                        <pre className="p-6 text-[11px] text-zinc-500 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(adResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, totalVideoCount: r.totalVideoCount, totalAdCount: r.totalAdCount, adRatio: r.adRatio, avgAdViews: r.avgAdViews, status: r.status })), null, 2)}</pre>
+                        <pre className="p-6 text-[11px] text-zinc-300 overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(adResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, totalVideoCount: r.totalVideoCount, totalAdCount: r.totalAdCount, adRatio: r.adRatio, avgAdViews: r.avgAdViews, status: r.status })), null, 2)}</pre>
                       )}
                     </div>
                   )}
@@ -1859,12 +1859,12 @@ const App: React.FC = () => {
               <h2 className="text-2xl font-semibold text-white">{isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼'}</h2>
 
               {/* 설명 */}
-              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3 text-sm text-zinc-400 leading-relaxed">
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3 text-sm text-zinc-200 leading-relaxed">
                 <p className="flex items-center gap-2 font-medium text-zinc-200 text-sm">
                   <Activity size={15} className="text-violet-500" /> 작동 방식
                 </p>
                 {isBackendAvailable() ? (
-                  <div className="space-y-1.5 text-xs text-zinc-400">
+                  <div className="space-y-1.5 text-xs text-zinc-200">
                     <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">분석 시작</strong>을 클릭합니다.</p>
                     <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">yt-dlp</code>로 YouTube 데이터를 직접 추출합니다.</p>
                     <p>③ 브라우저/EXE/로컬 서버 없이 결과가 즉시 표시됩니다.</p>
@@ -1874,12 +1874,12 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-1.5 text-xs text-zinc-400">
+                  <div className="space-y-1.5 text-xs text-zinc-200">
                     <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">요청 전송</strong>을 클릭합니다.</p>
                     <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
                     <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 스크래핑합니다.</p>
                     <p>④ 완료 후 GitHub에 결과를 push → 대시보드에 자동 반영됩니다.</p>
-                    <div className="border-t border-white/8 pt-3 text-xs text-zinc-400">
+                    <div className="border-t border-white/8 pt-3 text-xs text-zinc-200">
                       <p className="text-yellow-400/80">백엔드 미연결: BACKEND_URL 환경변수를 설정하면 EXE/로컬 서버 없이 사용 가능합니다.</p>
                     </div>
                   </div>
@@ -1888,7 +1888,7 @@ const App: React.FC = () => {
 
               {/* 채널 입력 */}
               <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
-                <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
+                <label className="text-xs font-medium text-zinc-200 flex items-center gap-2">
                   <List size={13} className="text-violet-500" /> 채널 목록 (한 줄에 하나, @ 핸들 또는 URL)
                 </label>
                 <textarea
@@ -1901,12 +1901,12 @@ const App: React.FC = () => {
                 {/* 날짜 범위 설정 */}
                 <div className="space-y-4 border-t border-white/8 pt-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                    <label className="text-xs text-zinc-200 flex items-center gap-1.5">
                       <CalendarDays size={13} className="text-violet-400" /> 수집 기간 설정
                     </label>
                     <button
                       onClick={() => setScraperUseDateFilter(!scraperUseDateFilter)}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${scraperUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-500'}`}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${scraperUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-300'}`}
                     >
                       {scraperUseDateFilter ? 'Enabled' : 'Disabled'}
                     </button>
@@ -1919,7 +1919,7 @@ const App: React.FC = () => {
                         <button
                           key={p}
                           onClick={() => setScraperDatesByPeriod(p)}
-                          className="py-2 text-xs font-medium rounded-lg bg-white/5 text-zinc-400 hover:bg-violet-600 hover:text-white transition-all active:scale-95"
+                          className="py-2 text-xs font-medium rounded-lg bg-white/5 text-zinc-200 hover:bg-violet-600 hover:text-white transition-all active:scale-95"
                         >
                           {periodLabels[p]}
                         </button>
@@ -1929,7 +1929,7 @@ const App: React.FC = () => {
                     {/* 직접 날짜 입력 */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
-                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-500 group-hover:text-violet-400">Start</label>
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-violet-400">Start</label>
                         <div className="flex items-center gap-2">
                           <Calendar size={13} className="text-violet-500 shrink-0" />
                           <input
@@ -1941,7 +1941,7 @@ const App: React.FC = () => {
                         </div>
                       </div>
                       <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
-                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-500 group-hover:text-violet-400">End</label>
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-violet-400">End</label>
                         <div className="flex items-center gap-2">
                           <Calendar size={13} className="text-violet-500 shrink-0" />
                           <input
@@ -1953,7 +1953,7 @@ const App: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <p className="text-xs text-zinc-400 text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
+                    <p className="text-xs text-zinc-200 text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
                   </div>
                 </div>
 
@@ -1995,7 +1995,7 @@ const App: React.FC = () => {
               {/* 빠른 대시보드 이동 */}
               <button
                 onClick={() => { setActiveTab('dashboard'); setDashboardSubTab('scraper'); loadScraperResults(); }}
-                className="w-full bg-white/5 hover:bg-white/8 text-zinc-400 hover:text-zinc-200 py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                className="w-full bg-white/5 hover:bg-white/8 text-zinc-200 hover:text-zinc-200 py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
               >
                 <BarChart3 size={16} /> 스크래퍼 결과 대시보드 보기
               </button>
@@ -2007,7 +2007,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Instagram 릴스 분석</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">{isBackendAvailable() ? '클라우드 백엔드를 통해' : '로컬 서버를 통해'} 릴스 조회수·좋아요·댓글 수집</p>
+                  <p className="text-xs text-zinc-200 mt-0.5">{isBackendAvailable() ? '클라우드 백엔드를 통해' : '로컬 서버를 통해'} 릴스 조회수·좋아요·댓글 수집</p>
                 </div>
                 {isBackendAvailable() ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
@@ -2026,23 +2026,23 @@ const App: React.FC = () => {
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-violet-500" /> 작동 방식</p>
                 {isBackendAvailable() ? (
-                  <div className="space-y-1.5 text-xs text-zinc-500">
+                  <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
                     <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagrapi</code>로 릴스 데이터를 직접 수집합니다.</p>
                     <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
                   </div>
                 ) : (
-                  <div className="space-y-1.5 text-xs text-zinc-500">
+                  <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
                     <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
                     <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_scraper.py</code> 실행.</p>
                     <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
                   </div>
                 )}
-                <div className="border-t border-white/8 pt-3 text-xs text-zinc-400">
+                <div className="border-t border-white/8 pt-3 text-xs text-zinc-200">
                   {isBackendAvailable()
                     ? '백엔드에 IG_USERNAME / IG_PASSWORD 환경변수가 설정되어 있어야 합니다.'
-                    : <>필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_PASSWORD</code> — scraper/.env에 설정</>
+                    : <>필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-200">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-200">IG_PASSWORD</code> — scraper/.env에 설정</>
                   }
                 </div>
               </div>
@@ -2051,12 +2051,12 @@ const App: React.FC = () => {
                 {/* Left: list input */}
                 <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                       <Instagram size={13} className="text-pink-500" /> Account List
                       {igList.length > 0 && <span className="bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded text-[10px]">{igList.length}</span>}
                     </label>
                     {igList.length > 0 && (
-                      <button onClick={clearIgList} className="text-xs text-zinc-400 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                      <button onClick={clearIgList} className="text-xs text-zinc-200 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -2065,18 +2065,18 @@ const App: React.FC = () => {
                       onChange={e => setIgDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addIgItem()}
                       placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-400 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
                     />
                     <button onClick={addIgItem} className="flex items-center gap-1.5 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
                   <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                     {igList.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-zinc-400 space-y-2"><Instagram size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-200 space-y-2"><Instagram size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
                     ) : igList.map((u, i) => (
                       <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
                         <span className="text-pink-600 text-xs shrink-0">@</span>
                         <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{u}</span>
-                        <button onClick={() => removeIgItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 transition-all"><X size={13} /></button>
+                        <button onClick={() => removeIgItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-200 hover:text-red-400 transition-all"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
@@ -2089,7 +2089,7 @@ const App: React.FC = () => {
                     <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-pink-500" /> 수집 개수 설정</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500">계정당 릴스 수</span>
+                        <span className="text-zinc-300">계정당 릴스 수</span>
                         <span className="text-pink-400 font-medium">{igAmount}개</span>
                       </div>
                       <input
@@ -2098,11 +2098,11 @@ const App: React.FC = () => {
                         onChange={e => setIgAmount(Number(e.target.value))}
                         className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-pink-500"
                       />
-                      <div className="flex justify-between text-[10px] text-zinc-400">
+                      <div className="flex justify-between text-[10px] text-zinc-200">
                         <span>5개</span><span>50개</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-zinc-400">최신 릴스부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
+                    <p className="text-[10px] text-zinc-200">최신 릴스부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
                   </div>
 
                   {/* Status */}
@@ -2148,15 +2148,15 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2.5">
                       <Instagram size={14} className="text-pink-500" />
                       <span className="text-sm font-medium text-white">수집 결과</span>
-                      <span className="text-xs text-zinc-400">{igResults.length}개 계정</span>
+                      <span className="text-xs text-zinc-200">{igResults.length}개 계정</span>
                     </div>
-                    <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-zinc-400 hover:text-white transition-all">
+                    <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-zinc-200 hover:text-white transition-all">
                       {igResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 새로고침
                     </button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                      <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                         <tr>
                           <th className="px-6 py-3 font-medium">Account</th>
                           <th className="px-6 py-3 text-center font-medium">Reels</th>
@@ -2169,7 +2169,7 @@ const App: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {igResultsLoading ? (
-                          <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-400" size={22} /></td></tr>
+                          <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-200" size={22} /></td></tr>
                         ) : igResults.map(r => (
                           <tr key={r.username} className="hover:bg-white/[0.02] transition-colors group">
                             <td className="px-6 py-3.5">
@@ -2184,19 +2184,19 @@ const App: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-6 py-3.5 text-center">
-                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.reelCount}</span>
+                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-200 text-xs border border-white/8">{r.reelCount}</span>
                             </td>
                             <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
                             <td className="px-6 py-3.5 text-right text-xs text-violet-400 tabular-nums">{r.avgLikes.toLocaleString()}</td>
-                            <td className="px-6 py-3.5 text-right text-xs text-zinc-400 tabular-nums">{r.avgComments.toLocaleString()}</td>
-                            <td className="px-6 py-3.5 text-center text-xs text-zinc-400 font-mono">
+                            <td className="px-6 py-3.5 text-right text-xs text-zinc-200 tabular-nums">{r.avgComments.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-center text-xs text-zinc-200 font-mono">
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
                             <td className="px-6 py-3.5 text-center">
                               <button
                                 onClick={() => setSelectedIgUser(r)}
                                 disabled={!r.reelCount}
-                                className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"
                               >
                                 <Eye size={14} />
                               </button>
@@ -2210,7 +2210,7 @@ const App: React.FC = () => {
               )}
 
               {igResults.length === 0 && !igResultsLoading && igJobStatus === 'idle' && (
-                <button onClick={loadIgResults} className="w-full bg-white/5 hover:bg-white/8 text-zinc-400 hover:text-zinc-200 py-3 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
+                <button onClick={loadIgResults} className="w-full bg-white/5 hover:bg-white/8 text-zinc-200 hover:text-zinc-200 py-3 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
                   <Instagram size={15} /> 이전 수집 결과 불러오기
                 </button>
               )}
@@ -2223,7 +2223,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">TikTok 영상 분석</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">클라우드 백엔드(yt-dlp)를 통해 조회수·좋아요·댓글 수집</p>
+                  <p className="text-xs text-zinc-200 mt-0.5">클라우드 백엔드(yt-dlp)를 통해 조회수·좋아요·댓글 수집</p>
                 </div>
                 {isBackendAvailable() ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
@@ -2241,12 +2241,12 @@ const App: React.FC = () => {
               {/* 작동 방식 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-cyan-500" /> 작동 방식</p>
-                <div className="space-y-1.5 text-xs text-zinc-500">
+                <div className="space-y-1.5 text-xs text-zinc-300">
                   <p>① 아래에서 TikTok 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
                   <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">yt-dlp</code>로 영상 데이터를 수집합니다.</p>
                   <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
                 </div>
-                <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-400">
+                <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-200">
                   BACKEND_URL 환경변수가 설정되어 있어야 합니다. TikTok은 클라우드 백엔드에서만 동작합니다.
                 </div>
               </div>
@@ -2255,12 +2255,12 @@ const App: React.FC = () => {
                 {/* Left: list input */}
                 <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                       <Music size={13} className="text-cyan-500" /> Account List
                       {tkList.length > 0 && <span className="bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded text-[10px]">{tkList.length}</span>}
                     </label>
                     {tkList.length > 0 && (
-                      <button onClick={clearTkList} className="text-xs text-zinc-400 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                      <button onClick={clearTkList} className="text-xs text-zinc-200 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -2269,18 +2269,18 @@ const App: React.FC = () => {
                       onChange={e => setTkDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addTkItem()}
                       placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-400 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
                     />
                     <button onClick={addTkItem} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
                   <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                     {tkList.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-zinc-400 space-y-2"><Music size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-200 space-y-2"><Music size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
                     ) : tkList.map((u, i) => (
                       <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
                         <span className="text-cyan-600 text-xs shrink-0">@</span>
                         <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{u}</span>
-                        <button onClick={() => removeTkItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 transition-all"><X size={13} /></button>
+                        <button onClick={() => removeTkItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-200 hover:text-red-400 transition-all"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
@@ -2292,7 +2292,7 @@ const App: React.FC = () => {
                     <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-cyan-500" /> 수집 개수 설정</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500">계정당 영상 수</span>
+                        <span className="text-zinc-300">계정당 영상 수</span>
                         <span className="text-cyan-400 font-medium">{tkAmount}개</span>
                       </div>
                       <input
@@ -2301,11 +2301,11 @@ const App: React.FC = () => {
                         onChange={e => setTkAmount(Number(e.target.value))}
                         className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-cyan-500"
                       />
-                      <div className="flex justify-between text-[10px] text-zinc-400">
+                      <div className="flex justify-between text-[10px] text-zinc-200">
                         <span>5개</span><span>50개</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-zinc-400">최신 영상부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
+                    <p className="text-[10px] text-zinc-200">최신 영상부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
                   </div>
 
                   {/* Status */}
@@ -2349,12 +2349,12 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2.5">
                       <Music size={14} className="text-cyan-500" />
                       <span className="text-sm font-medium text-white">수집 결과</span>
-                      <span className="text-xs text-zinc-400">{tkResults.length}개 계정</span>
+                      <span className="text-xs text-zinc-200">{tkResults.length}개 계정</span>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                      <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                         <tr>
                           <th className="px-6 py-3 font-medium">Account</th>
                           <th className="px-6 py-3 text-center font-medium">Videos</th>
@@ -2366,7 +2366,7 @@ const App: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {tkResultsLoading ? (
-                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-400" size={22} /></td></tr>
+                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-200" size={22} /></td></tr>
                         ) : tkResults.map(r => (
                           <tr key={r.username} className="hover:bg-white/[0.02] transition-colors group">
                             <td className="px-6 py-3.5">
@@ -2381,7 +2381,7 @@ const App: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-6 py-3.5 text-center">
-                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.videoCount}</span>
+                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-200 text-xs border border-white/8">{r.videoCount}</span>
                             </td>
                             <td className="px-6 py-3.5 text-right text-sm font-semibold text-cyan-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
                             <td className="px-6 py-3.5 text-center">
@@ -2389,14 +2389,14 @@ const App: React.FC = () => {
                                 {r.status === 'completed' ? '완료' : '오류'}
                               </span>
                             </td>
-                            <td className="px-6 py-3.5 text-center text-xs text-zinc-400 font-mono">
+                            <td className="px-6 py-3.5 text-center text-xs text-zinc-200 font-mono">
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
                             <td className="px-6 py-3.5 text-center">
                               <button
                                 onClick={() => setSelectedTkUser(r)}
                                 disabled={!r.videoCount}
-                                className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"
                               >
                                 <Eye size={14} />
                               </button>
@@ -2416,7 +2416,7 @@ const App: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-white">데이터 대시보드</h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">수집된 데이터를 한눈에 확인하고 엑셀로 내보내세요</p>
+                  <p className="text-xs text-zinc-300 mt-0.5">수집된 데이터를 한눈에 확인하고 엑셀로 내보내세요</p>
                 </div>
                 <button
                   onClick={handleDownloadExcel}
@@ -2437,7 +2437,7 @@ const App: React.FC = () => {
                     key={tab.id}
                     onClick={() => { setDashboardSubTab(tab.id); if (tab.id === 'scraper') loadScraperResults(); }}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                      dashboardSubTab === tab.id ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                      dashboardSubTab === tab.id ? 'bg-white/10 text-white' : 'text-zinc-300 hover:text-zinc-300'
                     }`}
                   >
                     <tab.icon size={13} /> {tab.label}
@@ -2464,11 +2464,11 @@ const App: React.FC = () => {
                     ].map((kpi, i) => (
                       <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <span className="text-xs text-zinc-300">{kpi.label}</span>
                           <kpi.icon size={14} className={kpi.color} />
                         </div>
                         <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
-                        <div className="text-xs text-zinc-400">{kpi.sub}</div>
+                        <div className="text-xs text-zinc-200">{kpi.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -2491,11 +2491,11 @@ const App: React.FC = () => {
                     ].map((kpi, i) => (
                       <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <span className="text-xs text-zinc-300">{kpi.label}</span>
                           <kpi.icon size={14} className={kpi.color} />
                         </div>
                         <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
-                        <div className="text-xs text-zinc-400">{kpi.sub}</div>
+                        <div className="text-xs text-zinc-200">{kpi.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -2518,11 +2518,11 @@ const App: React.FC = () => {
                     ].map((kpi, i) => (
                       <div key={i} className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">{kpi.label}</span>
+                          <span className="text-xs text-zinc-300">{kpi.label}</span>
                           <kpi.icon size={14} className={kpi.color} />
                         </div>
                         <div className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</div>
-                        <div className="text-xs text-zinc-400">{kpi.sub}</div>
+                        <div className="text-xs text-zinc-200">{kpi.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -2536,11 +2536,11 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Activity size={15} className="text-violet-500" />
                       <span className="font-medium text-white text-sm">로컬 스크래퍼 결과</span>
-                      <span className="text-xs text-zinc-400">from GitHub Raw</span>
+                      <span className="text-xs text-zinc-200">from GitHub Raw</span>
                     </div>
                     <button
                       onClick={loadScraperResults}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-zinc-200 hover:text-white transition-all"
                     >
                       {scraperResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                       새로고침
@@ -2548,7 +2548,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                      <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                         <tr>
                           <th className="px-6 py-4 font-medium">Channel</th>
                           <th className="px-6 py-4 text-center font-medium">Subscribers</th>
@@ -2560,11 +2560,11 @@ const App: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {scraperResultsLoading ? (
-                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-400" size={24} /></td></tr>
+                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-200" size={24} /></td></tr>
                         ) : scraperResults.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="py-24 text-center">
-                              <div className="flex flex-col items-center gap-3 text-zinc-400">
+                              <div className="flex flex-col items-center gap-3 text-zinc-200">
                                 <Activity size={36} strokeWidth={1} />
                                 <p className="text-sm font-medium">아직 스크래퍼 결과가 없습니다.</p>
                                 <p className="text-xs">로컬 스크래퍼 탭에서 채널을 요청하세요.</p>
@@ -2578,31 +2578,31 @@ const App: React.FC = () => {
                                 {r.thumbnail ? (
                                   <img src={r.thumbnail} className="w-10 h-10 rounded-lg object-cover border border-white/8" />
                                 ) : (
-                                  <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center"><Activity className="text-zinc-400" size={16} /></div>
+                                  <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center"><Activity className="text-zinc-200" size={16} /></div>
                                 )}
                                 <div>
                                   <div className="font-medium text-zinc-100 text-sm group-hover:text-violet-400 transition-colors">{r.channelName}</div>
-                                  <div className="text-xs text-zinc-400 font-mono mt-0.5">{r.channelId}</div>
+                                  <div className="text-xs text-zinc-200 font-mono mt-0.5">{r.channelId}</div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-center">
-                                <span className="bg-white/5 px-3 py-1 rounded-lg text-zinc-400 text-xs border border-white/8">{formatNumber(r.subscriberCount)}</span>
+                                <span className="bg-white/5 px-3 py-1 rounded-lg text-zinc-200 text-xs border border-white/8">{formatNumber(r.subscriberCount)}</span>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <div className="text-base font-semibold text-violet-400">{r.avgShortsViews.toLocaleString()}</div>
-                                <div className="text-xs text-zinc-400 mt-0.5">{r.shortsCountFound} Shorts</div>
+                                <div className="text-xs text-zinc-200 mt-0.5">{r.shortsCountFound} Shorts</div>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <div className="text-base font-semibold text-zinc-200">{r.avgLongViews.toLocaleString()}</div>
-                                <div className="text-xs text-zinc-400 mt-0.5">{r.longCountFound} Videos</div>
+                                <div className="text-xs text-zinc-200 mt-0.5">{r.longCountFound} Videos</div>
                               </td>
-                              <td className="px-6 py-4 text-center text-xs text-zinc-500 font-mono">
+                              <td className="px-6 py-4 text-center text-xs text-zinc-300 font-mono">
                                 {(r as any).scrapedAt ? new Date((r as any).scrapedAt).toLocaleDateString('ko-KR') : '—'}
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <button
                                   onClick={() => setSelectedChannel(r)}
-                                  className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all active:scale-90"
+                                  className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-200 rounded-lg transition-all active:scale-90"
                                 >
                                   <Eye size={16} />
                                 </button>
@@ -2622,7 +2622,7 @@ const App: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     {dashboardSubTab === 'channel' ? (
                       <>
-                        <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                        <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                           <tr>
                             <th className="px-6 py-4 font-medium">Channel Information</th>
                             <th className="px-6 py-4 text-center font-medium">Subscribers</th>
@@ -2635,7 +2635,7 @@ const App: React.FC = () => {
                           {channelResults.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="py-24 text-center">
-                                <div className="flex flex-col items-center gap-3 text-zinc-400">
+                                <div className="flex flex-col items-center gap-3 text-zinc-200">
                                   <LayoutDashboard size={36} strokeWidth={1} />
                                   <p className="text-sm font-medium">No channel data analyzed yet.</p>
                                 </div>
@@ -2650,7 +2650,7 @@ const App: React.FC = () => {
                                       <img src={r.thumbnail} className="w-10 h-10 rounded-lg object-cover border border-white/8" />
                                     ) : (
                                       <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center">
-                                        <Loader2 className="animate-spin text-zinc-400" size={16} />
+                                        <Loader2 className="animate-spin text-zinc-200" size={16} />
                                       </div>
                                     )}
                                   </div>
@@ -2661,27 +2661,27 @@ const App: React.FC = () => {
                                         <span className="text-xs bg-red-500/15 text-red-400 px-2 py-0.5 rounded border border-red-500/20">Error</span>
                                       )}
                                     </div>
-                                    <div className="text-xs text-zinc-400 font-mono mt-0.5 max-w-[200px] truncate">{r.status === 'error' ? r.error : r.channelId}</div>
+                                    <div className="text-xs text-zinc-200 font-mono mt-0.5 max-w-[200px] truncate">{r.status === 'error' ? r.error : r.channelId}</div>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                  <span className="bg-white/5 px-3 py-1 rounded-lg text-zinc-400 text-xs border border-white/8">
+                                  <span className="bg-white/5 px-3 py-1 rounded-lg text-zinc-200 text-xs border border-white/8">
                                     {r.status === 'completed' ? formatNumber(r.subscriberCount) : '...'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                   <div className="text-base font-semibold text-violet-400">{r.avgShortsViews.toLocaleString()}</div>
-                                  <div className="text-xs text-zinc-400 mt-0.5">{r.shortsCountFound} Shorts</div>
+                                  <div className="text-xs text-zinc-200 mt-0.5">{r.shortsCountFound} Shorts</div>
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                   <div className="text-base font-semibold text-zinc-200">{r.avgLongViews.toLocaleString()}</div>
-                                  <div className="text-xs text-zinc-400 mt-0.5">{r.longCountFound} Videos</div>
+                                  <div className="text-xs text-zinc-200 mt-0.5">{r.longCountFound} Videos</div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                   <button
                                     disabled={r.status !== 'completed'}
                                     onClick={() => setSelectedChannel(r)}
-                                    className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                    className="p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"
                                   >
                                     <Eye size={16} />
                                   </button>
@@ -2693,7 +2693,7 @@ const App: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                        <thead className="bg-white/[0.02] text-zinc-300 text-xs">
                           <tr>
                             <th className="px-6 py-4 font-medium">Video Details</th>
                             <th className="px-6 py-4 font-medium">Channel</th>
@@ -2706,7 +2706,7 @@ const App: React.FC = () => {
                           {videoResults.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="py-24 text-center">
-                                <div className="flex flex-col items-center gap-3 text-zinc-400">
+                                <div className="flex flex-col items-center gap-3 text-zinc-200">
                                   <MonitorPlay size={36} strokeWidth={1} />
                                   <p className="text-sm font-medium">No video data analyzed yet.</p>
                                 </div>
@@ -2721,24 +2721,24 @@ const App: React.FC = () => {
                                       <img src={v.thumbnail} className={`rounded-lg object-cover border border-white/8 ${v.isShort ? 'w-8 h-12' : 'w-16 h-10'}`} />
                                     ) : (
                                       <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center">
-                                        <Loader2 className="animate-spin text-zinc-400" size={16} />
+                                        <Loader2 className="animate-spin text-zinc-200" size={16} />
                                       </div>
                                     )}
                                   </div>
                                   <div className="min-w-0">
                                     <div className="font-medium text-zinc-100 text-sm group-hover:text-violet-400 transition-colors truncate max-w-[300px]">{v.title}</div>
-                                    <div className="text-xs text-zinc-400 font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
+                                    <div className="text-xs text-zinc-200 font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="text-sm text-zinc-400">{v.channelTitle || '...'}</div>
+                                  <div className="text-sm text-zinc-200">{v.channelTitle || '...'}</div>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                   <div className="flex flex-col items-center gap-1">
                                     <span className="text-xs text-violet-400 flex items-center gap-1">
                                       <ThumbsUp size={11} /> {v.likeCount.toLocaleString()}
                                     </span>
-                                    <span className="text-xs text-zinc-400 flex items-center gap-1">
+                                    <span className="text-xs text-zinc-200 flex items-center gap-1">
                                       <MessageSquare size={11} /> {v.commentCount.toLocaleString()}
                                     </span>
                                   </div>
@@ -2750,14 +2750,14 @@ const App: React.FC = () => {
                                   <button
                                     disabled={v.status !== 'completed'}
                                     onClick={() => setSelectedVideo(v)}
-                                    className="p-2 bg-white/5 hover:bg-white/12 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                    className="p-2 bg-white/5 hover:bg-white/12 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"
                                   >
                                     <Eye size={16} />
                                   </button>
                                   <a
                                     href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`}
                                     target="_blank"
-                                    className="inline-block p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-400 rounded-lg transition-all active:scale-90"
+                                    className="inline-block p-2 bg-white/5 hover:bg-violet-600 hover:text-white text-zinc-200 rounded-lg transition-all active:scale-90"
                                   >
                                     <ExternalLink size={15} />
                                   </a>
