@@ -52,7 +52,7 @@ import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult,
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult } from './services/backendApiService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -1057,8 +1057,7 @@ const App: React.FC = () => {
                 { id: 'channel-config',   label: '채널 통합 분석',    Icon: TrendingUp,  soon: false },
                 { id: 'video-config',     label: '단일 영상 분석',    Icon: Video,       soon: false },
                 { id: 'ad-config',        label: '광고 영상 분석',    Icon: Megaphone,   soon: false },
-                { id: 'scraper-config',   label: isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼',    Icon: Activity,    soon: false },
-                { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: true  },
+                { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: false },
                 { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: false },
                 { id: 'tiktok-config',    label: 'TikTok 분석',      Icon: Music,       soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean }[]).map(({ id, label, Icon, soon }) => (
@@ -1853,153 +1852,56 @@ const App: React.FC = () => {
               )}
             </div>
 
-          ) : activeTab === 'scraper-config' ? (
-            /* ── 스크래퍼 탭 (클라우드/로컬) ────────────────────────────────────── */
-            <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-              <h2 className="text-2xl font-semibold text-white">{isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼'}</h2>
-
-              {/* 설명 */}
-              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3 text-sm text-zinc-200 leading-relaxed">
-                <p className="flex items-center gap-2 font-medium text-zinc-200 text-sm">
-                  <Activity size={15} className="text-violet-500" /> 작동 방식
-                </p>
+          ) : activeTab === 'live-config' ? (
+            /* ── 라이브 지표 분석 탭 (CHZZK/SOOP · softc) ──────────────────── */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">라이브 지표 분석</h2>
+                  <p className="text-xs text-zinc-200 mt-0.5">CHZZK / SOOP 방송 시청자 지표 수집 · viewership.softc.one</p>
+                </div>
                 {isBackendAvailable() ? (
-                  <div className="space-y-1.5 text-xs text-zinc-200">
-                    <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">분석 시작</strong>을 클릭합니다.</p>
-                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">yt-dlp</code>로 YouTube 데이터를 직접 추출합니다.</p>
-                    <p>③ 브라우저/EXE/로컬 서버 없이 결과가 즉시 표시됩니다.</p>
-                    <div className="border-t border-white/8 pt-3 flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                      <span className="text-emerald-400 font-medium">클라우드 백엔드 연결됨</span>
-                    </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">클라우드 연결</span>
                   </div>
                 ) : (
-                  <div className="space-y-1.5 text-xs text-zinc-200">
-                    <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">요청 전송</strong>을 클릭합니다.</p>
-                    <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                    <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 스크래핑합니다.</p>
-                    <p>④ 완료 후 GitHub에 결과를 push → 대시보드에 자동 반영됩니다.</p>
-                    <div className="border-t border-white/8 pt-3 text-xs text-zinc-200">
-                      <p className="text-yellow-400/80">백엔드 미연결: BACKEND_URL 환경변수를 설정하면 EXE/로컬 서버 없이 사용 가능합니다.</p>
-                    </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                    <span className="text-xs text-red-400 font-medium">백엔드 필요</span>
                   </div>
                 )}
               </div>
 
-              {/* 채널 입력 */}
-              <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
-                <label className="text-xs font-medium text-zinc-200 flex items-center gap-2">
-                  <List size={13} className="text-violet-500" /> 채널 목록 (한 줄에 하나, @ 핸들 또는 URL)
-                </label>
-                <textarea
-                  value={scraperHandles}
-                  onChange={e => setScraperHandles(e.target.value)}
-                  className="w-full h-44 p-4 bg-white/5 border border-white/8 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none"
-                  placeholder={"@채널핸들1\n@채널핸들2\nhttps://youtube.com/@handle"}
-                />
-
-                {/* 날짜 범위 설정 */}
-                <div className="space-y-4 border-t border-white/8 pt-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-zinc-200 flex items-center gap-1.5">
-                      <CalendarDays size={13} className="text-violet-400" /> 수집 기간 설정
-                    </label>
-                    <button
-                      onClick={() => setScraperUseDateFilter(!scraperUseDateFilter)}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${scraperUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-zinc-300'}`}
-                    >
-                      {scraperUseDateFilter ? 'Enabled' : 'Disabled'}
-                    </button>
-                  </div>
-
-                  <div className={`space-y-3 transition-opacity ${!scraperUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
-                    {/* 프리셋 버튼 */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
-                        <button
-                          key={p}
-                          onClick={() => setScraperDatesByPeriod(p)}
-                          className="py-2 text-xs font-medium rounded-lg bg-white/5 text-zinc-200 hover:bg-violet-600 hover:text-white transition-all active:scale-95"
-                        >
-                          {periodLabels[p]}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* 직접 날짜 입력 */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
-                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-violet-400">Start</label>
-                        <div className="flex items-center gap-2">
-                          <Calendar size={13} className="text-violet-500 shrink-0" />
-                          <input
-                            type="date"
-                            value={scraperStartDate}
-                            onChange={e => setScraperStartDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
-                          />
-                        </div>
-                      </div>
-                      <div className="group relative bg-white/5 border border-white/8 hover:border-violet-500/30 rounded-xl p-3 transition-all">
-                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-violet-400">End</label>
-                        <div className="flex items-center gap-2">
-                          <Calendar size={13} className="text-violet-500 shrink-0" />
-                          <input
-                            type="date"
-                            value={scraperEndDate}
-                            onChange={e => setScraperEndDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-xs text-zinc-200 text-center">설정한 기간 내 게시된 영상만 수집됩니다.</p>
-                  </div>
+              {/* 작동 방식 */}
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
+                <p className="text-xs font-medium text-zinc-200 flex items-center gap-2"><Tv2 size={13} className="text-orange-500" /> 작동 방식</p>
+                <div className="space-y-1.5 text-xs text-zinc-200">
+                  <p>① 아래에서 플랫폼(CHZZK/SOOP)과 크리에이터 ID를 입력합니다.</p>
+                  <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code> 데이터를 수집합니다.</p>
+                  <p>③ 평균 시청자 수, 최고 시청자 수, 방송 시간 등의 지표가 표시됩니다.</p>
                 </div>
-
-                {/* 상태 표시 */}
-                {scraperJobStatus !== 'idle' && (
-                  <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium ${
-                    scraperJobStatus === 'pending'    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                    scraperJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                    scraperJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                                       'bg-violet-500/10 text-violet-400 border border-violet-500/20'
-                  }`}>
-                    {scraperJobStatus === 'submitting' && <Loader2 size={14} className="animate-spin" />}
-                    {scraperJobStatus === 'pending'    && <Loader2 size={14} className="animate-spin" />}
-                    {scraperJobStatus === 'done'       && <CheckCircle2 size={14} />}
-                    {scraperJobStatus === 'error'      && <AlertCircle size={14} />}
-                    {{
-                      submitting: isBackendAvailable() ? '클라우드 백엔드에서 분석 중...' : '요청을 GitHub에 전송 중...',
-                      pending:    `로컬 서버가 처리 중입니다... (10초마다 확인) — Job ID: ${scraperJobId?.slice(0,12)}`,
-                      done:       '완료! 대시보드에서 결과를 확인하세요.',
-                      error:      isBackendAvailable() ? '백엔드 API 오류가 발생했습니다.' : 'GITHUB_TOKEN이 설정되지 않았거나 오류가 발생했습니다.',
-                      idle:       '',
-                    }[scraperJobStatus]}
-                  </div>
-                )}
-
-                <button
-                  onClick={handleScraperRequest}
-                  disabled={scraperJobStatus === 'submitting' || scraperJobStatus === 'pending'}
-                  className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium text-base flex items-center justify-center gap-3 transition-all active:scale-95"
-                >
-                  {(scraperJobStatus === 'submitting' || scraperJobStatus === 'pending')
-                    ? <Loader2 className="animate-spin" size={18} />
-                    : <Activity size={18} />
-                  }
-                  {scraperJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : (isBackendAvailable() ? '분석 시작' : '로컬 스크래퍼에 요청 전송')}
-                </button>
+                <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-300">
+                  BACKEND_URL이 설정되어 있어야 합니다. 백엔드에 라이브 지표 라우터가 추가되어야 동작합니다.
+                </div>
               </div>
 
-              {/* 빠른 대시보드 이동 */}
-              <button
-                onClick={() => { setActiveTab('dashboard'); setDashboardSubTab('scraper'); loadScraperResults(); }}
-                className="w-full bg-white/5 hover:bg-white/8 text-zinc-200 hover:text-zinc-200 py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-              >
-                <BarChart3 size={16} /> 스크래퍼 결과 대시보드 보기
-              </button>
+              {/* Coming Soon placeholder */}
+              <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-10 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center">
+                  <Tv2 size={28} className="text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">백엔드 라우터 연동 준비 중</p>
+                  <p className="text-xs text-zinc-300 mt-1">viewership.softc.one API를 백엔드에 연동하면<br/>CHZZK/SOOP 방송 시청자 지표를 수집할 수 있습니다.</p>
+                </div>
+                <div className="flex gap-3 text-xs">
+                  <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20">CHZZK</span>
+                  <span className="px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg border border-purple-500/20">SOOP (아프리카TV)</span>
+                </div>
+              </div>
             </div>
+
           ) : activeTab === 'instagram-config' ? (
             /* ── Instagram 릴스 분석 탭 ──────────────────────────────────────── */
             <div className="space-y-6 animate-in fade-in duration-300">
