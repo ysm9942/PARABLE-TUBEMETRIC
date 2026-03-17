@@ -49,6 +49,7 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok } from './services/backendApiService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -331,6 +332,31 @@ const App: React.FC = () => {
       return;
     }
     setScraperJobStatus('submitting');
+
+    // 백엔드 API 우선 사용 (yt-dlp 기반, 브라우저 불필요)
+    if (isBackendAvailable()) {
+      try {
+        const results: ChannelResult[] = [];
+        for (const handle of handles) {
+          const result = await backendScrapeChannel(handle, {
+            shortsTarget: Number(targetShorts) || 30,
+            longsTarget: Number(targetLong) || 10,
+            useDateFilter: scraperUseDateFilter,
+            period: period,
+          });
+          results.push(result as ChannelResult);
+        }
+        setScraperResults(results);
+        setScraperJobStatus('done');
+        setActiveTab('dashboard');
+        setDashboardSubTab('scraper');
+        return;
+      } catch (e: any) {
+        console.error('Backend API 오류, GitHub 큐로 폴백:', e.message);
+      }
+    }
+
+    // 폴백: GitHub 큐 방식 (로컬 서버 필요)
     const opts: { headless: boolean; scrolls: number; start?: string; end?: string } = { headless: true, scrolls: 10 };
     if (scraperUseDateFilter) {
       opts.start = scraperStartDate;
@@ -394,6 +420,20 @@ const App: React.FC = () => {
       return;
     }
     setIgJobStatus('submitting');
+
+    // 백엔드 API 우선 사용 (instagrapi 기반, 직접 호출)
+    if (isBackendAvailable()) {
+      try {
+        const results = await backendFetchReels(igList, igAmount);
+        setIgResults(results);
+        setIgJobStatus('done');
+        return;
+      } catch (e: any) {
+        console.error('Backend API 오류, GitHub 큐로 폴백:', e.message);
+      }
+    }
+
+    // 폴백: GitHub 큐 방식 (로컬 서버 필요)
     const result = await submitInstagramRequest(igList, igAmount);
     if (!result) {
       setIgJobStatus('error');
@@ -914,7 +954,7 @@ const App: React.FC = () => {
                 { id: 'channel-config',   label: '채널 통합 분석',    Icon: TrendingUp,  soon: false },
                 { id: 'video-config',     label: '단일 영상 분석',    Icon: Video,       soon: false },
                 { id: 'ad-config',        label: '광고 영상 분석',    Icon: Megaphone,   soon: false },
-                { id: 'scraper-config',   label: '로컬 스크래퍼',    Icon: Activity,    soon: false },
+                { id: 'scraper-config',   label: isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼',    Icon: Activity,    soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: true  },
                 { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean }[]).map(({ id, label, Icon, soon }) => (
@@ -1710,24 +1750,36 @@ const App: React.FC = () => {
             </div>
 
           ) : activeTab === 'scraper-config' ? (
-            /* ── 로컬 스크래퍼 탭 ─────────────────────────────────────────────── */
+            /* ── 스크래퍼 탭 (클라우드/로컬) ────────────────────────────────────── */
             <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-              <h2 className="text-2xl font-semibold text-white">로컬 스크래퍼</h2>
+              <h2 className="text-2xl font-semibold text-white">{isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼'}</h2>
 
               {/* 설명 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3 text-sm text-zinc-400 leading-relaxed">
                 <p className="flex items-center gap-2 font-medium text-zinc-200 text-sm">
                   <Activity size={15} className="text-violet-500" /> 작동 방식
                 </p>
-                <div className="space-y-1.5 text-xs text-zinc-400">
-                  <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">요청 전송</strong>을 클릭합니다.</p>
-                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                  <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">undetected_chromedriver</code>로 스크래핑합니다.</p>
-                  <p>④ 완료 후 GitHub에 결과를 push → 이 사이트 대시보드에 자동 반영됩니다.</p>
-                </div>
-                <div className="border-t border-white/8 pt-3 text-xs text-zinc-600">
-                  로컬 서버 실행: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">launcher_gui.py</code> → 서버 모드 켜기 &nbsp;|&nbsp; 또는 <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">python scraper/local_server.py</code>
-                </div>
+                {isBackendAvailable() ? (
+                  <div className="space-y-1.5 text-xs text-zinc-400">
+                    <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">분석 시작</strong>을 클릭합니다.</p>
+                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">yt-dlp</code>로 YouTube 데이터를 직접 추출합니다.</p>
+                    <p>③ 브라우저/EXE/로컬 서버 없이 결과가 즉시 표시됩니다.</p>
+                    <div className="border-t border-white/8 pt-3 flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                      <span className="text-emerald-400 font-medium">클라우드 백엔드 연결됨</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 text-xs text-zinc-400">
+                    <p>① 아래에서 채널 핸들을 입력하고 <strong className="text-zinc-200">요청 전송</strong>을 클릭합니다.</p>
+                    <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                    <p>③ 로컬 PC에서 실행 중인 <code className="bg-white/8 px-1.5 py-0.5 rounded text-xs">local_server.py</code>가 이를 감지하고 스크래핑합니다.</p>
+                    <p>④ 완료 후 GitHub에 결과를 push → 대시보드에 자동 반영됩니다.</p>
+                    <div className="border-t border-white/8 pt-3 text-xs text-zinc-600">
+                      <p className="text-yellow-400/80">백엔드 미연결: BACKEND_URL 환경변수를 설정하면 EXE/로컬 서버 없이 사용 가능합니다.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 채널 입력 */}
@@ -1814,10 +1866,10 @@ const App: React.FC = () => {
                     {scraperJobStatus === 'done'       && <CheckCircle2 size={14} />}
                     {scraperJobStatus === 'error'      && <AlertCircle size={14} />}
                     {{
-                      submitting: '요청을 GitHub에 전송 중...',
+                      submitting: isBackendAvailable() ? '클라우드 백엔드에서 분석 중...' : '요청을 GitHub에 전송 중...',
                       pending:    `로컬 서버가 처리 중입니다... (10초마다 확인) — Job ID: ${scraperJobId?.slice(0,12)}`,
                       done:       '완료! 대시보드에서 결과를 확인하세요.',
-                      error:      'GITHUB_TOKEN이 설정되지 않았거나 오류가 발생했습니다.',
+                      error:      isBackendAvailable() ? '백엔드 API 오류가 발생했습니다.' : 'GITHUB_TOKEN이 설정되지 않았거나 오류가 발생했습니다.',
                       idle:       '',
                     }[scraperJobStatus]}
                   </div>
@@ -1832,7 +1884,7 @@ const App: React.FC = () => {
                     ? <Loader2 className="animate-spin" size={18} />
                     : <Activity size={18} />
                   }
-                  {scraperJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : '로컬 스크래퍼에 요청 전송'}
+                  {scraperJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : (isBackendAvailable() ? '분석 시작' : '로컬 스크래퍼에 요청 전송')}
                 </button>
               </div>
 
@@ -1851,25 +1903,43 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Instagram 릴스 분석</h2>
-                  <p className="text-xs text-zinc-600 mt-0.5">로컬 서버를 통해 릴스 조회수·좋아요·댓글 수집</p>
+                  <p className="text-xs text-zinc-600 mt-0.5">{isBackendAvailable() ? '클라우드 백엔드를 통해' : '로컬 서버를 통해'} 릴스 조회수·좋아요·댓글 수집</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
-                  <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
-                </div>
+                {isBackendAvailable() ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">클라우드 연결</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                    <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
+                  </div>
+                )}
               </div>
 
               {/* 작동 방식 안내 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-violet-500" /> 작동 방식</p>
-                <div className="space-y-1.5 text-xs text-zinc-500">
-                  <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                  <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_scraper.py</code> 실행.</p>
-                  <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
-                </div>
+                {isBackendAvailable() ? (
+                  <div className="space-y-1.5 text-xs text-zinc-500">
+                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagrapi</code>로 릴스 데이터를 직접 수집합니다.</p>
+                    <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 text-xs text-zinc-500">
+                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                    <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                    <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_scraper.py</code> 실행.</p>
+                    <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
+                  </div>
+                )}
                 <div className="border-t border-white/8 pt-3 text-xs text-zinc-600">
-                  필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_PASSWORD</code> — scraper/.env에 설정
+                  {isBackendAvailable()
+                    ? '백엔드에 IG_USERNAME / IG_PASSWORD 환경변수가 설정되어 있어야 합니다.'
+                    : <>필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-400">IG_PASSWORD</code> — scraper/.env에 설정</>
+                  }
                 </div>
               </div>
 

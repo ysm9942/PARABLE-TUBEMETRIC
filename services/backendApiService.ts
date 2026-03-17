@@ -1,0 +1,136 @@
+/**
+ * Backend API 클라이언트 — FastAPI 백엔드와 통신
+ *
+ * EXE의 undetected_chromedriver 기반 스크래핑을 대체하는 백엔드 API를 호출한다.
+ * 백엔드는 yt-dlp + instagrapi를 사용하므로 브라우저가 필요 없다.
+ *
+ * 사용법:
+ *   1. Vercel 환경변수에 BACKEND_URL 설정 (예: https://tubemetric-api.onrender.com)
+ *   2. 백엔드가 없으면 기존 YouTube Data API 직접 호출로 폴백
+ */
+import axios from 'axios';
+import type { ChannelResult, VideoResult, AdAnalysisResult, InstagramUserResult } from '../types';
+
+const BACKEND_URL = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+
+/**
+ * 백엔드 사용 가능 여부 확인
+ */
+export const isBackendAvailable = (): boolean => !!BACKEND_URL;
+
+/**
+ * 백엔드 헬스체크
+ */
+export const checkHealth = async (): Promise<boolean> => {
+  if (!BACKEND_URL) return false;
+  try {
+    const res = await axios.get(`${BACKEND_URL}/api/health`, { timeout: 5000 });
+    return res.data?.status === 'ok';
+  } catch {
+    return false;
+  }
+};
+
+// ── YouTube 채널 분석 (yt-dlp 기반) ────────────────────────────────────────
+
+interface ChannelScrapeOptions {
+  shortsTarget?: number;
+  longsTarget?: number;
+  useDateFilter?: boolean;
+  period?: string;
+}
+
+export const scrapeChannel = async (
+  handle: string,
+  options: ChannelScrapeOptions = {}
+): Promise<ChannelResult> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/youtube/channel`, {
+    handle,
+    shorts_target: options.shortsTarget ?? 30,
+    longs_target: options.longsTarget ?? 10,
+    use_date_filter: options.useDateFilter ?? false,
+    period: options.period ?? 'all',
+  });
+  return res.data;
+};
+
+// ── YouTube 영상 분석 (yt-dlp 기반) ────────────────────────────────────────
+
+export const scrapeVideos = async (videoIds: string[]): Promise<VideoResult[]> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/youtube/videos`, {
+    video_ids: videoIds,
+  });
+  return res.data;
+};
+
+// ── 광고 감지 (yt-dlp 메타데이터 + NLP) ──────────────────────────────────
+
+export const detectAds = async (
+  handle: string,
+  startDate: string,
+  endDate: string
+): Promise<any> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/youtube/ad-detect`, {
+    handle,
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return res.data;
+};
+
+export const detectAdSingle = async (videoId: string): Promise<any> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.get(`${BACKEND_URL}/api/youtube/ad-detect/${videoId}`);
+  return res.data;
+};
+
+// ── Instagram 릴스 (instagrapi 기반) ──────────────────────────────────────
+
+export const fetchInstagramReels = async (
+  usernames: string[],
+  amount: number = 10
+): Promise<InstagramUserResult[]> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/instagram/reels`, {
+    usernames,
+    amount,
+  });
+  return res.data;
+};
+
+// ── TikTok 영상 (yt-dlp 기반) ───────────────────────────────────────────
+
+export interface TikTokUserResult {
+  username: string;
+  videoCount: number;
+  videos: Array<{
+    id: string;
+    title: string;
+    url: string;
+    viewCount: number;
+    likeCount: number;
+    commentCount: number;
+    duration: number;
+    uploadDate: string;
+    thumbnail: string;
+  }>;
+  avgViews: number;
+  status: string;
+  error?: string;
+  scrapedAt: string;
+}
+
+export const fetchTikTokVideos = async (
+  usernames: string[],
+  limit: number = 30
+): Promise<TikTokUserResult[]> => {
+  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${BACKEND_URL}/api/tiktok/videos`, {
+    usernames,
+    limit,
+  });
+  return res.data;
+};
