@@ -140,6 +140,16 @@ def _run_scraper(job: dict) -> bool:
             log(f"[오류] Instagram 스크래퍼 실행 실패: {e}")
             return False
 
+    # ── TikTok 스크래퍼 (yt-dlp) ────────────────────────────────────────────
+    if job_type == "tiktok":
+        try:
+            from run_scraper_ci import process_tiktok
+            process_tiktok(job)
+            return True
+        except Exception as e:
+            log(f"[오류] TikTok 스크래퍼 실패: {e}")
+            return False
+
     # ── YouTube 스크래퍼 (기존) ───────────────────────────────────────────────
     cmd = [sys.executable, str(SCRAPER_DIR / "main.py")]
     if opts.get("headless", True):
