@@ -54,7 +54,7 @@ def process_channel(job: dict) -> None:
     from uploader import save_result
 
     handles = job.get("handles", [])
-    opts = job.get("opts", {})
+    opts = job.get("options", {})
 
     # 수집 설정 (프론트에서 opts로 넘어온 값 또는 기본값)
     shorts_cfg: dict = {
@@ -134,7 +134,7 @@ def process_ad(job: dict) -> None:
     from uploader import save_result
 
     handles = job.get("handles", [])
-    opts = job.get("opts", {})
+    opts = job.get("options", {})
 
     start_str = opts.get("start", "")
     end_str = opts.get("end", "")
@@ -212,7 +212,7 @@ def process_tiktok(job: dict) -> None:
     from uploader import save_result
 
     handles = job.get("handles", [])
-    opts = job.get("opts", {})
+    opts = job.get("options", {})
     browser = opts.get("cookieBrowser")  # "chrome" | "edge" | "firefox" | None
 
     for handle in handles:
