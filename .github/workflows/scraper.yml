@@ -1,0 +1,67 @@
+name: Run Scraper (Cloud Backend)
+
+on:
+  push:
+    paths:
+      - 'results/queue/*.json'
+
+# github-actions[bot]이 결과를 push할 때 재트리거 방지
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    # github-actions[bot]의 커밋(결과 저장)으로 인한 재트리거 방지
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements-ci.txt'
+
+      - name: Install dependencies
+        run: pip install -r scraper/requirements-ci.txt
+
+      - name: Run scraper
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_BRANCH: main
+          IG_USERNAME: ${{ secrets.IG_USERNAME }}
+          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+        run: python scraper/run_scraper_ci.py
+
+      - name: Commit and push results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 결과 파일 스테이징
+          git add results/
+
+          # 처리된 큐 파일 삭제
+          if ls results/queue/*.json 2>/dev/null | grep -q .; then
+            git rm --ignore-unmatch results/queue/*.json
+          fi
+
+          # 변경사항 있을 때만 커밋
+          if git diff --staged --quiet; then
+            echo "변경사항 없음 — 커밋 생략"
+          else
+            git commit -m "scraper: results [skip ci]"
+            git push origin main
+          fi
