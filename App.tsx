@@ -43,15 +43,16 @@ import {
   Instagram,
   Tv2,
   Camera,
-  History
+  History,
+  Music
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult } from './services/backendApiService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'scraper-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -110,6 +111,15 @@ const App: React.FC = () => {
   const [igResults, setIgResults] = useState<InstagramUserResult[]>([]);
   const [igResultsLoading, setIgResultsLoading] = useState(false);
   const [selectedIgUser, setSelectedIgUser] = useState<InstagramUserResult | null>(null);
+
+  // TikTok 상태
+  const [tkDraft, setTkDraft] = useState<string>('');
+  const [tkInput, setTkInput] = useState<string>('');
+  const [tkAmount, setTkAmount] = useState<number>(30);
+  const [tkJobStatus, setTkJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
+  const [tkResults, setTkResults] = useState<TikTokUserResult[]>([]);
+  const [tkResultsLoading, setTkResultsLoading] = useState(false);
+  const [selectedTkUser, setSelectedTkUser] = useState<TikTokUserResult | null>(null);
 
   // 스크래퍼 날짜 필터
   const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
@@ -467,6 +477,37 @@ const App: React.FC = () => {
     return () => { isActive = false; clearInterval(interval); };
   }, [igJobId]);
 
+  // ── TikTok 핸들러 ────────────────────────────────────────────────────────
+  const tkList = tkInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const addTkItem = () => {
+    const v = tkDraft.trim().replace(/^@/, '');
+    if (!v) return;
+    setTkInput(prev => prev ? prev + '\n' + v : v);
+    setTkDraft('');
+  };
+  const removeTkItem = (idx: number) => setTkInput(tkList.filter((_, i) => i !== idx).join('\n'));
+  const clearTkList = () => setTkInput('');
+
+  const handleTkRequest = async () => {
+    if (!tkList.length) {
+      alert('수집할 TikTok 계정을 입력하세요.');
+      return;
+    }
+    if (!isBackendAvailable()) {
+      alert('TikTok 수집은 클라우드 백엔드가 필요합니다. BACKEND_URL을 설정해주세요.');
+      return;
+    }
+    setTkJobStatus('submitting');
+    try {
+      const results = await backendFetchTikTok(tkList, tkAmount);
+      setTkResults(results);
+      setTkJobStatus('done');
+    } catch (e: any) {
+      console.error('TikTok API 오류:', e.message);
+      setTkJobStatus('error');
+    }
+  };
+
   const handleAdStart = async () => {
     const inputs = adChannelInput.split('\n').map(s => s.trim()).filter(s => s.length > 0);
     if (inputs.length === 0) {
@@ -760,6 +801,68 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Modal: TikTok User Details */}
+      {selectedTkUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1a1b23] w-full max-w-4xl max-h-[85vh] rounded-2xl border border-white/8 overflow-hidden flex flex-col shadow-md">
+            <div className="p-5 border-b border-white/8 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-pink-500 flex items-center justify-center shrink-0">
+                  <span className="text-white text-sm font-bold">{selectedTkUser.username[0]?.toUpperCase()}</span>
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-white">@{selectedTkUser.username}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-3">
+                    <span>영상 {selectedTkUser.videoCount}개</span>
+                    <span>평균 조회수 <span className="text-cyan-400 font-medium">{selectedTkUser.avgViews.toLocaleString()}</span></span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTkUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-500 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-white/[0.02] text-zinc-500 text-xs sticky top-0">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Video</th>
+                    <th className="px-5 py-3 text-right font-medium">Views</th>
+                    <th className="px-5 py-3 text-right font-medium">Likes</th>
+                    <th className="px-5 py-3 text-right font-medium">Comments</th>
+                    <th className="px-5 py-3 text-center font-medium">Duration</th>
+                    <th className="px-5 py-3 text-center font-medium">Date</th>
+                    <th className="px-5 py-3 text-center font-medium">Link</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {selectedTkUser.videos.map((v, i) => (
+                    <tr key={v.id || i} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-3 flex items-center gap-3">
+                        {v.thumbnail ? (
+                          <img src={v.thumbnail} className="w-9 h-14 object-cover rounded-lg border border-white/8 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-14 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><Music size={14} className="text-zinc-700" /></div>
+                        )}
+                        <span className="text-xs text-zinc-400 line-clamp-2 max-w-[260px]">{v.title || '(제목 없음)'}</span>
+                      </td>
+                      <td className="px-5 py-3 text-right text-sm font-semibold text-cyan-400 tabular-nums">{v.viewCount.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-xs text-pink-400 tabular-nums">{v.likeCount.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-xs text-zinc-400 tabular-nums">{v.commentCount.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-500">{v.duration ? `${v.duration}s` : '—'}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-600 font-mono">{v.uploadDate ? `${v.uploadDate.slice(0,4)}-${v.uploadDate.slice(4,6)}-${v.uploadDate.slice(6,8)}` : '—'}</td>
+                      <td className="px-5 py-3 text-center">
+                        {v.url ? (
+                          <a href={v.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-400 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Channel Details */}
       {selectedChannel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -957,6 +1060,7 @@ const App: React.FC = () => {
                 { id: 'scraper-config',   label: isBackendAvailable() ? '클라우드 스크래퍼' : '로컬 스크래퍼',    Icon: Activity,    soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석',  Icon: Tv2,         soon: true  },
                 { id: 'instagram-config', label: 'Instagram 분석',   Icon: Instagram,   soon: false },
+                { id: 'tiktok-config',    label: 'TikTok 분석',      Icon: Music,       soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean }[]).map(({ id, label, Icon, soon }) => (
                 <button
                   key={id}
@@ -2109,6 +2213,200 @@ const App: React.FC = () => {
                 <button onClick={loadIgResults} className="w-full bg-white/5 hover:bg-white/8 text-zinc-400 hover:text-zinc-200 py-3 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
                   <Instagram size={15} /> 이전 수집 결과 불러오기
                 </button>
+              )}
+            </div>
+
+          ) : activeTab === 'tiktok-config' ? (
+            /* ── TikTok 영상 분석 탭 ──────────────────────────────────────── */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">TikTok 영상 분석</h2>
+                  <p className="text-xs text-zinc-600 mt-0.5">클라우드 백엔드(yt-dlp)를 통해 조회수·좋아요·댓글 수집</p>
+                </div>
+                {isBackendAvailable() ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">클라우드 연결</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                    <span className="text-xs text-red-400 font-medium">백엔드 필요</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 작동 방식 */}
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
+                <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-cyan-500" /> 작동 방식</p>
+                <div className="space-y-1.5 text-xs text-zinc-500">
+                  <p>① 아래에서 TikTok 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                  <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">yt-dlp</code>로 영상 데이터를 수집합니다.</p>
+                  <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
+                </div>
+                <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-600">
+                  BACKEND_URL 환경변수가 설정되어 있어야 합니다. TikTok은 클라우드 백엔드에서만 동작합니다.
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: list input */}
+                <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                      <Music size={13} className="text-cyan-500" /> Account List
+                      {tkList.length > 0 && <span className="bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded text-[10px]">{tkList.length}</span>}
+                    </label>
+                    {tkList.length > 0 && (
+                      <button onClick={clearTkList} className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={tkDraft}
+                      onChange={e => setTkDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addTkItem()}
+                      placeholder="@username 또는 username 입력 후 Enter"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                    />
+                    <button onClick={addTkItem} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
+                  </div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    {tkList.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-700 space-y-2"><Music size={26} strokeWidth={1} /><p className="text-xs">계정을 추가하세요</p></div>
+                    ) : tkList.map((u, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                        <span className="text-cyan-600 text-xs shrink-0">@</span>
+                        <span className="flex-1 text-xs font-mono text-zinc-300 truncate">{u}</span>
+                        <button onClick={() => removeTkItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"><X size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: options + run */}
+                <div className="xl:col-span-2 flex flex-col gap-4">
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-cyan-500" /> 수집 개수 설정</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-500">계정당 영상 수</span>
+                        <span className="text-cyan-400 font-medium">{tkAmount}개</span>
+                      </div>
+                      <input
+                        type="range" min={5} max={50} step={5}
+                        value={tkAmount}
+                        onChange={e => setTkAmount(Number(e.target.value))}
+                        className="w-full appearance-none bg-white/10 h-1.5 rounded-full accent-cyan-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-zinc-700">
+                        <span>5개</span><span>50개</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-600">최신 영상부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
+                  </div>
+
+                  {/* Status */}
+                  {tkJobStatus !== 'idle' && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium ${
+                      tkJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                      tkJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                     'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {tkJobStatus === 'submitting' && <Loader2 size={13} className="animate-spin shrink-0" />}
+                      {tkJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
+                      {tkJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
+                      <span>{{
+                        submitting: '백엔드에서 수집 중...',
+                        done:       '완료! 아래에서 결과를 확인하세요.',
+                        error:      '백엔드 연결 실패 또는 오류 발생',
+                        idle:       '',
+                      }[tkJobStatus]}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-auto">
+                    <button
+                      onClick={handleTkRequest}
+                      disabled={tkJobStatus === 'submitting' || !isBackendAvailable()}
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                    >
+                      {tkJobStatus === 'submitting'
+                        ? <Loader2 className="animate-spin" size={16} />
+                        : <Music size={16} />}
+                      {tkJobStatus === 'submitting' ? '수집 중...' : '수집 요청'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Results */}
+              {(tkResults.length > 0 || tkResultsLoading) && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                    <div className="flex items-center gap-2.5">
+                      <Music size={14} className="text-cyan-500" />
+                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-xs text-zinc-600">{tkResults.length}개 계정</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-white/[0.02] text-zinc-500 text-xs">
+                        <tr>
+                          <th className="px-6 py-3 font-medium">Account</th>
+                          <th className="px-6 py-3 text-center font-medium">Videos</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Views</th>
+                          <th className="px-6 py-3 text-center font-medium">Status</th>
+                          <th className="px-6 py-3 text-center font-medium">Scraped At</th>
+                          <th className="px-6 py-3 text-center font-medium">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {tkResultsLoading ? (
+                          <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-zinc-600" size={22} /></td></tr>
+                        ) : tkResults.map(r => (
+                          <tr key={r.username} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-6 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-pink-500 flex items-center justify-center shrink-0">
+                                  <span className="text-white text-xs font-bold">{r.username[0]?.toUpperCase()}</span>
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium text-zinc-200 group-hover:text-cyan-400 transition-colors">@{r.username}</div>
+                                  {r.error && <div className="text-[10px] text-red-400 mt-0.5">{r.error}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-400 text-xs border border-white/8">{r.videoCount}</span>
+                            </td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-cyan-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className={`text-[10px] px-2 py-0.5 rounded ${r.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                {r.status === 'completed' ? '완료' : '오류'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3.5 text-center text-xs text-zinc-600 font-mono">
+                              {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <button
+                                onClick={() => setSelectedTkUser(r)}
+                                disabled={!r.videoCount}
+                                className="p-1.5 bg-white/5 hover:bg-cyan-600 hover:text-white text-zinc-400 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
 
