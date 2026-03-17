@@ -50,7 +50,7 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, LiveCreatorResult } from './services/backendApiService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -120,6 +120,16 @@ const App: React.FC = () => {
   const [tkResults, setTkResults] = useState<TikTokUserResult[]>([]);
   const [tkResultsLoading, setTkResultsLoading] = useState(false);
   const [selectedTkUser, setSelectedTkUser] = useState<TikTokUserResult | null>(null);
+
+  // 라이브 지표 상태
+  const [liveDraft, setLiveDraft] = useState<string>('');
+  const [liveInput, setLiveInput] = useState<string>('');
+  const [livePlatform, setLivePlatform] = useState<'chzzk' | 'soop'>('chzzk');
+  const [liveStartDate, setLiveStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [liveEndDate, setLiveEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [liveJobStatus, setLiveJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
+  const [liveResults, setLiveResults] = useState<LiveCreatorResult[]>([]);
+  const [selectedLiveCreator, setSelectedLiveCreator] = useState<LiveCreatorResult | null>(null);
 
   // 스크래퍼 날짜 필터
   const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
@@ -508,6 +518,45 @@ const App: React.FC = () => {
     }
   };
 
+  // ── 라이브 지표 핸들러 ────────────────────────────────────────────────────
+  const liveList = liveInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const addLiveItem = () => {
+    const v = liveDraft.trim().replace(/^@/, '');
+    if (!v) return;
+    setLiveInput(prev => prev ? prev + '\n' + v : v);
+    setLiveDraft('');
+  };
+  const removeLiveItem = (idx: number) => setLiveInput(liveList.filter((_, i) => i !== idx).join('\n'));
+  const clearLiveList = () => setLiveInput('');
+
+  const handleLiveRequest = async () => {
+    if (!liveList.length) {
+      alert('수집할 크리에이터 ID를 입력하세요.');
+      return;
+    }
+    if (!isBackendAvailable()) {
+      alert('라이브 지표 수집은 클라우드 백엔드가 필요합니다.');
+      return;
+    }
+    setLiveJobStatus('submitting');
+    try {
+      const creators = liveList.map(id => {
+        // "chzzk:아이디" 또는 "soop:아이디" 형식 지원
+        if (id.includes(':')) {
+          const [plat, cid] = id.split(':', 2);
+          return { platform: plat.trim().toLowerCase(), creatorId: cid.trim() };
+        }
+        return { platform: livePlatform, creatorId: id };
+      });
+      const results = await fetchLiveStreams(creators, liveStartDate, liveEndDate);
+      setLiveResults(results);
+      setLiveJobStatus('done');
+    } catch (e: any) {
+      console.error('라이브 지표 API 오류:', e.message);
+      setLiveJobStatus('error');
+    }
+  };
+
   const handleAdStart = async () => {
     const inputs = adChannelInput.split('\n').map(s => s.trim()).filter(s => s.length > 0);
     if (inputs.length === 0) {
@@ -792,6 +841,59 @@ const App: React.FC = () => {
                           <a href={reel.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-200 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
                         ) : '—'}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Live Creator Details */}
+      {selectedLiveCreator && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1a1b23] w-full max-w-4xl max-h-[85vh] rounded-2xl border border-white/8 overflow-hidden flex flex-col shadow-md">
+            <div className="p-5 border-b border-white/8 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
+                  <Tv2 size={18} className={selectedLiveCreator.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-white">{selectedLiveCreator.creatorId}</div>
+                  <div className="text-xs text-zinc-300 mt-0.5 flex items-center gap-3">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{selectedLiveCreator.platform}</span>
+                    <span>방송 {selectedLiveCreator.streamCount}회</span>
+                    <span>평균 <span className="text-orange-400 font-medium">{selectedLiveCreator.avgViewers.toLocaleString()}</span>명</span>
+                    <span>최고 <span className="text-red-400 font-medium">{selectedLiveCreator.peakViewers.toLocaleString()}</span>명</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedLiveCreator(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-zinc-300 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-white/[0.02] text-zinc-300 text-xs sticky top-0">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">방송 제목</th>
+                    <th className="px-5 py-3 text-center font-medium">카테고리</th>
+                    <th className="px-5 py-3 text-right font-medium">평균 시청자</th>
+                    <th className="px-5 py-3 text-right font-medium">최고 시청자</th>
+                    <th className="px-5 py-3 text-center font-medium">방송시간</th>
+                    <th className="px-5 py-3 text-center font-medium">날짜</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {selectedLiveCreator.streams.map((s, i) => (
+                    <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-3 text-xs text-zinc-200 max-w-[260px] truncate">{s.title || '(제목 없음)'}</td>
+                      <td className="px-5 py-3 text-center">
+                        <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-zinc-300 border border-white/8">{s.category || '—'}</span>
+                      </td>
+                      <td className="px-5 py-3 text-right text-sm font-semibold text-orange-400 tabular-nums">{s.avgViewers.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-xs text-red-400 tabular-nums font-medium">{s.peakViewers.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-300">{s.durationMin ? `${Math.floor(s.durationMin / 60)}h ${s.durationMin % 60}m` : '—'}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-300 font-mono">{s.date || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1855,6 +1957,7 @@ const App: React.FC = () => {
           ) : activeTab === 'live-config' ? (
             /* ── 라이브 지표 분석 탭 (CHZZK/SOOP · softc) ──────────────────── */
             <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">라이브 지표 분석</h2>
@@ -1882,24 +1985,197 @@ const App: React.FC = () => {
                   <p>③ 평균 시청자 수, 최고 시청자 수, 방송 시간 등의 지표가 표시됩니다.</p>
                 </div>
                 <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-300">
-                  BACKEND_URL이 설정되어 있어야 합니다. 백엔드에 라이브 지표 라우터가 추가되어야 동작합니다.
+                  입력 형식: <code className="bg-white/8 px-1 rounded">크리에이터ID</code> 또는 <code className="bg-white/8 px-1 rounded">chzzk:ID</code> / <code className="bg-white/8 px-1 rounded">soop:ID</code>
                 </div>
               </div>
 
-              {/* Coming Soon placeholder */}
-              <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-10 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center">
-                  <Tv2 size={28} className="text-orange-500" />
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: creator input */}
+                <div className="xl:col-span-3 bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
+                      <Tv2 size={13} className="text-orange-500" /> Creator List
+                      {liveList.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded text-[10px]">{liveList.length}</span>}
+                    </label>
+                    {liveList.length > 0 && (
+                      <button onClick={clearLiveList} className="text-xs text-zinc-300 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={11} /> 전체 삭제</button>
+                    )}
+                  </div>
+
+                  {/* 플랫폼 선택 */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setLivePlatform('chzzk')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${livePlatform === 'chzzk' ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                    >CHZZK</button>
+                    <button
+                      onClick={() => setLivePlatform('soop')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${livePlatform === 'soop' ? 'bg-purple-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                    >SOOP (아프리카TV)</button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      value={liveDraft}
+                      onChange={e => setLiveDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addLiveItem()}
+                      placeholder="크리에이터 채널 ID 입력 후 Enter (또는 chzzk:ID)"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-200 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
+                    />
+                    <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
+                  </div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    {liveList.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-zinc-300 space-y-2"><Tv2 size={26} strokeWidth={1} /><p className="text-xs">크리에이터를 추가하세요</p></div>
+                    ) : liveList.map((u, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/8 rounded-lg px-3 py-2 group transition-colors">
+                        <span className={`text-xs shrink-0 px-1.5 py-0.5 rounded ${u.includes('soop') ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                          {u.includes('soop:') ? 'SOOP' : u.includes('chzzk:') ? 'CHZZK' : livePlatform.toUpperCase()}
+                        </span>
+                        <span className="flex-1 text-xs font-mono text-zinc-200 truncate">{u.includes(':') ? u.split(':')[1] : u}</span>
+                        <button onClick={() => removeLiveItem(i)} className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-400 transition-all"><X size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-white">백엔드 라우터 연동 준비 중</p>
-                  <p className="text-xs text-zinc-300 mt-1">viewership.softc.one API를 백엔드에 연동하면<br/>CHZZK/SOOP 방송 시청자 지표를 수집할 수 있습니다.</p>
-                </div>
-                <div className="flex gap-3 text-xs">
-                  <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20">CHZZK</span>
-                  <span className="px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg border border-purple-500/20">SOOP (아프리카TV)</span>
+
+                {/* Right: date range + run */}
+                <div className="xl:col-span-2 flex flex-col gap-4">
+                  {/* 날짜 범위 */}
+                  <div className="bg-[#1a1b23] rounded-xl border border-white/8 p-5 space-y-4">
+                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><CalendarDays size={13} className="text-orange-500" /> 수집 기간</h3>
+                    <div className="space-y-3">
+                      <div className="group relative bg-white/5 border border-white/8 hover:border-orange-500/30 rounded-xl p-3 transition-all">
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-orange-400">Start</label>
+                        <div className="flex items-center gap-2">
+                          <Calendar size={13} className="text-orange-500 shrink-0" />
+                          <input
+                            type="date"
+                            value={liveStartDate}
+                            onChange={e => setLiveStartDate(e.target.value)}
+                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                          />
+                        </div>
+                      </div>
+                      <div className="group relative bg-white/5 border border-white/8 hover:border-orange-500/30 rounded-xl p-3 transition-all">
+                        <label className="absolute -top-2 left-3 bg-[#1a1b23] px-1.5 text-xs text-zinc-300 group-hover:text-orange-400">End</label>
+                        <div className="flex items-center gap-2">
+                          <Calendar size={13} className="text-orange-500 shrink-0" />
+                          <input
+                            type="date"
+                            value={liveEndDate}
+                            onChange={e => setLiveEndDate(e.target.value)}
+                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  {liveJobStatus !== 'idle' && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium ${
+                      liveJobStatus === 'submitting' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                      liveJobStatus === 'done'       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                       'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {liveJobStatus === 'submitting' && <Loader2 size={13} className="animate-spin shrink-0" />}
+                      {liveJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
+                      {liveJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
+                      <span>{{
+                        submitting: 'softc.one에서 데이터 수집 중... (Playwright)',
+                        done:       '완료! 아래에서 결과를 확인하세요.',
+                        error:      '백엔드 연결 실패 또는 수집 오류',
+                        idle:       '',
+                      }[liveJobStatus]}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-auto">
+                    <button
+                      onClick={handleLiveRequest}
+                      disabled={liveJobStatus === 'submitting' || !isBackendAvailable()}
+                      className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                    >
+                      {liveJobStatus === 'submitting'
+                        ? <Loader2 className="animate-spin" size={16} />
+                        : <Tv2 size={16} />}
+                      {liveJobStatus === 'submitting' ? '수집 중...' : '방송 지표 수집'}
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Results */}
+              {liveResults.length > 0 && (
+                <div className="bg-[#1a1b23] rounded-xl border border-white/8 overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                    <div className="flex items-center gap-2.5">
+                      <Tv2 size={14} className="text-orange-500" />
+                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-xs text-zinc-300">{liveResults.length}개 크리에이터</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-white/[0.02] text-zinc-300 text-xs">
+                        <tr>
+                          <th className="px-6 py-3 font-medium">Creator</th>
+                          <th className="px-6 py-3 text-center font-medium">Platform</th>
+                          <th className="px-6 py-3 text-center font-medium">방송 수</th>
+                          <th className="px-6 py-3 text-right font-medium">평균 시청자</th>
+                          <th className="px-6 py-3 text-right font-medium">최고 시청자</th>
+                          <th className="px-6 py-3 text-right font-medium">총 방송시간</th>
+                          <th className="px-6 py-3 text-center font-medium">Status</th>
+                          <th className="px-6 py-3 text-center font-medium">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {liveResults.map(r => (
+                          <tr key={`${r.platform}-${r.creatorId}`} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-6 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${r.platform === 'CHZZK' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
+                                  <Tv2 size={14} className={r.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium text-zinc-100 group-hover:text-orange-400 transition-colors">{r.creatorId}</div>
+                                  {r.error && <div className="text-[10px] text-red-400 mt-0.5">{r.error}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className={`text-[10px] px-2 py-0.5 rounded ${r.platform === 'CHZZK' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                                {r.platform}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-200 text-xs border border-white/8">{r.streamCount}</span>
+                            </td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-orange-400 tabular-nums">{r.avgViewers.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-xs text-red-400 tabular-nums font-medium">{r.peakViewers.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-xs text-zinc-200 tabular-nums">{Math.round(r.totalDurationMin / 60)}시간 {r.totalDurationMin % 60}분</td>
+                            <td className="px-6 py-3.5 text-center">
+                              <span className={`text-[10px] px-2 py-0.5 rounded ${r.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                {r.status === 'completed' ? '완료' : '오류'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3.5 text-center">
+                              <button
+                                onClick={() => setSelectedLiveCreator(r)}
+                                disabled={!r.streamCount}
+                                className="p-1.5 bg-white/5 hover:bg-orange-600 hover:text-white text-zinc-200 rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
           ) : activeTab === 'instagram-config' ? (
