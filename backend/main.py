@@ -28,9 +28,14 @@ ALLOWED_ORIGINS = os.environ.get(
     "http://localhost:5173,http://localhost:3000",
 ).split(",")
 
+# Vercel 배포 도메인 자동 허용
+ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()]
+if not any("vercel" in o or "parable" in o.lower() for o in ALLOWED_ORIGINS):
+    ALLOWED_ORIGINS.append("https://*.vercel.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],  # 개발 단계: 모든 origin 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

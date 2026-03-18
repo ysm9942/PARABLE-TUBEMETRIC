@@ -173,6 +173,6 @@ export const fetchLiveStreams = async (
     startDate,
     endDate,
     categories,
-  });
+  }, { timeout: 120000 });  // Playwright 렌더링 대기 (최대 2분)
   return res.data;
 };
