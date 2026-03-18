@@ -128,6 +128,7 @@ const App: React.FC = () => {
   const [liveStartDate, setLiveStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [liveEndDate, setLiveEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [liveJobStatus, setLiveJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
+  const [liveErrorMsg, setLiveErrorMsg] = useState<string>('');
   const [liveResults, setLiveResults] = useState<LiveCreatorResult[]>([]);
   const [selectedLiveCreator, setSelectedLiveCreator] = useState<LiveCreatorResult | null>(null);
 
@@ -550,9 +551,18 @@ const App: React.FC = () => {
       });
       const results = await fetchLiveStreams(creators, liveStartDate, liveEndDate);
       setLiveResults(results);
-      setLiveJobStatus('done');
+      // 개별 크리에이터 에러 체크
+      const errors = results.filter((r: any) => r.status === 'error');
+      if (errors.length > 0 && errors.length === results.length) {
+        setLiveErrorMsg(errors.map((r: any) => `${r.creatorId}: ${r.error}`).join('; '));
+        setLiveJobStatus('error');
+      } else {
+        setLiveJobStatus('done');
+      }
     } catch (e: any) {
-      console.error('라이브 지표 API 오류:', e.message);
+      const msg = e?.response?.data?.detail || e?.message || String(e);
+      console.error('라이브 지표 API 오류:', msg);
+      setLiveErrorMsg(msg);
       setLiveJobStatus('error');
     }
   };
@@ -2085,7 +2095,7 @@ const App: React.FC = () => {
                       <span>{{
                         submitting: 'softc.one에서 데이터 수집 중... (Playwright)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
-                        error:      '백엔드 연결 실패 또는 수집 오류',
+                        error:      liveErrorMsg ? `오류: ${liveErrorMsg}` : '백엔드 연결 실패 또는 수집 오류',
                         idle:       '',
                       }[liveJobStatus]}</span>
                     </div>
