@@ -110,19 +110,74 @@ def _parse_html(html: str, creator_id: str, platform: str, start_year: int, cate
 
 
 async def _fetch_with_playwright(url: str) -> str:
-    """Playwright headless Chromium으로 SPA 렌더링 후 HTML 반환."""
+    """Playwright headless Chromium + stealth 패치로 SPA 렌더링 후 HTML 반환."""
+    import asyncio
     from playwright.async_api import async_playwright
 
+    try:
+        from playwright_stealth import stealth_async
+    except ImportError:
+        stealth_async = None
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        await page.goto(url, wait_until="networkidle", timeout=30000)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        )
+        context = await browser.new_context(
+            viewport={"width": 1920, "height": 1080},
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+            java_script_enabled=True,
+        )
+        page = await context.new_page()
+
+        # stealth 패치 적용 (navigator.webdriver 숨기기 등)
+        if stealth_async:
+            await stealth_async(page)
+        else:
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                window.chrome = {runtime: {}};
+            """)
+
+        # Cloudflare 체크 대기 — 최대 2회 재시도
+        for attempt in range(2):
+            resp = await page.goto(url, wait_until="networkidle", timeout=40000)
+
+            # Cloudflare 챌린지 페이지 감지 (403/503 + cf-challenge)
+            if resp and resp.status in (403, 503):
+                body = await page.content()
+                if "cf-challenge" in body or "Just a moment" in body:
+                    # 챌린지 자동 해결 대기 (보통 5~8초)
+                    await asyncio.sleep(8)
+                    await page.wait_for_load_state("networkidle", timeout=15000)
+                    continue
+            break
+
         # 방송 기록 요소가 렌더링될 때까지 대기
         try:
-            await page.wait_for_selector("a[href*='/streams/']", timeout=15000)
+            await page.wait_for_selector("a[href*='/streams/']", timeout=20000)
         except Exception:
             pass  # 데이터가 없을 수도 있음
+
+        # 추가 렌더링 대기
+        await asyncio.sleep(1)
+
         html = await page.content()
+        await context.close()
         await browser.close()
         return html
 
@@ -131,9 +186,24 @@ async def _fetch_with_httpx(url: str) -> str:
     """httpx로 직접 접근 시도 (SSR이 아닌 경우 빈 결과일 수 있음)."""
     import httpx
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
         resp = await client.get(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
         })
         resp.raise_for_status()
         return resp.text
@@ -151,6 +221,8 @@ async def fetch_live_streams(req: LiveRequest):
         import playwright  # noqa: F401
     except ImportError:
         use_playwright = False
+        import logging
+        logging.warning("playwright 미설치 — httpx 폴백 사용 (SPA 렌더링 불가, 빈 결과 가능)")
 
     for creator in req.creators:
         platform = creator.get("platform", "chzzk").lower()
