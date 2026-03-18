@@ -53,6 +53,77 @@ def _build_url(platform: str, creator_id: str, start_date: str, end_date: str) -
     return f"{base}/channel/{plat_path}/{creator_id}/streams?startDateTime={quote(start_utc)}&endDateTime={quote(end_utc)}"
 
 
+def _parse_api_responses(api_responses: list[dict], creator_id: str, platform: str, categories: list[str]) -> list[dict]:
+    """Playwright가 가로챈 API JSON 응답에서 방송 기록을 추출한다."""
+    rows = []
+    for api_resp in api_responses:
+        data = api_resp.get("data", {})
+        streams = []
+
+        # 다양한 응답 구조 처리
+        if isinstance(data, list):
+            streams = data
+        elif isinstance(data, dict):
+            # {streams: [...]} / {data: [...]} / {items: [...]} / {results: [...]}
+            for key in ("streams", "data", "items", "results", "streamList", "list"):
+                candidate = data.get(key)
+                if isinstance(candidate, list) and len(candidate) > 0:
+                    streams = candidate
+                    break
+            # 중첩 구조: {data: {streams: [...]}} 등
+            if not streams:
+                for v in data.values():
+                    if isinstance(v, dict):
+                        for key2 in ("streams", "data", "items", "results"):
+                            candidate2 = v.get(key2)
+                            if isinstance(candidate2, list) and len(candidate2) > 0:
+                                streams = candidate2
+                                break
+                    if streams:
+                        break
+            # 단일 레벨 dict에 뷰어 데이터가 있으면 리스트로 감싸기
+            if not streams and any(k in data for k in ("peakViewers", "maxViewer", "avgViewers", "averageViewer")):
+                streams = [data]
+
+        if not streams:
+            continue
+
+        for s in streams:
+            if not isinstance(s, dict):
+                continue
+            cat = str(s.get("category", s.get("categoryName", s.get("gameName", ""))))
+            title = str(s.get("title", s.get("streamTitle", s.get("name", ""))))
+            peak = s.get("peakViewers", s.get("maxViewer", s.get("peak_viewers", s.get("peakCcv", 0))))
+            avg = s.get("avgViewers", s.get("averageViewer", s.get("avg_viewers", s.get("avgCcv", 0))))
+            dur = s.get("durationMin", s.get("duration", s.get("airTime", s.get("air_time", 0))))
+            # duration이 초 단위일 수 있음 (3600 이상이면 초로 간주)
+            if isinstance(dur, (int, float)) and dur > 1440:
+                dur = int(dur / 60)
+
+            date_val = s.get("date", s.get("startDate", s.get("startedAt", s.get("started_at", ""))))
+            date_str = str(date_val)[:10] if date_val else ""
+
+            if categories and cat and not any(c.lower() in cat.lower() for c in categories):
+                continue
+
+            rows.append({
+                "creator": creator_id,
+                "platform": platform.upper(),
+                "title": title,
+                "category": cat,
+                "peakViewers": int(peak) if peak else 0,
+                "avgViewers": int(avg) if avg else 0,
+                "date": date_str,
+                "durationMin": int(dur) if dur else 0,
+            })
+
+        if rows:
+            logger.info("[API] API 응답에서 %d개 방송 기록 추출 (URL: %s)", len(rows), api_resp.get("url", "?"))
+            break  # 첫 번째 유효한 응답에서 추출 성공하면 중단
+
+    return rows
+
+
 def _parse_next_data(html: str, creator_id: str, platform: str, start_year: int, categories: list[str]) -> list[dict]:
     """__NEXT_DATA__ JSON에서 방송 기록을 추출 시도."""
     import json
@@ -252,12 +323,21 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
         async def _on_response(response):
             try:
                 ct = response.headers.get("content-type", "")
-                if "json" in ct and response.status == 200:
+                resp_url = response.url
+                is_json = "json" in ct
+                is_next_data = "/_next/data/" in resp_url and resp_url.endswith(".json")
+
+                if (is_json or is_next_data) and response.status == 200:
                     body = await response.text()
-                    if any(kw in body for kw in ['"streams"', '"peakViewers"', '"maxViewer"', '"averageViewer"', '"avgViewers"']):
+                    # 스트림/뷰어 관련 키워드 또는 _next/data 응답
+                    stream_keywords = ['"streams"', '"peakViewers"', '"maxViewer"', '"averageViewer"', '"avgViewers"', '"peakCcv"', '"avgCcv"']
+                    if is_next_data or any(kw in body for kw in stream_keywords):
                         data = json.loads(body)
-                        api_responses.append({"url": response.url, "data": data})
-                        logger.info("[Playwright] API 응답 가로채기 성공: %s (%d bytes)", response.url, len(body))
+                        # Next.js _next/data 응답은 {pageProps: {...}} 구조
+                        if isinstance(data, dict) and "pageProps" in data:
+                            data = data["pageProps"]
+                        api_responses.append({"url": resp_url, "data": data})
+                        logger.info("[Playwright] API 응답 가로채기 성공: %s (%d bytes)", resp_url, len(body))
             except Exception:
                 pass
 
@@ -345,6 +425,127 @@ async def _fetch_with_httpx(url: str) -> str:
         return resp.text
 
 
+@router.get("/test-api")
+async def test_softc_api(platform: str = "chzzk", creator_id: str = "ec857bee6cded06df19dae85cf37f878"):
+    """softc.one의 내부 API를 직접 호출해 데이터 반환 가능 여부를 테스트."""
+    import httpx
+    import json
+
+    plat_path = PLATFORM_MAP.get(platform, platform)
+    start_utc = "2025-03-01T00:00:00.000Z"
+    end_utc = "2025-03-18T14:59:59.999Z"
+
+    # 여러 가능한 API 경로를 시도
+    api_candidates = [
+        f"https://viewership.softc.one/api/streams?channelId={creator_id}&platform={plat_path}&startDateTime={start_utc}&endDateTime={end_utc}",
+        f"https://viewership.softc.one/api/channel/{plat_path}/{creator_id}/streams?startDateTime={start_utc}&endDateTime={end_utc}",
+        f"https://viewership.softc.one/api/v1/streams?channelId={creator_id}&platform={plat_path}",
+        f"https://viewership.softc.one/api/v1/channel/{plat_path}/{creator_id}/streams",
+    ]
+
+    results = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": f"https://viewership.softc.one/channel/{plat_path}/{creator_id}/streams",
+        "Origin": "https://viewership.softc.one",
+    }
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+        for url in api_candidates:
+            try:
+                resp = await client.get(url, headers=headers)
+                body = resp.text[:1000]
+                try:
+                    data = resp.json()
+                    body = json.dumps(data, ensure_ascii=False)[:1000]
+                except Exception:
+                    pass
+                results.append({
+                    "url": url,
+                    "status": resp.status_code,
+                    "content_type": resp.headers.get("content-type", ""),
+                    "body_preview": body,
+                })
+            except Exception as e:
+                results.append({
+                    "url": url,
+                    "status": "error",
+                    "error": str(e),
+                })
+
+    return {"api_tests": results}
+
+
+@router.get("/debug")
+async def debug_scraper(platform: str = "chzzk", creator_id: str = "ec857bee6cded06df19dae85cf37f878"):
+    """Render.com에서 Playwright가 실제로 무엇을 받는지 진단하는 디버그 엔드포인트."""
+    import json
+
+    start_date = "2025-03-01"
+    end_date = "2025-03-18"
+    url = _build_url(platform, creator_id, start_date, end_date)
+
+    result = {
+        "url": url,
+        "playwright_available": False,
+        "html_length": 0,
+        "page_title": "",
+        "has_cloudflare_challenge": False,
+        "has_stream_links": False,
+        "stream_link_count": 0,
+        "has_next_data": False,
+        "api_responses_count": 0,
+        "html_snippet_start": "",
+        "html_snippet_body": "",
+        "error": None,
+    }
+
+    try:
+        import playwright  # noqa: F401
+        result["playwright_available"] = True
+    except ImportError:
+        result["error"] = "playwright not installed"
+        return result
+
+    try:
+        html, api_responses = await _fetch_with_playwright(url)
+        result["html_length"] = len(html)
+        result["api_responses_count"] = len(api_responses)
+        result["has_stream_links"] = "/streams/" in html
+        result["stream_link_count"] = html.count("href=\"/channel/") + html.count("href=\"/streams/")
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        result["page_title"] = soup.title.string if soup.title else ""
+        result["has_cloudflare_challenge"] = "cf-challenge" in html or "Just a moment" in html
+        result["has_next_data"] = bool(soup.find("script", id="__NEXT_DATA__"))
+
+        # HTML 앞부분과 body 앞부분 스니펫
+        result["html_snippet_start"] = html[:1000]
+        body = soup.find("body")
+        if body:
+            result["html_snippet_body"] = str(body)[:2000]
+
+        # API 응답 요약
+        if api_responses:
+            result["api_responses_summary"] = []
+            for resp in api_responses[:3]:
+                summary = {"url": resp.get("url", ""), "keys": []}
+                data = resp.get("data", {})
+                if isinstance(data, dict):
+                    summary["keys"] = list(data.keys())[:20]
+                elif isinstance(data, list):
+                    summary["keys"] = f"list[{len(data)}]"
+                result["api_responses_summary"].append(summary)
+
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {e}"
+        result["traceback"] = traceback.format_exc()
+
+    return result
+
+
 @router.post("/streams")
 async def fetch_live_streams(req: LiveRequest):
     """크리에이터들의 방송 기록을 수집한다."""
@@ -382,10 +583,7 @@ async def fetch_live_streams(req: LiveRequest):
 
             # 1단계: 가로챈 API JSON 응답에서 직접 추출 시도
             if api_responses:
-                for api_resp in api_responses:
-                    api_data = api_resp.get("data", {})
-                    logger.info("[Live] API 응답 키: %s (URL: %s)", list(api_data.keys()) if isinstance(api_data, dict) else type(api_data).__name__, api_resp.get("url", "?"))
-                    # TODO: API 응답 구조에 맞게 파싱 (구조 확인 후 구현)
+                rows = _parse_api_responses(api_responses, creator_id, platform, req.categories)
 
             # 2단계: __NEXT_DATA__에서 추출 시도
             if not rows:
