@@ -15,6 +15,7 @@ from urllib.parse import quote
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -699,3 +700,72 @@ async def fetch_live_streams(req: LiveRequest):
     results = await asyncio.gather(*tasks)
 
     return [r for r in results if r is not None]
+
+
+# ── 로그 확인 / GitHub push ────────────────────────────────────────────────────
+
+@router.get("/logs", response_class=PlainTextResponse)
+async def get_logs():
+    """메모리에 보관된 최근 로그를 텍스트로 반환한다."""
+    from logger_config import memory_handler
+    lines = memory_handler.get_lines()
+    if not lines:
+        return "로그 없음 (서버 재시작 후 요청이 없었거나 로깅 미설정)"
+    return "\n".join(lines)
+
+
+@router.post("/logs/push")
+async def push_logs_to_github(branch: str = "main"):
+    """현재 메모리 로그를 GitHub에 logs/scraping_YYYYMMDD_HHMMSS.txt 로 업로드한다.
+
+    환경변수 GITHUB_TOKEN, GITHUB_REPO 가 설정돼 있어야 한다.
+    """
+    import base64
+    import os
+    import httpx
+    from logger_config import memory_handler
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPO", "")
+    if not token or not repo:
+        raise HTTPException(
+            status_code=400,
+            detail="GITHUB_TOKEN, GITHUB_REPO 환경변수를 설정하세요.",
+        )
+
+    lines = memory_handler.get_lines()
+    content = "\n".join(lines) if lines else "(로그 없음)"
+    now = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    gh_path = f"logs/scraping_{now}.txt"
+
+    url = f"https://api.github.com/repos/{repo}/contents/{gh_path}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    payload = {
+        "message": f"logs: scraping log {now} ({len(lines)} lines)",
+        "content": base64.b64encode(content.encode("utf-8")).decode(),
+        "branch": branch,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.put(url, headers=headers, json=payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"GitHub API 요청 실패: {e}")
+
+    if r.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=500,
+            detail=f"GitHub push 실패: {r.status_code} — {r.text[:300]}",
+        )
+
+    html_url = r.json().get("content", {}).get("html_url", "")
+    logger.info("[Logs] GitHub push 완료: %s (%d줄)", gh_path, len(lines))
+    return {
+        "pushed": gh_path,
+        "lines": len(lines),
+        "branch": branch,
+        "url": html_url,
+    }
