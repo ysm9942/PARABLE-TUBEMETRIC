@@ -14,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
+from logger_config import setup_logging  # noqa: E402
+setup_logging()
+
 from routers import youtube, instagram, tiktok, live  # noqa: E402
 
 app = FastAPI(
