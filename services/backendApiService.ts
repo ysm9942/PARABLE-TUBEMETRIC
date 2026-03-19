@@ -165,10 +165,12 @@ export const fetchLiveStreams = async (
   creators: Array<{ platform: string; creatorId: string }>,
   startDate: string,
   endDate: string,
-  categories: string[] = []
+  categories: string[] = [],
+  overrideBaseUrl?: string   // 로컬 에이전트 사용 시 주입
 ): Promise<LiveCreatorResult[]> => {
-  if (!BACKEND_URL) throw new Error('백엔드 URL이 설정되지 않았습니다.');
-  const res = await axios.post(`${BACKEND_URL}/api/live/streams`, {
+  const base = (overrideBaseUrl || BACKEND_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${base}/api/live/streams`, {
     creators,
     startDate,
     endDate,

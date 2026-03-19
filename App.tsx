@@ -51,6 +51,7 @@ import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, an
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, LiveCreatorResult } from './services/backendApiService';
+import { checkLocalAgent, waitForLocalAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -59,6 +60,16 @@ const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [pinInput, setPinInput] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
+
+  // 로컬 에이전트 상태
+  const [localAgentRunning, setLocalAgentRunning] = useState<boolean>(false);
+  const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
+  const [waitingForAgent, setWaitingForAgent] = useState<boolean>(false);
+
+  // 앱 시작 시 로컬 에이전트 감지
+  useEffect(() => {
+    checkLocalAgent().then(ok => setLocalAgentRunning(ok));
+  }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
   // Explanation Help
@@ -549,7 +560,9 @@ const App: React.FC = () => {
         }
         return { platform: livePlatform, creatorId: id };
       });
-      const results = await fetchLiveStreams(creators, liveStartDate, liveEndDate);
+      // 로컬 에이전트가 실행 중이면 로컬 서버 사용 (Render IP 차단 우회)
+      const useLocal = localAgentRunning && await checkLocalAgent();
+      const results = await fetchLiveStreams(creators, liveStartDate, liveEndDate, useLocal ? LOCAL_AGENT_URL : undefined);
       setLiveResults(results);
       // 개별 크리에이터 에러 체크
       const errors = results.filter((r: any) => r.status === 'error');
@@ -1973,18 +1986,119 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-semibold text-white">라이브 지표 분석</h2>
                   <p className="text-xs text-zinc-200 mt-0.5">CHZZK / SOOP 방송 시청자 지표 수집 · viewership.softc.one</p>
                 </div>
-                {isBackendAvailable() ? (
+                {localAgentRunning ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-emerald-400 font-medium">클라우드 연결</span>
+                    <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
-                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
-                    <span className="text-xs text-red-400 font-medium">백엔드 필요</span>
-                  </div>
+                  <button
+                    onClick={() => setShowInstallModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-lg hover:bg-orange-500/20 transition-colors"
+                  >
+                    <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-orange-400 font-medium">로컬 에이전트 설치 필요</span>
+                  </button>
                 )}
               </div>
+
+              {/* 로컬 에이전트 안내 배너 */}
+              {!localAgentRunning && (
+                <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-orange-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-orange-300">로컬 에이전트가 필요합니다</p>
+                    <p className="text-xs text-zinc-300 mt-1">
+                      클라우드 서버 IP가 차단되어 수집이 불가합니다. PC에 에이전트를 설치하면 본인의 IP로 수집합니다.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowInstallModal(true)}
+                    className="shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    설치하기
+                  </button>
+                </div>
+              )}
+
+              {/* 설치 모달 */}
+              {showInstallModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                  <div className="bg-[#1a1b23] border border-white/10 rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                        <ShieldCheck size={18} className="text-orange-400" />
+                        TubeMetric Local Agent 설치
+                      </h3>
+                      <button onClick={() => { setShowInstallModal(false); setWaitingForAgent(false); }} className="text-zinc-400 hover:text-white">
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 text-xs text-zinc-300">
+                      <p>라이브 지표 수집을 위해 PC에 소형 프로그램을 설치합니다.</p>
+                      <div className="bg-white/4 rounded-lg p-3 space-y-1.5">
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Python 런타임 포함 — 별도 설치 불필요</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Windows 시작 시 자동 실행</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 본인 IP/VPN으로 수집 (차단 우회)</p>
+                        <p className="flex items-center gap-2"><Info size={13} className="text-zinc-400" /> 첫 실행 시 Chromium 자동 다운로드 (~150MB)</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 space-y-2">
+                      {/* OS별 다운로드 버튼 */}
+                      {(detectOS() === 'windows' || detectOS() === 'other') && (
+                        <a
+                          href={INSTALLER_URLS.windows}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            setWaitingForAgent(true);
+                            const stop = waitForLocalAgent(() => {
+                              setLocalAgentRunning(true);
+                              setShowInstallModal(false);
+                              setWaitingForAgent(false);
+                            });
+                            // 3분 후 자동 중단
+                            setTimeout(stop, 180000);
+                          }}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <Download size={15} />
+                          Windows용 설치파일 다운로드 (.exe)
+                        </a>
+                      )}
+                      {(detectOS() === 'macos' || detectOS() === 'other') && (
+                        <a
+                          href={INSTALLER_URLS.macos}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            setWaitingForAgent(true);
+                            const stop = waitForLocalAgent(() => {
+                              setLocalAgentRunning(true);
+                              setShowInstallModal(false);
+                              setWaitingForAgent(false);
+                            });
+                            setTimeout(stop, 180000);
+                          }}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <Download size={15} />
+                          macOS용 설치파일 다운로드 (.pkg)
+                        </a>
+                      )}
+                    </div>
+
+                    {waitingForAgent && (
+                      <div className="mt-4 flex items-center gap-2 text-xs text-zinc-400">
+                        <Loader2 size={13} className="animate-spin" />
+                        설치 후 에이전트 연결 대기 중... (자동으로 감지됩니다)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 작동 방식 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
