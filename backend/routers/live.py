@@ -381,22 +381,25 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
         status = resp.status if resp else "no response"
         logger.info("[Playwright] 초기 응답 상태: %s", status)
 
-        # Cloudflare 챌린지 처리 — 같은 페이지에서 대기 (재탐색 X)
-        # CF의 JS가 현재 페이지에서 챌린지를 해결하고 쿠키를 설정함
+        # Cloudflare / Vercel 보안 챌린지 처리
         for attempt in range(5):
             body = await page.content()
-            is_cf_challenge = (
+            is_challenge = (
                 "cf-challenge" in body
                 or "Just a moment" in body
                 or "Checking your browser" in body
                 or ("ray id" in body.lower() and resp and resp.status in (403, 503))
+                or "vercel.link/security-checkpoint" in body
+                or "브라우저를 확인하고 있습니다" in body
+                or "Vercel 보안 검문소" in body
             )
-            if not is_cf_challenge:
+            if not is_challenge:
                 if attempt > 0:
-                    logger.info("[Playwright] Cloudflare 챌린지 통과! (시도 %d)", attempt)
+                    logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt)
                 break
 
-            logger.warning("[Playwright] Cloudflare 챌린지 감지 (시도 %d/5), 15초 대기...", attempt + 1)
+            challenge_type = "Vercel" if "vercel.link" in body or "브라우저를 확인" in body else "Cloudflare"
+            logger.warning("[Playwright] %s 챌린지 감지 (시도 %d/5), 15초 대기...", challenge_type, attempt + 1)
             await asyncio.sleep(15)
 
             # CF JS가 챌린지 완료 후 networkidle 상태가 됨
@@ -407,18 +410,25 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
 
             # 챌린지 해결됐는지 재확인
             body = await page.content()
-            if "cf-challenge" not in body and "Just a moment" not in body and "Checking your browser" not in body:
-                logger.info("[Playwright] Cloudflare 챌린지 통과! (시도 %d)", attempt + 1)
+            still_blocked = (
+                "cf-challenge" in body
+                or "Just a moment" in body
+                or "Checking your browser" in body
+                or "vercel.link/security-checkpoint" in body
+                or "브라우저를 확인하고 있습니다" in body
+            )
+            if not still_blocked:
+                logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt + 1)
                 break
 
-            # 여전히 블록됨 → 재탐색 (CF 쿠키가 이미 설정됐을 수 있음)
+            # 여전히 블록됨 → 재탐색
             if attempt < 4:
                 logger.info("[Playwright] 챌린지 미해결, 재탐색 시도...")
                 resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 status = resp.status if resp else "no response"
                 logger.info("[Playwright] 재탐색 응답: %s", status)
         else:
-            logger.error("[Playwright] Cloudflare 챌린지 5회 모두 실패. 본문 앞 500자: %s", (await page.content())[:500])
+            logger.error("[Playwright] 보안 챌린지 5회 모두 실패. 본문 앞 500자: %s", (await page.content())[:500])
 
         # 방송 기록 요소가 렌더링될 때까지 대기
         try:
@@ -585,6 +595,7 @@ async def debug_scraper(platform: str = "chzzk", creator_id: str = "ec857bee6cde
         soup = BeautifulSoup(html, "html.parser")
         result["page_title"] = soup.title.string if soup.title else ""
         result["has_cloudflare_challenge"] = "cf-challenge" in html or "Just a moment" in html
+        result["has_vercel_challenge"] = "vercel.link/security-checkpoint" in html or "브라우저를 확인하고 있습니다" in html
         result["has_next_data"] = bool(soup.find("script", id="__NEXT_DATA__"))
 
         # HTML 앞부분과 body 앞부분 스니펫
