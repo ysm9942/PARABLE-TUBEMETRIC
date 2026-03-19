@@ -303,8 +303,7 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
                 "--disable-features=IsolateOrigins,site-per-process",
                 "--disable-dev-shm-usage",
                 "--no-sandbox",
-                "--disable-gpu",
-                "--single-process",
+                # --single-process, --disable-gpu 제거: Cloudflare가 봇으로 감지하는 주요 신호
             ],
         )
         context = await browser.new_context(
@@ -347,32 +346,78 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
         # stealth 패치 적용 (navigator.webdriver 숨기기 등)
         if stealth_async:
             await stealth_async(page)
-        else:
-            await page.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
-                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-                window.chrome = {runtime: {}};
-            """)
 
-        # Cloudflare 체크 대기 — 최대 2회 재시도
+        # stealth 여부와 관계없이 추가 패치 적용
+        await page.add_init_script("""
+            // navigator.webdriver 숨기기
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            // 언어/플러그인 스푸핑
+            Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
+            Object.defineProperty(navigator, 'plugins', {get: () => [
+                {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
+                {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
+                {name: 'Native Client', filename: 'internal-nacl-plugin'},
+            ]});
+            // Chrome 오브젝트 스푸핑
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+            // permissions 스푸핑
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications'
+                    ? Promise.resolve({state: Notification.permission})
+                    : originalQuery(parameters)
+            );
+        """)
+
+        # 초기 페이지 로드
         logger.info("[Playwright] 페이지 로드 시작: %s", url)
-        for attempt in range(2):
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            status = resp.status if resp else "no response"
-            logger.info("[Playwright] 응답 상태: %s (시도 %d/2)", status, attempt + 1)
+        resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        status = resp.status if resp else "no response"
+        logger.info("[Playwright] 초기 응답 상태: %s", status)
 
-            # Cloudflare 챌린지 페이지 감지 (403/503 + cf-challenge)
-            if resp and resp.status in (403, 503):
-                body = await page.content()
-                if "cf-challenge" in body or "Just a moment" in body:
-                    logger.warning("[Playwright] Cloudflare 챌린지 감지, 5초 대기 후 재시도")
-                    await asyncio.sleep(5)
-                    await page.wait_for_load_state("networkidle", timeout=15000)
-                    continue
-                else:
-                    logger.error("[Playwright] HTTP %s 반환, Cloudflare 아님. 본문 앞 500자: %s", resp.status, body[:500])
-            break
+        # Cloudflare 챌린지 처리 — 같은 페이지에서 대기 (재탐색 X)
+        # CF의 JS가 현재 페이지에서 챌린지를 해결하고 쿠키를 설정함
+        for attempt in range(5):
+            body = await page.content()
+            is_cf_challenge = (
+                "cf-challenge" in body
+                or "Just a moment" in body
+                or "Checking your browser" in body
+                or ("ray id" in body.lower() and resp and resp.status in (403, 503))
+            )
+            if not is_cf_challenge:
+                if attempt > 0:
+                    logger.info("[Playwright] Cloudflare 챌린지 통과! (시도 %d)", attempt)
+                break
+
+            logger.warning("[Playwright] Cloudflare 챌린지 감지 (시도 %d/5), 15초 대기...", attempt + 1)
+            await asyncio.sleep(15)
+
+            # CF JS가 챌린지 완료 후 networkidle 상태가 됨
+            try:
+                await page.wait_for_load_state("networkidle", timeout=20000)
+            except Exception:
+                pass
+
+            # 챌린지 해결됐는지 재확인
+            body = await page.content()
+            if "cf-challenge" not in body and "Just a moment" not in body and "Checking your browser" not in body:
+                logger.info("[Playwright] Cloudflare 챌린지 통과! (시도 %d)", attempt + 1)
+                break
+
+            # 여전히 블록됨 → 재탐색 (CF 쿠키가 이미 설정됐을 수 있음)
+            if attempt < 4:
+                logger.info("[Playwright] 챌린지 미해결, 재탐색 시도...")
+                resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                status = resp.status if resp else "no response"
+                logger.info("[Playwright] 재탐색 응답: %s", status)
+        else:
+            logger.error("[Playwright] Cloudflare 챌린지 5회 모두 실패. 본문 앞 500자: %s", (await page.content())[:500])
 
         # 방송 기록 요소가 렌더링될 때까지 대기
         try:
@@ -400,19 +445,39 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
 
 
 async def _fetch_with_httpx(url: str) -> str:
-    """httpx로 직접 접근 시도 (SSR이 아닌 경우 빈 결과일 수 있음)."""
-    import httpx
+    """curl_cffi(Chrome TLS 핑거프린트 위장)로 Cloudflare 우회 시도.
+    curl_cffi 미설치 시 httpx로 폴백.
+    """
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Upgrade-Insecure-Requests": "1",
+    }
 
+    # curl_cffi: Chrome의 TLS/HTTP2 핑거프린트를 그대로 복제 → Cloudflare 우회 가능
+    try:
+        from curl_cffi.requests import AsyncSession
+        logger.info("[HTTP] curl_cffi로 접근 시도 (Chrome124 TLS 핑거프린트): %s", url)
+        async with AsyncSession(impersonate="chrome124") as session:
+            resp = await session.get(url, headers=headers, timeout=20, allow_redirects=True)
+            resp.raise_for_status()
+            logger.info("[HTTP] curl_cffi 응답 상태: %s, 길이: %d", resp.status_code, len(resp.text))
+            return resp.text
+    except ImportError:
+        logger.info("[HTTP] curl_cffi 미설치, httpx 폴백 사용")
+    except Exception as e:
+        logger.warning("[HTTP] curl_cffi 실패: %s, httpx 폴백 사용", e)
+
+    import httpx
     async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
         resp = await client.get(url, headers={
+            **headers,
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br",
             "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": '"Windows"',
@@ -420,7 +485,6 @@ async def _fetch_with_httpx(url: str) -> str:
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
             "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
         })
         resp.raise_for_status()
         return resp.text
