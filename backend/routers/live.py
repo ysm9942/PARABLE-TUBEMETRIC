@@ -637,6 +637,15 @@ async def _fetch_one_creator(
     if not creator_id:
         return None
 
+    # softc.one URL이 통째로 입력된 경우 creatorId만 추출
+    # 예: https://viewership.softc.one/channel/naverchzzk/ec857bee6cded06df19dae85cf37f878
+    if "viewership.softc.one" in creator_id or creator_id.startswith("http"):
+        import re as _re
+        m = _re.search(r"/channel/[^/]+/([^/?]+)", creator_id)
+        if m:
+            creator_id = m.group(1)
+            logger.info("[Live] URL에서 creatorId 추출: %s", creator_id)
+
     url = _build_url(platform, creator_id, start_date, end_date)
     method = "playwright" if use_playwright else "httpx"
     logger.info("[Live] 수집 시작: %s/%s (방법: %s) → %s", platform, creator_id, method, url)
