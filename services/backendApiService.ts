@@ -178,3 +178,68 @@ export const fetchLiveStreams = async (
   }, { timeout: 300000 });  // Playwright 렌더링 대기 (최대 5분)
   return res.data;
 };
+
+// ── softc 스크래퍼 (Chrome + Xvfb · undetected_chromedriver) ────────────
+
+export const fetchSoftcStreams = async (
+  creators: Array<{ platform: string; creatorId: string }>,
+  startDate: string,
+  endDate: string,
+  categories: string[] = []
+): Promise<LiveCreatorResult[]> => {
+  const base = BACKEND_URL.replace(/\/$/, '');
+  if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+
+  // 잡 시작
+  await axios.post(`${base}/api/softc/crawl/start`, {
+    creators: creators.map(c => `${c.platform}:${c.creatorId}`),
+    start_date: startDate,
+    end_date: endDate,
+    categories,
+  });
+
+  // 완료될 때까지 3초 간격으로 폴링
+  while (true) {
+    await new Promise(r => setTimeout(r, 3000));
+    const res = await axios.get(`${base}/api/softc/crawl/status`);
+    const data = res.data;
+    if (data.status === 'done' || data.status === 'error') {
+      if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
+
+      // 크리에이터별로 집계
+      const byCreator: Record<string, any[]> = {};
+      for (const row of data.results as any[]) {
+        const key = `${row.platform}:${row.creator}`;
+        (byCreator[key] ??= []).push(row);
+      }
+
+      return Object.entries(byCreator).map(([key, rows]) => {
+        const [platform, creatorId] = key.split(':', 2);
+        const streams: LiveStreamRecord[] = rows.map(r => ({
+          creator:     r.creator,
+          platform:    r.platform,
+          title:       r.title,
+          category:    r.category,
+          peakViewers: r.peak_viewers,
+          avgViewers:  r.avg_viewers,
+          date:        r.date,
+          durationMin: r.duration_min,
+        }));
+        const avgViewers     = streams.length ? Math.round(streams.reduce((s, r) => s + r.avgViewers, 0) / streams.length) : 0;
+        const peakViewers    = streams.length ? Math.max(...streams.map(r => r.peakViewers)) : 0;
+        const totalDurationMin = streams.reduce((s, r) => s + r.durationMin, 0);
+        return {
+          creatorId,
+          platform,
+          streamCount: streams.length,
+          streams,
+          avgViewers,
+          peakViewers,
+          totalDurationMin,
+          status:    'ok',
+          scrapedAt: new Date().toISOString(),
+        } satisfies LiveCreatorResult;
+      });
+    }
+  }
+};

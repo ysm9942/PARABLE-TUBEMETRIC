@@ -50,7 +50,7 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, LiveCreatorResult } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
@@ -133,6 +133,7 @@ const App: React.FC = () => {
   const [selectedTkUser, setSelectedTkUser] = useState<TikTokUserResult | null>(null);
 
   // 라이브 지표 상태
+  const [liveMode, setLiveMode] = useState<'backend' | 'softc'>('softc');
   const [liveDraft, setLiveDraft] = useState<string>('');
   const [liveInput, setLiveInput] = useState<string>('');
   const [livePlatform, setLivePlatform] = useState<'chzzk' | 'soop'>('chzzk');
@@ -551,20 +552,28 @@ const App: React.FC = () => {
       return;
     }
     setLiveJobStatus('submitting');
+    setLiveErrorMsg('');
     try {
       const creators = liveList.map(id => {
-        // "chzzk:아이디" 또는 "soop:아이디" 형식 지원
         if (id.includes(':')) {
           const [plat, cid] = id.split(':', 2);
           return { platform: plat.trim().toLowerCase(), creatorId: cid.trim() };
         }
         return { platform: livePlatform, creatorId: id };
       });
-      // 로컬 에이전트가 실행 중이면 로컬 서버 사용 (Render IP 차단 우회)
-      const useLocal = localAgentRunning && await checkLocalAgent();
-      const results = await fetchLiveStreams(creators, liveStartDate, liveEndDate, useLocal ? LOCAL_AGENT_URL : undefined);
+
+      let results: LiveCreatorResult[];
+
+      if (liveMode === 'softc') {
+        // softc 스크래퍼 (Chrome + Xvfb, Render 백엔드)
+        results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate);
+      } else {
+        // 백엔드 API (Playwright)
+        const useLocal = localAgentRunning && await checkLocalAgent();
+        results = await fetchLiveStreams(creators, liveStartDate, liveEndDate, useLocal ? LOCAL_AGENT_URL : undefined);
+      }
+
       setLiveResults(results);
-      // 개별 크리에이터 에러 체크
       const errors = results.filter((r: any) => r.status === 'error');
       if (errors.length > 0 && errors.length === results.length) {
         setLiveErrorMsg(errors.map((r: any) => `${r.creatorId}: ${r.error}`).join('; '));
@@ -574,7 +583,7 @@ const App: React.FC = () => {
       }
     } catch (e: any) {
       const msg = e?.response?.data?.detail || e?.message || String(e);
-      console.error('라이브 지표 API 오류:', msg);
+      console.error('라이브 지표 오류:', msg);
       setLiveErrorMsg(msg);
       setLiveJobStatus('error');
     }
@@ -1986,7 +1995,7 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-semibold text-white">라이브 지표 분석</h2>
                   <p className="text-xs text-zinc-200 mt-0.5">CHZZK / SOOP 방송 시청자 지표 수집 · viewership.softc.one</p>
                 </div>
-                {localAgentRunning ? (
+                {liveMode === 'backend' && (localAgentRunning ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                     <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨</span>
@@ -1999,11 +2008,32 @@ const App: React.FC = () => {
                     <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
                     <span className="text-xs text-orange-400 font-medium">로컬 에이전트 설치 필요</span>
                   </button>
-                )}
+                ))}
               </div>
 
-              {/* 로컬 에이전트 안내 배너 */}
-              {!localAgentRunning && (
+              {/* 수집 방식 선택 */}
+              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-medium text-zinc-200">수집 방식 선택</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setLiveMode('softc')}
+                    className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-medium transition-all ${liveMode === 'softc' ? 'bg-orange-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                  >
+                    <span>softc 스크래퍼</span>
+                    <span className={`text-[10px] font-normal ${liveMode === 'softc' ? 'text-orange-200' : 'text-zinc-400'}`}>Chrome + Xvfb · 클라우드</span>
+                  </button>
+                  <button
+                    onClick={() => setLiveMode('backend')}
+                    className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-medium transition-all ${liveMode === 'backend' ? 'bg-orange-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                  >
+                    <span>백엔드 API</span>
+                    <span className={`text-[10px] font-normal ${liveMode === 'backend' ? 'text-orange-200' : 'text-zinc-400'}`}>Playwright · 로컬 에이전트 권장</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 로컬 에이전트 안내 배너 (백엔드 모드에서만) */}
+              {liveMode === 'backend' && !localAgentRunning && (
                 <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -2105,7 +2135,11 @@ const App: React.FC = () => {
                 <p className="text-xs font-medium text-zinc-200 flex items-center gap-2"><Tv2 size={13} className="text-orange-500" /> 작동 방식</p>
                 <div className="space-y-1.5 text-xs text-zinc-200">
                   <p>① 아래에서 플랫폼(CHZZK/SOOP)과 크리에이터 ID를 입력합니다.</p>
-                  <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code> 데이터를 수집합니다.</p>
+                  {liveMode === 'softc' ? (
+                    <p>② 클라우드 서버가 <strong>Chrome + Xvfb</strong>로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code>에서 데이터를 수집합니다.</p>
+                  ) : (
+                    <p>② 클라우드 백엔드가 <strong>Playwright</strong>로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code> 데이터를 수집합니다.</p>
+                  )}
                   <p>③ 평균 시청자 수, 최고 시청자 수, 방송 시간 등의 지표가 표시됩니다.</p>
                 </div>
                 <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-300">
@@ -2207,7 +2241,7 @@ const App: React.FC = () => {
                       {liveJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
                       {liveJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
                       <span>{{
-                        submitting: 'softc.one에서 데이터 수집 중... (Playwright)',
+                        submitting: liveMode === 'softc' ? 'softc.one에서 데이터 수집 중... (Chrome + Xvfb)' : 'softc.one에서 데이터 수집 중... (Playwright)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
                         error:      liveErrorMsg ? `오류: ${liveErrorMsg}` : '백엔드 연결 실패 또는 수집 오류',
                         idle:       '',
