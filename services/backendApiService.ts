@@ -179,19 +179,26 @@ export const fetchLiveStreams = async (
   return res.data;
 };
 
-// ── softc 스크래퍼 (Chrome + Xvfb · undetected_chromedriver) ────────────
+// ── softc 스크래퍼 ────────────────────────────────────────────────────────
+// localBaseUrl 지정 시: 로컬 에이전트 (port 8002) → /api/crawl/*
+// 미지정 시:           클라우드 Render → /api/softc/crawl/*
 
 export const fetchSoftcStreams = async (
   creators: Array<{ platform: string; creatorId: string }>,
   startDate: string,
   endDate: string,
-  categories: string[] = []
+  categories: string[] = [],
+  localBaseUrl?: string   // SOFTC_AGENT_URL (http://localhost:8002) 또는 undefined
 ): Promise<LiveCreatorResult[]> => {
-  const base = BACKEND_URL.replace(/\/$/, '');
+  const isLocal = !!localBaseUrl;
+  const base    = (localBaseUrl || BACKEND_URL).replace(/\/$/, '');
   if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
 
+  const startPath  = isLocal ? '/api/crawl/start'  : '/api/softc/crawl/start';
+  const statusPath = isLocal ? '/api/crawl/status' : '/api/softc/crawl/status';
+
   // 잡 시작
-  await axios.post(`${base}/api/softc/crawl/start`, {
+  await axios.post(`${base}${startPath}`, {
     creators: creators.map(c => `${c.platform}:${c.creatorId}`),
     start_date: startDate,
     end_date: endDate,
@@ -201,7 +208,7 @@ export const fetchSoftcStreams = async (
   // 완료될 때까지 3초 간격으로 폴링
   while (true) {
     await new Promise(r => setTimeout(r, 3000));
-    const res = await axios.get(`${base}/api/softc/crawl/status`);
+    const res = await axios.get(`${base}${statusPath}`);
     const data = res.data;
     if (data.status === 'done' || data.status === 'error') {
       if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
