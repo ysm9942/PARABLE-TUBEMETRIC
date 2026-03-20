@@ -149,7 +149,6 @@ def _crawl_creator(
     print(f"  [{creator_id}] Chrome major: {chrome_major if chrome_major else '자동감지'}")
 
     opts = uc.ChromeOptions()
-    opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-gpu")
