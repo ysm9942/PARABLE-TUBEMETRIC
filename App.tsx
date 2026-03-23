@@ -140,7 +140,7 @@ const App: React.FC = () => {
   const [selectedTkUser, setSelectedTkUser] = useState<TikTokUserResult | null>(null);
 
   // 라이브 지표 상태
-  const [liveMode, setLiveMode] = useState<'softc' | 'local'>('softc');
+  const [liveMode] = useState<'local'>('local');
   const [liveDraft, setLiveDraft] = useState<string>('');
   const [liveInput, setLiveInput] = useState<string>('');
   const [livePlatform, setLivePlatform] = useState<'chzzk' | 'soop'>('chzzk');
@@ -571,18 +571,13 @@ const App: React.FC = () => {
 
       let results: LiveCreatorResult[];
 
-      if (liveMode === 'softc') {
-        // softc 스크래퍼 (Chrome + Xvfb · Render 클라우드)
-        results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate);
-      } else {
-        // 로컬 에이전트 (headless=False · undetected_chromedriver · port 8002)
-        if (!softcLocalRunning) {
-          setLiveErrorMsg('로컬 에이전트가 실행 중이지 않습니다. 설치 후 다시 시도하세요.');
-          setLiveJobStatus('error');
-          return;
-        }
-        results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate, [], SOFTC_AGENT_URL);
+      // 로컬 에이전트 (headless=False · undetected_chromedriver · port 8002)
+      if (!softcLocalRunning) {
+        setLiveErrorMsg('로컬 에이전트가 실행 중이지 않습니다. 설치 후 다시 시도하세요.');
+        setLiveJobStatus('error');
+        return;
       }
+      results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate, [], SOFTC_AGENT_URL);
 
       setLiveResults(results);
       const errors = results.filter((r: any) => r.status === 'error');
@@ -2022,32 +2017,8 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              {/* 수집 방식 선택 */}
-              <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-medium text-zinc-200">수집 방식 선택</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setLiveMode('softc')}
-                    className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-medium transition-all ${liveMode === 'softc' ? 'bg-orange-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
-                  >
-                    <span>softc 스크래퍼</span>
-                    <span className={`text-[10px] font-normal ${liveMode === 'softc' ? 'text-orange-200' : 'text-zinc-400'}`}>Chrome + Xvfb · 클라우드</span>
-                  </button>
-                  <button
-                    onClick={() => setLiveMode('local')}
-                    className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-medium transition-all ${liveMode === 'local' ? 'bg-orange-600 text-white' : 'bg-white/5 text-zinc-300 hover:bg-white/10'}`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      로컬 에이전트
-                      {softcLocalRunning && <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
-                    </span>
-                    <span className={`text-[10px] font-normal ${liveMode === 'local' ? 'text-orange-200' : 'text-zinc-400'}`}>headless=False · undetected · PC</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 로컬 에이전트 배너 (local 모드에서만) */}
-              {liveMode === 'local' && !softcLocalRunning && (
+              {/* 로컬 에이전트 배너 */}
+              {!softcLocalRunning && (
                 <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -2064,7 +2035,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
               )}
-              {liveMode === 'local' && softcLocalRunning && (
+              {softcLocalRunning && (
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                   <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                   <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨 (port 8002)</span>
@@ -2232,36 +2203,28 @@ const App: React.FC = () => {
                 >
                   <p className="text-xs font-medium text-zinc-200 flex items-center gap-2">
                     <Info size={13} className="text-orange-400" />
-                    {liveMode === 'local' ? '로컬 에이전트 사용 가이드' : '작동 방식'}
+                    로컬 에이전트 사용 가이드
                   </p>
                   <span className={`text-zinc-400 transition-transform ${showSoftcGuide ? 'rotate-180' : ''}`}>▾</span>
                 </button>
 
                 {showSoftcGuide && (
                   <div className="px-5 pb-5 space-y-3 border-t border-white/8">
-                    {liveMode === 'local' ? (
-                      <div className="space-y-2 text-xs text-zinc-200 pt-3">
-                        <p className="font-medium text-zinc-100">로컬 에이전트 (TubeMetric SoftC Scraper)</p>
-                        <p>① 위 [로컬 에이전트] → [설치하기]에서 OS에 맞는 파일을 다운받아 설치합니다.</p>
-                        <p>② 설치 완료 후 자동 실행되며 포트 <code className="bg-white/8 px-1.5 py-0.5 rounded">8002</code>에서 서버가 시작됩니다.</p>
-                        <p>③ 연결됨 표시가 나타나면 크리에이터 ID를 입력하고 수집을 시작합니다.</p>
-                        <div className="bg-white/4 rounded-lg p-3 space-y-1.5 mt-2">
-                          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> headless=False — 실제 Chrome 창이 열려 수집합니다</p>
-                          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> undetected_chromedriver — bot 탐지 우회</p>
-                          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> 페이지네이션 자동 처리 · 100행 기준 강제 다음 페이지</p>
-                          <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> 실패 시 자동 재시도 (최대 2회)</p>
-                          <p className="flex items-center gap-2"><Info size={12} className="text-zinc-400 shrink-0" /> PC에 Google Chrome이 설치되어 있어야 합니다</p>
-                          <p className="flex items-center gap-2"><Info size={12} className="text-zinc-400 shrink-0" /> Windows 시작 시 자동 실행, macOS LaunchAgent 등록</p>
-                        </div>
-                        <p className="text-zinc-400">크리에이터 ID 형식: <code className="bg-white/8 px-1 rounded">chzzk:채널ID</code> 또는 <code className="bg-white/8 px-1 rounded">soop:아이디</code></p>
+                    <div className="space-y-2 text-xs text-zinc-200 pt-3">
+                      <p className="font-medium text-zinc-100">로컬 에이전트 (TubeMetric SoftC Scraper)</p>
+                      <p>① 위 [설치하기]에서 OS에 맞는 파일을 다운받아 설치합니다.</p>
+                      <p>② 설치 완료 후 자동 실행되며 포트 <code className="bg-white/8 px-1.5 py-0.5 rounded">8002</code>에서 서버가 시작됩니다.</p>
+                      <p>③ 연결됨 표시가 나타나면 크리에이터 ID를 입력하고 수집을 시작합니다.</p>
+                      <div className="bg-white/4 rounded-lg p-3 space-y-1.5 mt-2">
+                        <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> headless=False — 실제 Chrome 창이 열려 수집합니다</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> undetected_chromedriver — bot 탐지 우회</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> 페이지네이션 자동 처리 · 100행 기준 강제 다음 페이지</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-400 shrink-0" /> 실패 시 자동 재시도 (최대 2회)</p>
+                        <p className="flex items-center gap-2"><Info size={12} className="text-zinc-400 shrink-0" /> PC에 Google Chrome이 설치되어 있어야 합니다</p>
+                        <p className="flex items-center gap-2"><Info size={12} className="text-zinc-400 shrink-0" /> Windows 시작 시 자동 실행, macOS LaunchAgent 등록</p>
                       </div>
-                    ) : (
-                      <div className="space-y-1.5 text-xs text-zinc-200 pt-3">
-                        <p>① 아래에서 플랫폼(CHZZK/SOOP)과 크리에이터 ID를 입력합니다.</p>
-                        <p>② 클라우드 서버가 <strong>Chrome + Xvfb</strong>로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code>에서 데이터를 수집합니다.</p>
-                        <p>③ 평균 시청자 수, 최고 시청자 수, 방송 시간 등의 지표가 표시됩니다.</p>
-                      </div>
-                    )}
+                      <p className="text-zinc-400">크리에이터 ID 형식: <code className="bg-white/8 px-1 rounded">chzzk:채널ID</code> 또는 <code className="bg-white/8 px-1 rounded">soop:아이디</code></p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2271,11 +2234,7 @@ const App: React.FC = () => {
                 <p className="text-xs font-medium text-zinc-200 flex items-center gap-2"><Tv2 size={13} className="text-orange-500" /> 작동 방식</p>
                 <div className="space-y-1.5 text-xs text-zinc-200">
                   <p>① 아래에서 플랫폼(CHZZK/SOOP)과 크리에이터 ID를 입력합니다.</p>
-                  {liveMode === 'softc' ? (
-                    <p>② 클라우드 서버가 <strong>Chrome + Xvfb</strong>로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code>에서 데이터를 수집합니다.</p>
-                  ) : (
-                    <p>② 클라우드 백엔드가 <strong>Playwright</strong>로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code> 데이터를 수집합니다.</p>
-                  )}
+                  <p>② 로컬 에이전트가 <strong>Chrome</strong>으로 <code className="bg-white/8 px-1.5 py-0.5 rounded">viewership.softc.one</code>에서 데이터를 수집합니다.</p>
                   <p>③ 평균 시청자 수, 최고 시청자 수, 방송 시간 등의 지표가 표시됩니다.</p>
                 </div>
                 <div className="border-t border-white/8 pt-3 text-[10px] text-zinc-300">
@@ -2377,7 +2336,7 @@ const App: React.FC = () => {
                       {liveJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
                       {liveJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
                       <span>{{
-                        submitting: liveMode === 'local' ? 'softc.one에서 수집 중... (로컬 Chrome · headless=False)' : 'softc.one에서 수집 중... (클라우드 Chrome + Xvfb)',
+                        submitting: 'softc.one에서 수집 중... (로컬 Chrome · headless=False)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
                         error:      liveErrorMsg ? `오류: ${liveErrorMsg}` : '백엔드 연결 실패 또는 수집 오류',
                         idle:       '',
@@ -2388,7 +2347,7 @@ const App: React.FC = () => {
                   <div className="mt-auto">
                     <button
                       onClick={handleLiveRequest}
-                      disabled={liveJobStatus === 'submitting' || (liveMode === 'softc' && !isBackendAvailable()) || (liveMode === 'local' && !softcLocalRunning)}
+                      disabled={liveJobStatus === 'submitting' || !softcLocalRunning}
                       className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
                     >
                       {liveJobStatus === 'submitting'

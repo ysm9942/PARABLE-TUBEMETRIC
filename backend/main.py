@@ -17,7 +17,7 @@ load_dotenv()
 from logger_config import setup_logging  # noqa: E402
 setup_logging()
 
-from routers import youtube, instagram, tiktok, live, softc  # noqa: E402
+from routers import youtube, instagram, tiktok, live  # noqa: E402
 
 app = FastAPI(
     title="PARABLE-TUBEMETRIC API",
@@ -48,7 +48,7 @@ app.include_router(youtube.router, prefix="/api/youtube", tags=["YouTube"])
 app.include_router(instagram.router, prefix="/api/instagram", tags=["Instagram"])
 app.include_router(tiktok.router, prefix="/api/tiktok", tags=["TikTok"])
 app.include_router(live.router, prefix="/api/live", tags=["Live"])
-app.include_router(softc.router, prefix="/api/softc", tags=["SoftC"])
+
 
 
 @app.get("/api/health")
