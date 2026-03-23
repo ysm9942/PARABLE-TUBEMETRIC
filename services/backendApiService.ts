@@ -87,7 +87,7 @@ export const detectAdSingle = async (videoId: string): Promise<any> => {
   return res.data;
 };
 
-// ── Instagram 릴스 (instagrapi 기반) ──────────────────────────────────────
+// ── Instagram 릴스 (IG_SESSION_ID 필요 / 미설정 시 503 → 로컬 큐 폴백) ────
 
 export const fetchInstagramReels = async (
   usernames: string[],

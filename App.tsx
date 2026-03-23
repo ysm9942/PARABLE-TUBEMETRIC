@@ -465,7 +465,7 @@ const App: React.FC = () => {
     }
     setIgJobStatus('submitting');
 
-    // 백엔드 API 우선 사용 (instagrapi 기반, 직접 호출)
+    // 백엔드 API 우선 시도 — IG_SESSION_ID 미설정 시 503 반환 → 로컬 큐로 폴백
     if (isBackendAvailable()) {
       try {
         const results = await backendFetchReels(igList, igAmount);
@@ -473,11 +473,11 @@ const App: React.FC = () => {
         setIgJobStatus('done');
         return;
       } catch (e: any) {
-        console.error('Backend API 오류, GitHub 큐로 폴백:', e.message);
+        console.info('Instagram: 백엔드 불가 → 로컬 스크래퍼로 전환', e.message);
       }
     }
 
-    // 폴백: GitHub 큐 방식 (로컬 서버 필요)
+    // 로컬 스크래퍼: GitHub 큐에 요청 등록 → local_server.py가 처리
     const result = await submitInstagramRequest(igList, igAmount);
     if (!result) {
       setIgJobStatus('error');
