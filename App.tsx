@@ -2463,7 +2463,7 @@ const App: React.FC = () => {
                 {isBackendAvailable() ? (
                   <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">instaloader</code>로 릴스 데이터를 직접 수집합니다.</p>
+                    <p>② 클라우드 백엔드가 세션 쿠키(<code className="bg-white/8 px-1.5 py-0.5 rounded">IG_SESSION_ID</code>)를 이용해 릴스 데이터를 수집합니다.</p>
                     <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
                   </div>
                 ) : (
@@ -2474,11 +2474,16 @@ const App: React.FC = () => {
                     <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
                   </div>
                 )}
-                <div className="border-t border-white/8 pt-3 text-xs text-zinc-200">
-                  {isBackendAvailable()
-                    ? '공개 계정은 로그인 없이 수집됩니다. 비공개 계정은 지원하지 않습니다.'
-                    : '공개 계정은 로그인 없이 수집됩니다. 비공개 계정은 지원하지 않습니다.'
-                  }
+                <div className="border-t border-white/8 pt-3 text-xs space-y-1">
+                  {isBackendAvailable() ? (
+                    <>
+                      <p className="text-amber-400 font-medium">⚠ Instagram은 클라우드 서버 IP를 차단합니다.</p>
+                      <p className="text-zinc-300">백엔드 환경변수에 <code className="bg-white/8 px-1.5 py-0.5 rounded">IG_SESSION_ID</code>를 설정해야 작동합니다.</p>
+                      <p className="text-zinc-400">취득 방법: 브라우저 DevTools → Application → Cookies → instagram.com → <code className="bg-white/8 px-1.5 py-0.5 rounded">sessionid</code> 값 복사</p>
+                    </>
+                  ) : (
+                    <p className="text-zinc-300">로컬 PC에서 실행 시 로그인 없이 공개 계정을 수집합니다. 비공개 계정은 지원하지 않습니다.</p>
+                  )}
                 </div>
               </div>
 
