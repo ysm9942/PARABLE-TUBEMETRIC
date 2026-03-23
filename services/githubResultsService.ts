@@ -105,75 +105,54 @@ export const getAllAdResults = async () => {
 };
 
 // ──────────────────────────────────────────────
-// 로컬 스크래퍼 Queue (Vercel → GitHub → 로컬)
+// 로컬 스크래퍼 Queue — 백엔드 프록시 방식
+// GITHUB_TOKEN 불필요. 백엔드 URL만 있으면 됩니다.
 // ──────────────────────────────────────────────
 
-const WRITE_TOKEN = process.env.GITHUB_TOKEN ?? '';
-const GH_API = `https://api.github.com/repos/${REPO}`;
+const BACKEND_URL = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+
+async function _backendPost(path: string, body: unknown): Promise<Response> {
+  return fetch(`${BACKEND_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 /**
- * Vercel 사이트에서 로컬 스크래퍼에 작업을 요청합니다.
- * results/queue/{requestId}.json 파일을 GitHub에 생성합니다.
- * 로컬 local_server.py 가 이 파일을 감지하고 스크래퍼를 실행합니다.
+ * 백엔드를 통해 작업을 큐에 등록합니다. (GITHUB_TOKEN 불필요)
  */
 export const submitScrapeRequest = async (
   handles: string[],
   type: 'channel' | 'video' = 'channel',
   options: { scrolls?: number; headless?: boolean; start?: string; end?: string } = {}
 ): Promise<{ requestId: string } | null> => {
-  if (!WRITE_TOKEN || !REPO) return null;
-
-  const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const path = `results/queue/${requestId}.json`;
-  const payload = {
-    requestId,
-    type,
-    handles,
-    options: { headless: true, scrolls: 10, ...options },
-    requestedAt: new Date().toISOString(),
-  };
-
-  // base64 인코딩 (GitHub API content 필드 요건)
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
-
-  const res = await fetch(`${GH_API}/contents/${path}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${WRITE_TOKEN}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/vnd.github+json',
-    },
-    body: JSON.stringify({
-      message: `scraper: queue ${requestId}`,
-      content: encoded,
-      branch: BRANCH,
-    }),
-  });
-
-  return res.ok ? { requestId } : null;
+  if (!BACKEND_URL) return null;
+  try {
+    const res = await _backendPost('/api/scraper/queue/submit', {
+      type,
+      handles,
+      options: { headless: true, scrolls: 10, ...options },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 };
 
 /**
- * 큐 파일이 아직 존재하면 'pending', 삭제됐으면 'done' 반환.
- * 로컬 서버가 처리 완료 후 파일을 삭제하므로 파일 유무로 상태를 판단합니다.
+ * 백엔드를 통해 큐 작업 상태를 확인합니다.
  */
 export const checkQueueStatus = async (
   requestId: string
 ): Promise<'pending' | 'done' | 'error'> => {
-  if (!WRITE_TOKEN || !REPO) return 'error';
+  if (!BACKEND_URL) return 'error';
   try {
-    const res = await fetch(
-      `${GH_API}/contents/results/queue/${requestId}.json?ref=${BRANCH}`,
-      {
-        headers: {
-          Authorization: `Bearer ${WRITE_TOKEN}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
-    );
-    if (res.status === 200) return 'pending';
-    if (res.status === 404) return 'done';
-    return 'error';
+    const res = await fetch(`${BACKEND_URL}/api/scraper/queue/${requestId}/status`);
+    if (!res.ok) return 'error';
+    const data = await res.json();
+    return data.status as 'pending' | 'done' | 'error';
   } catch {
     return 'error';
   }
@@ -186,46 +165,28 @@ export const checkQueueStatus = async (
 import type { InstagramUserResult } from '../types';
 
 /**
- * Instagram 릴스 수집 요청을 GitHub 큐에 등록합니다.
- * local_server.py가 type: 'instagram' 을 감지하고 instagram_scraper.py를 실행합니다.
+ * Instagram 릴스 수집 요청을 백엔드를 통해 큐에 등록합니다. (GITHUB_TOKEN 불필요)
  */
 export const submitInstagramRequest = async (
   usernames: string[],
   amount: number = 10
 ): Promise<{ requestId: string } | null> => {
-  if (!WRITE_TOKEN || !REPO) return null;
-
-  const requestId = `ig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const path = `results/queue/${requestId}.json`;
-  const payload = {
-    requestId,
-    type: 'instagram',
-    handles: usernames.map(u => u.replace(/^@/, '')),
-    options: { amount },
-    requestedAt: new Date().toISOString(),
-  };
-
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
-
-  const res = await fetch(`${GH_API}/contents/${path}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${WRITE_TOKEN}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/vnd.github+json',
-    },
-    body: JSON.stringify({
-      message: `instagram: queue ${requestId}`,
-      content: encoded,
-      branch: BRANCH,
-    }),
-  });
-
-  return res.ok ? { requestId } : null;
+  if (!BACKEND_URL) return null;
+  try {
+    const res = await _backendPost('/api/scraper/queue/submit', {
+      type: 'instagram',
+      handles: usernames.map(u => u.replace(/^@/, '')),
+      options: { amount },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 };
 
 /**
- * Instagram 큐 파일 상태 확인 (checkQueueStatus와 동일 로직, ig_ 접두어 구분용)
+ * Instagram 큐 파일 상태 확인
  */
 export const checkInstagramQueueStatus = (requestId: string) =>
   checkQueueStatus(requestId);
