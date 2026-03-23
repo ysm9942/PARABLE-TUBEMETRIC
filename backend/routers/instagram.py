@@ -9,6 +9,7 @@ https://github.com/instaloader/instaloader
 """
 import asyncio
 import random
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -217,7 +218,12 @@ async def fetch_reels(req: InstagramRequest):
     results = []
 
     for raw in req.usernames:
-        username = raw.strip().lstrip("@")
+        v = raw.strip()
+        # Instagram URL 전체가 들어온 경우 username만 추출
+        url_match = re.search(r"instagram\.com/([^/?#\s]+)", v)
+        if url_match:
+            v = url_match.group(1)
+        username = v.lstrip("@").rstrip("/")
         if not username:
             continue
         result = await loop.run_in_executor(_executor, _scrape_user, username, req.amount)

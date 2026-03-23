@@ -446,7 +446,11 @@ const App: React.FC = () => {
 
   // ── Instagram 핸들러 ────────────────────────────────────────────────────────
   const addIgItem = () => {
-    const v = igDraft.trim().replace(/^@/, '');
+    let v = igDraft.trim();
+    // Instagram URL에서 username 추출 (예: https://www.instagram.com/haebom_m)
+    const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/);
+    if (urlMatch) v = urlMatch[1];
+    v = v.replace(/^@/, '').replace(/\/$/, '');
     if (!v) return;
     setIgInput(prev => prev ? prev + '\n' + v : v);
     setIgDraft('');
@@ -2459,7 +2463,7 @@ const App: React.FC = () => {
                 {isBackendAvailable() ? (
                   <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagrapi</code>로 릴스 데이터를 직접 수집합니다.</p>
+                    <p>② 클라우드 백엔드가 <code className="bg-white/8 px-1.5 py-0.5 rounded">instaloader</code>로 릴스 데이터를 직접 수집합니다.</p>
                     <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
                   </div>
                 ) : (
@@ -2472,8 +2476,8 @@ const App: React.FC = () => {
                 )}
                 <div className="border-t border-white/8 pt-3 text-xs text-zinc-200">
                   {isBackendAvailable()
-                    ? '백엔드에 IG_USERNAME / IG_PASSWORD 환경변수가 설정되어 있어야 합니다.'
-                    : <>필수 환경변수: <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-200">IG_USERNAME</code> <code className="bg-white/8 px-1.5 py-0.5 rounded text-zinc-200">IG_PASSWORD</code> — scraper/.env에 설정</>
+                    ? '공개 계정은 로그인 없이 수집됩니다. 비공개 계정은 지원하지 않습니다.'
+                    : '공개 계정은 로그인 없이 수집됩니다. 비공개 계정은 지원하지 않습니다.'
                   }
                 </div>
               </div>
