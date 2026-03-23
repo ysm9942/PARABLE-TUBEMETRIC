@@ -131,15 +131,66 @@ def save_result(data: dict, data_type: str, identifier: str) -> Path:
     return filepath
 
 
-def push_to_github(filepath: Path, data: dict | None = None,
-                   data_type: str = "", identifier: str = "") -> bool:
-    """GitHub Contents API로 결과 파일과 index.json을 push한다."""
-    token, repo, branch = _get_creds()
-    if not token or not repo:
-        print("[GitHub] 토큰/레포 미설정 — push 생략")
+def _push_via_backend(backend_url: str, filepath: Path, data: dict | None,
+                      data_type: str, identifier: str) -> bool:
+    """백엔드 프록시를 통해 결과를 push한다 (GitHub 토큰 불필요)."""
+    import requests as _rq
+
+    scraped_by = (data or {}).get("scrapedBy", {})
+    operator   = scraped_by.get("operator", "unknown")
+    hostname   = scraped_by.get("hostname", "unknown")
+    label      = f"{data_type} {identifier}" if data_type else filepath.name
+
+    rel_path = f"results/{data_type}/{filepath.name}" if data_type else filepath.name
+    content  = filepath.read_text("utf-8")
+
+    # 결과 파일 push
+    print(f"[Backend] push: {rel_path}")
+    r1 = _rq.post(
+        f"{backend_url}/api/scraper/results",
+        json={"path": rel_path, "content": content,
+              "message": f"scraper: {label} by {operator}@{hostname}"},
+        timeout=30,
+    )
+    if not r1.ok:
+        print(f"[Backend] 결과 push 실패: {r1.status_code}")
         return False
 
-    # 머신/운영자 정보로 커밋 메시지 구성
+    # index.json push
+    index = _load_local_index()
+    r2 = _rq.post(
+        f"{backend_url}/api/scraper/index",
+        json={"index": index},
+        timeout=30,
+    )
+    if not r2.ok:
+        print(f"[Backend] index push 실패: {r2.status_code}")
+        return False
+
+    print("[Backend] push 완료 ✓")
+    return True
+
+
+def push_to_github(filepath: Path, data: dict | None = None,
+                   data_type: str = "", identifier: str = "") -> bool:
+    """결과 파일과 index.json을 push한다.
+
+    BACKEND_URL 환경변수가 있으면 백엔드 프록시를 사용 (GitHub 토큰 불필요).
+    없으면 GitHub Contents API 직접 호출 (GITHUB_TOKEN 필요).
+    """
+    import os as _os
+
+    # 백엔드 프록시 우선
+    backend_url = _os.environ.get("BACKEND_URL", "").rstrip("/")
+    if backend_url:
+        return _push_via_backend(backend_url, filepath, data, data_type, identifier)
+
+    # 폴백: GitHub 직접 호출
+    token, repo, branch = _get_creds()
+    if not token or not repo:
+        print("[GitHub] 토큰/레포/백엔드 미설정 — push 생략")
+        return False
+
     scraped_by = (data or {}).get("scrapedBy", {})
     operator   = scraped_by.get("operator", "unknown")
     hostname   = scraped_by.get("hostname", "unknown")
@@ -152,9 +203,8 @@ def push_to_github(filepath: Path, data: dict | None = None,
     print(f"[GitHub] push: {rel_path}")
     ok1 = _gh_put(token, repo, branch, rel_path, content, commit_msg)
 
-    # index.json 동기화
-    index     = _load_local_index()
-    idx_str   = json.dumps(index, ensure_ascii=False, indent=2)
+    index   = _load_local_index()
+    idx_str = json.dumps(index, ensure_ascii=False, indent=2)
     ok2 = _gh_put(token, repo, branch, "results/index.json", idx_str,
                   f"index: update {label}")
 
