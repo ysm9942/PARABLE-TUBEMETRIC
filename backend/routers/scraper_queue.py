@@ -1,17 +1,24 @@
 """
 로컬 스크래퍼 ↔ GitHub 큐 프록시
 
-로컬 local_server.py는 이 API만 호출하고 GitHub 토큰을 직접 갖지 않아도 됩니다.
+프론트엔드와 로컬 local_server.py 모두 이 API만 호출합니다.
+GitHub 토큰은 이 백엔드(Vercel/Render)에만 존재합니다.
 
 엔드포인트:
-  GET  /api/scraper/queue          — 대기 중인 작업 목록
-  POST /api/scraper/queue/{name}/done  — 작업 완료(큐 파일 삭제)
-  POST /api/scraper/results        — 결과 파일 + index.json push
+  POST /api/scraper/queue/submit       — 작업 등록 (프론트엔드 → 백엔드)
+  GET  /api/scraper/queue/{id}/status  — 작업 상태 확인 (프론트엔드 → 백엔드)
+  GET  /api/scraper/queue              — 대기 중인 작업 목록 (local_server.py)
+  POST /api/scraper/queue/{name}/done  — 작업 완료 (local_server.py)
+  POST /api/scraper/results            — 결과 파일 push (local_server.py)
+  POST /api/scraper/index              — index.json push (local_server.py)
 """
 
 import base64
 import json
 import os
+import random
+import string
+import time
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -47,6 +54,60 @@ async def _gh_put(path: str, body: dict) -> httpx.Response:
 async def _gh_delete(path: str, body: dict) -> httpx.Response:
     async with httpx.AsyncClient(timeout=15) as c:
         return await c.request("DELETE", f"{_GH_API}/{path}", headers=_GH_HDR, json=body)
+
+
+# ── 0. 큐 작업 등록 (프론트엔드 → 백엔드 → GitHub) ───────────────────────────
+
+def _new_request_id(prefix: str = "job") -> str:
+    suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    return f"{prefix}_{int(time.time() * 1000)}_{suffix}"
+
+
+class SubmitRequest(BaseModel):
+    type: str          # 'instagram' | 'channel' | 'video' | 'tiktok'
+    handles: list[str]
+    options: dict = {}
+
+
+@router.post("/queue/submit")
+async def submit_queue(req: SubmitRequest):
+    """작업을 GitHub 큐에 등록합니다. 프론트엔드가 GITHUB_TOKEN 없이 호출 가능."""
+    if not _TOKEN:
+        raise HTTPException(status_code=503, detail="백엔드에 GITHUB_TOKEN 미설정")
+
+    request_id = _new_request_id(req.type)
+    path = f"results/queue/{request_id}.json"
+    payload = {
+        "requestId": request_id,
+        "type": req.type,
+        "handles": req.handles,
+        "options": req.options,
+        "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    encoded = base64.b64encode(
+        json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    ).decode()
+
+    r = await _gh_put(
+        f"contents/{path}",
+        {"message": f"queue: {req.type} {request_id}", "content": encoded, "branch": _BRANCH},
+    )
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+    return {"requestId": request_id}
+
+
+@router.get("/queue/{request_id}/status")
+async def queue_status(request_id: str):
+    """큐 파일 존재 여부로 처리 상태를 반환합니다."""
+    r = await _gh_get(
+        f"contents/results/queue/{request_id}.json", {"ref": _BRANCH}
+    )
+    if r.status_code == 200:
+        return {"status": "pending"}
+    if r.status_code == 404:
+        return {"status": "done"}
+    return {"status": "error"}
 
 
 # ── 1. 큐 목록 조회 ───────────────────────────────────────────────────────────
