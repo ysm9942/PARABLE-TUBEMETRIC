@@ -36,3 +36,5 @@ scraper/config.py
 scraper/build/
 scraper/dist/
 scraper/__pycache__/
+backend/__pycache__/
+backend/routers/__pycache__/
