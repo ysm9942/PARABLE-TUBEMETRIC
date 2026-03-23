@@ -1,9 +1,11 @@
 """
-Instagram 릴스 스크래핑 API — curl_cffi + yt-dlp 기반 (로그인 불필요)
+Instagram 릴스 스크래핑 API — instaloader 기반 (로그인 불필요)
 
-curl_cffi의 브라우저 TLS impersonation으로 Instagram 내부 API를 직접 호출한다.
-실패 시 yt-dlp로 fallback. IG_USERNAME / IG_PASSWORD 환경변수 불필요.
-공개 계정만 지원.
+GitHub ⭐11k+ / 최신 유지보수 2026-03-21 (v4.15.1)
+https://github.com/instaloader/instaloader
+
+공개 계정의 릴스를 로그인 없이 수집한다.
+실패 시 curl_cffi fallback.
 """
 import asyncio
 import random
@@ -16,6 +18,72 @@ from pydantic import BaseModel
 
 router = APIRouter()
 _executor = ThreadPoolExecutor(max_workers=3)
+
+
+class InstagramRequest(BaseModel):
+    usernames: list[str]
+    amount: int = 10
+
+
+# ---------------------------------------------------------------------------
+# Primary: instaloader
+# ---------------------------------------------------------------------------
+
+def _scrape_user_reels_instaloader(username: str, amount: int) -> list[dict]:
+    """instaloader로 공개 계정 릴스를 수집한다."""
+    import instaloader
+
+    L = instaloader.Instaloader(
+        quiet=True,
+        download_pictures=False,
+        download_videos=False,
+        download_video_thumbnails=False,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+        post_metadata_txt_pattern="",
+    )
+
+    profile = instaloader.Profile.from_username(L.context, username)
+
+    reels: list[dict] = []
+    for post in profile.get_posts():
+        if not post.is_video:
+            continue
+
+        code = post.shortcode or ""
+        # video_play_count = 릴스 재생수 (view_count보다 정확)
+        view_count = int(
+            getattr(post, "video_play_count", None) or
+            getattr(post, "video_view_count", None) or
+            0
+        )
+        reels.append({
+            "username": username,
+            "media_pk": str(post.mediaid),
+            "code": code,
+            "caption_text": (post.caption or "")[:300],
+            "taken_at": post.date_utc.isoformat(),
+            "like_count": int(post.likes or 0),
+            "comment_count": int(post.comments or 0),
+            "view_count": view_count,
+            "video_duration": float(getattr(post, "video_duration", 0) or 0),
+            "thumbnail_url": post.url or "",
+            "url": f"https://www.instagram.com/reel/{code}/" if code else None,
+        })
+
+        if len(reels) >= amount:
+            break
+
+        time.sleep(random.uniform(0.4, 1.0))
+
+    return reels
+
+
+# ---------------------------------------------------------------------------
+# Fallback: curl_cffi → Instagram 내부 API
+# ---------------------------------------------------------------------------
 
 _IG_HEADERS = {
     "User-Agent": (
@@ -30,40 +98,25 @@ _IG_HEADERS = {
 }
 
 
-class InstagramRequest(BaseModel):
-    usernames: list[str]
-    amount: int = 10
-
-
-def _parse_media(media: dict, username: str) -> dict:
+def _parse_media_curl(media: dict, username: str) -> dict:
     code = media.get("code") or media.get("shortcode") or ""
-
-    caption = ""
     cap_obj = media.get("caption")
-    if isinstance(cap_obj, dict):
-        caption = cap_obj.get("text", "")
-    elif isinstance(cap_obj, str):
-        caption = cap_obj
-
-    thumb = ""
+    caption = (
+        cap_obj.get("text", "") if isinstance(cap_obj, dict)
+        else (cap_obj or "")
+    )
     iv = media.get("image_versions2") or {}
     candidates = iv.get("candidates") or []
-    if candidates:
-        thumb = candidates[0].get("url", "")
-
+    thumb = candidates[0].get("url", "") if candidates else ""
     view_count = int(
-        media.get("view_count") or
-        media.get("play_count") or
-        media.get("ig_play_count") or
-        0
+        media.get("view_count") or media.get("play_count") or
+        media.get("ig_play_count") or 0
     )
-
     taken_at = media.get("taken_at") or 0
-    if isinstance(taken_at, (int, float)) and taken_at > 0:
-        taken_at_iso = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat()
-    else:
-        taken_at_iso = datetime.now(timezone.utc).isoformat()
-
+    taken_at_iso = (
+        datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat()
+        if taken_at else datetime.now(timezone.utc).isoformat()
+    )
     return {
         "username": username,
         "media_pk": str(media.get("id") or media.get("pk") or ""),
@@ -80,10 +133,9 @@ def _parse_media(media: dict, username: str) -> dict:
 
 
 def _scrape_user_reels_curl(username: str, amount: int) -> list[dict]:
-    """curl_cffi로 Instagram 내부 API를 직접 호출해 릴스를 수집한다."""
+    """curl_cffi + Instagram 내부 API fallback."""
     from curl_cffi import requests as cf
 
-    # 1) user_id 조회
     resp = cf.get(
         f"https://i.instagram.com/api/v1/users/web_profile_info/?username={username}",
         headers=_IG_HEADERS,
@@ -98,18 +150,15 @@ def _scrape_user_reels_curl(username: str, amount: int) -> list[dict]:
 
     time.sleep(random.uniform(0.8, 1.5))
 
-    # 2) 릴스 목록 페이지네이션
     reels: list[dict] = []
     max_id = ""
-
     while len(reels) < amount:
-        page_size = min(12, amount - len(reels))
         resp = cf.post(
             "https://www.instagram.com/api/v1/clips/user/",
             headers={**_IG_HEADERS, "Content-Type": "application/x-www-form-urlencoded"},
             data={
                 "target_user_id": str(user_id),
-                "page_size": str(page_size),
+                "page_size": str(min(12, amount - len(reels))),
                 "max_id": max_id,
             },
             impersonate="chrome120",
@@ -117,12 +166,9 @@ def _scrape_user_reels_curl(username: str, amount: int) -> list[dict]:
         )
         resp.raise_for_status()
         data = resp.json()
-
         items = data.get("items") or []
         for item in items:
-            media = item.get("media") or item
-            reels.append(_parse_media(media, username))
-
+            reels.append(_parse_media_curl(item.get("media") or item, username))
         paging = data.get("paging_info") or {}
         if not paging.get("more_available") or not items:
             break
@@ -132,69 +178,22 @@ def _scrape_user_reels_curl(username: str, amount: int) -> list[dict]:
     return reels[:amount]
 
 
-def _scrape_user_reels_ytdlp(username: str, amount: int) -> list[dict]:
-    """yt-dlp fallback으로 릴스를 수집한다."""
-    import yt_dlp
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "ignoreerrors": True,
-        "playlistend": amount,
-    }
-
-    reels: list[dict] = []
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(
-            f"https://www.instagram.com/{username}/reels/",
-            download=False,
-        )
-
-    if not info:
-        return []
-
-    entries = info.get("entries") if info.get("_type") == "playlist" else [info]
-    for entry in (entries or [])[:amount]:
-        if not entry:
-            continue
-        code = entry.get("id") or ""
-        ts = entry.get("timestamp") or 0
-        reels.append({
-            "username": username,
-            "media_pk": code,
-            "code": code,
-            "caption_text": (entry.get("description") or entry.get("title") or "")[:300],
-            "taken_at": (
-                datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-                if ts else datetime.now(timezone.utc).isoformat()
-            ),
-            "like_count": int(entry.get("like_count") or 0),
-            "comment_count": int(entry.get("comment_count") or 0),
-            "view_count": int(entry.get("view_count") or 0),
-            "video_duration": float(entry.get("duration") or 0),
-            "thumbnail_url": entry.get("thumbnail") or "",
-            "url": (
-                entry.get("webpage_url") or
-                (f"https://www.instagram.com/reel/{code}/" if code else None)
-            ),
-        })
-
-    return reels
-
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
 
 def _scrape_user(username: str, amount: int) -> dict:
-    """curl_cffi → yt-dlp 순서로 시도한다."""
+    """instaloader → curl_cffi 순서로 시도한다."""
     reels: list[dict] = []
     error = None
 
     try:
-        reels = _scrape_user_reels_curl(username, amount)
+        reels = _scrape_user_reels_instaloader(username, amount)
     except Exception as e1:
         try:
-            reels = _scrape_user_reels_ytdlp(username, amount)
+            reels = _scrape_user_reels_curl(username, amount)
         except Exception as e2:
-            error = f"curl: {e1} | yt-dlp: {e2}"
+            error = f"instaloader: {e1} | curl: {e2}"
 
     count = len(reels)
     result: dict = {
@@ -213,7 +212,7 @@ def _scrape_user(username: str, amount: int) -> dict:
 
 @router.post("/reels")
 async def fetch_reels(req: InstagramRequest):
-    """Instagram 릴스를 수집한다. 로그인 불필요 — curl_cffi → yt-dlp 순서로 시도."""
+    """Instagram 릴스를 수집한다. 로그인 불필요 — instaloader → curl_cffi 순서로 시도."""
     loop = asyncio.get_event_loop()
     results = []
 
@@ -221,7 +220,6 @@ async def fetch_reels(req: InstagramRequest):
         username = raw.strip().lstrip("@")
         if not username:
             continue
-
         result = await loop.run_in_executor(_executor, _scrape_user, username, req.amount)
         results.append(result)
         await asyncio.sleep(random.uniform(1.0, 2.5))
