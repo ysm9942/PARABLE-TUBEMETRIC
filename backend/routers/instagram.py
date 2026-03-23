@@ -112,22 +112,6 @@ def _scrape_user(username: str, amount: int) -> dict:
     reels: list[dict] = []
     error: str | None = None
 
-    if not IG_SESSION_ID:
-        return {
-            "username": username,
-            "reelCount": 0,
-            "avgViews": 0,
-            "avgLikes": 0,
-            "avgComments": 0,
-            "scrapedAt": datetime.now(timezone.utc).isoformat(),
-            "reels": [],
-            "error": (
-                "IG_SESSION_ID 환경변수가 설정되지 않았습니다. "
-                "백엔드 환경변수에 Instagram 세션 쿠키를 추가하거나 "
-                "로컬 스크래퍼를 사용하세요."
-            ),
-        }
-
     cookies_file = _make_cookies_file(IG_SESSION_ID)
     try:
         reels = _scrape_ytdlp(username, amount, cookies_file)
@@ -154,8 +138,18 @@ async def fetch_reels(req: InstagramRequest):
     """
     Instagram 릴스 수집.
     IG_SESSION_ID 환경변수 필요 (브라우저 sessionid 쿠키 값).
-    미설정 시 로컬 스크래퍼 안내 메시지 반환.
+    미설정 시 503 반환 → 프론트엔드가 로컬 스크래퍼로 자동 폴백.
     """
+    if not IG_SESSION_ID:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "IG_SESSION_ID 미설정 — 로컬 스크래퍼를 사용합니다. "
+                "클라우드에서 직접 수집하려면 백엔드 환경변수에 "
+                "IG_SESSION_ID (Instagram sessionid 쿠키)를 추가하세요."
+            ),
+        )
+
     loop = asyncio.get_event_loop()
     results = []
 
