@@ -1,27 +1,26 @@
 """
-PARABLE-TUBEMETRIC 로컬 서버 (GitHub Queue 폴링 방식)
+PARABLE-TUBEMETRIC 로컬 서버 (백엔드 프록시 방식)
+
+GitHub 토큰 불필요. BACKEND_URL 하나만 있으면 됩니다.
 
 사용법: python scraper/local_server.py
   - 패키지 자동 설치
   - .env 없으면 초기 설정 마법사 자동 실행
-  - 이후 GitHub 큐를 폴링하며 수집 요청 처리
+  - 백엔드를 통해 큐 폴링 및 결과 push
 """
 
-# ── 0. 패키지 자동 설치 (import 전에 실행) ────────────────────────────────────
+# ── 0. 패키지 자동 설치 ────────────────────────────────────────────────────────
+import importlib
 import subprocess
 import sys
 
 _REQUIRED = ["requests", "python-dotenv", "instaloader"]
 
 def _ensure_packages():
-    missing = []
-    for pkg in _REQUIRED:
-        import importlib
-        mod = pkg.replace("-", "_").split("[")[0]
-        if importlib.util.find_spec(mod) is None:
-            missing.append(pkg)
+    missing = [p for p in _REQUIRED
+               if importlib.util.find_spec(p.replace("-", "_")) is None]
     if missing:
-        print(f"[설치] 필요한 패키지 설치 중: {', '.join(missing)}", flush=True)
+        print(f"[설치] 패키지 설치 중: {', '.join(missing)}", flush=True)
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--quiet", *missing]
         )
@@ -40,35 +39,25 @@ import requests
 SCRAPER_DIR = Path(__file__).parent
 _ENV_FILE   = SCRAPER_DIR / ".env"
 
-_DEFAULT_REPO   = "ysm9942/PARABLE-TUBEMETRIC"
-_DEFAULT_BRANCH = "main"
+# 고정값 — 변경 불필요
+_DEFAULT_BACKEND = "https://parable-tubemetric-api.onrender.com"
 
 
 # ── 2. 초기 설정 마법사 ────────────────────────────────────────────────────────
 
 def _setup_wizard():
-    """처음 실행 시 .env 파일을 대화형으로 생성."""
     print()
     print("╔══════════════════════════════════════════╗")
     print("║  PARABLE-TUBEMETRIC  첫 실행 초기 설정   ║")
     print("╚══════════════════════════════════════════╝")
     print()
-    print("GitHub Personal Access Token이 필요합니다.")
-    print("발급 주소: https://github.com/settings/tokens")
-    print("필요 권한: Contents (Read & Write)")
-    print()
-
-    while True:
-        token = input("GitHub Token (ghp_...): ").strip()
-        if token.startswith("ghp_") or token.startswith("github_pat_"):
-            break
-        if token:
-            print("  ※ 토큰은 'ghp_' 또는 'github_pat_' 로 시작해야 합니다.\n")
+    print(f"백엔드 서버 주소 (기본값: {_DEFAULT_BACKEND})")
+    url = input(f"BACKEND_URL [엔터 = 기본값 사용]: ").strip()
+    if not url:
+        url = _DEFAULT_BACKEND
 
     _ENV_FILE.write_text(
-        f"GITHUB_TOKEN={token}\n"
-        f"GITHUB_REPO={_DEFAULT_REPO}\n"
-        f"GITHUB_BRANCH={_DEFAULT_BRANCH}\n"
+        f"BACKEND_URL={url}\n"
         f"POLL_INTERVAL=30\n",
         encoding="utf-8",
     )
@@ -78,41 +67,20 @@ def _setup_wizard():
 
 # ── 3. 환경변수 로드 ───────────────────────────────────────────────────────────
 
-def _load_env():
-    global GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH, POLL_INTERVAL, _API, _HDR
+BACKEND_URL   = ""
+POLL_INTERVAL = 30
 
-    # .env 없으면 마법사 실행
+def _load_env():
+    global BACKEND_URL, POLL_INTERVAL
+
     if not _ENV_FILE.exists():
         _setup_wizard()
 
     from dotenv import load_dotenv
     load_dotenv(dotenv_path=_ENV_FILE, override=False)
 
-    GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
-    GITHUB_REPO   = os.environ.get("GITHUB_REPO",  _DEFAULT_REPO)
-    GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", _DEFAULT_BRANCH)
+    BACKEND_URL   = os.environ.get("BACKEND_URL", _DEFAULT_BACKEND).rstrip("/")
     POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "30"))
-
-    if not GITHUB_TOKEN:
-        # .env는 있는데 토큰이 비어있으면 다시 마법사
-        print("[경고] .env에 GITHUB_TOKEN이 없습니다. 설정을 다시 진행합니다.")
-        _ENV_FILE.unlink(missing_ok=True)
-        _setup_wizard()
-        load_dotenv(dotenv_path=_ENV_FILE, override=True)
-        GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
-        GITHUB_REPO   = os.environ.get("GITHUB_REPO",  _DEFAULT_REPO)
-
-    _API = f"https://api.github.com/repos/{GITHUB_REPO}"
-    _HDR = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept":        "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-# 전역 초기화 (load_env 호출 전 placeholder)
-GITHUB_TOKEN = GITHUB_REPO = GITHUB_BRANCH = ""
-POLL_INTERVAL = 30
-_API = _HDR = None  # type: ignore
 
 
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -124,23 +92,15 @@ def log(msg: str):
     print(f"[{_ts()}] {msg}", flush=True)
 
 
-# ── GitHub API 헬퍼 ───────────────────────────────────────────────────────────
+# ── 백엔드 큐 API ─────────────────────────────────────────────────────────────
 
 def _list_queue() -> list[dict]:
-    r = requests.get(
-        f"{_API}/contents/results/queue",
-        headers=_HDR,
-        params={"ref": GITHUB_BRANCH},
-        timeout=15,
-    )
-    if not r.ok:
+    """백엔드를 통해 대기 중인 작업 목록 조회"""
+    try:
+        r = requests.get(f"{BACKEND_URL}/api/scraper/queue", timeout=15)
+        return r.json() if r.ok else []
+    except Exception:
         return []
-    return [
-        f for f in r.json()
-        if isinstance(f, dict)
-        and f.get("name", "").endswith(".json")
-        and f.get("name") != ".gitkeep"
-    ]
 
 
 def _download(url: str) -> dict | None:
@@ -151,18 +111,17 @@ def _download(url: str) -> dict | None:
         return None
 
 
-def _delete_queue_file(filename: str, sha: str) -> bool:
-    r = requests.delete(
-        f"{_API}/contents/results/queue/{filename}",
-        headers=_HDR,
-        json={
-            "message": f"scraper: done {filename}",
-            "sha": sha,
-            "branch": GITHUB_BRANCH,
-        },
-        timeout=15,
-    )
-    return r.status_code in (200, 204)
+def _mark_done(filename: str, sha: str) -> bool:
+    """백엔드를 통해 큐 파일 삭제 (완료 표시)"""
+    try:
+        r = requests.post(
+            f"{BACKEND_URL}/api/scraper/queue/{filename}/done",
+            json={"sha": sha},
+            timeout=15,
+        )
+        return r.ok
+    except Exception:
+        return False
 
 
 # ── 스크래퍼 실행 ─────────────────────────────────────────────────────────────
@@ -178,7 +137,7 @@ def _run_scraper(job: dict) -> bool:
         log(f"[오류] 핸들 목록이 비어있음: {job}")
         return False
 
-    # ── Instagram 릴스 스크래퍼 ──────────────────────────────────────────────
+    # ── Instagram 릴스 ────────────────────────────────────────────────────────
     if job_type == "instagram":
         cmd = [sys.executable, str(SCRAPER_DIR / "instagram_scraper.py")]
         cmd.extend(handles)
@@ -196,7 +155,7 @@ def _run_scraper(job: dict) -> bool:
             log(f"[오류] Instagram 스크래퍼 실행 실패: {e}")
             return False
 
-    # ── TikTok 스크래퍼 ──────────────────────────────────────────────────────
+    # ── TikTok ────────────────────────────────────────────────────────────────
     if job_type == "tiktok":
         try:
             from run_scraper_ci import process_tiktok
@@ -206,7 +165,7 @@ def _run_scraper(job: dict) -> bool:
             log(f"[오류] TikTok 스크래퍼 실패: {e}")
             return False
 
-    # ── YouTube 스크래퍼 ──────────────────────────────────────────────────────
+    # ── YouTube ───────────────────────────────────────────────────────────────
     cmd = [sys.executable, str(SCRAPER_DIR / "main.py")]
     if opts.get("headless", True):
         cmd.append("--headless")
@@ -257,10 +216,10 @@ def _process_queue():
 
         ok = _run_scraper(job)
 
-        if _delete_queue_file(name, sha):
-            log(f"[큐] 파일 삭제 완료: {name}")
+        if _mark_done(name, sha):
+            log(f"[큐] 완료 처리: {name}")
         else:
-            log(f"[경고] 큐 파일 삭제 실패 (수동 삭제 필요): {name}")
+            log(f"[경고] 완료 처리 실패 (수동 삭제 필요): {name}")
 
         log(f"[완료] {name} → {'✓ 성공' if ok else '✗ 실패'}")
 
@@ -270,8 +229,8 @@ def _process_queue():
 def main():
     _load_env()
 
-    log(f"[서버] PARABLE-TUBEMETRIC 로컬 서버 시작")
-    log(f"       레포: {GITHUB_REPO} / 브랜치: {GITHUB_BRANCH}")
+    log("[서버] PARABLE-TUBEMETRIC 로컬 서버 시작")
+    log(f"       백엔드: {BACKEND_URL}")
     log(f"       폴링 간격: {POLL_INTERVAL}초 | Ctrl+C 로 중지")
     log("")
 
