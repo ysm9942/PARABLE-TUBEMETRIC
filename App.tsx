@@ -50,7 +50,7 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchInstagramReels as backendFetchReels, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, LiveCreatorResult } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, SOFTC_INSTALLER_URLS } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
@@ -464,18 +464,6 @@ const App: React.FC = () => {
       return;
     }
     setIgJobStatus('submitting');
-
-    // 백엔드 API 우선 시도 — IG_SESSION_ID 미설정 시 503 반환 → 로컬 큐로 폴백
-    if (isBackendAvailable()) {
-      try {
-        const results = await backendFetchReels(igList, igAmount);
-        setIgResults(results);
-        setIgJobStatus('done');
-        return;
-      } catch (e: any) {
-        console.info('Instagram: 백엔드 불가 → 로컬 스크래퍼로 전환', e.message);
-      }
-    }
 
     // 로컬 스크래퍼: GitHub 큐에 요청 등록 → local_server.py가 처리
     const result = await submitInstagramRequest(igList, igAmount);
@@ -2442,48 +2430,25 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Instagram 릴스 분석</h2>
-                  <p className="text-xs text-zinc-200 mt-0.5">{isBackendAvailable() ? '클라우드 백엔드를 통해' : '로컬 서버를 통해'} 릴스 조회수·좋아요·댓글 수집</p>
+                  <p className="text-xs text-zinc-200 mt-0.5">로컬 서버를 통해 릴스 조회수·좋아요·댓글 수집</p>
                 </div>
-                {isBackendAvailable() ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-emerald-400 font-medium">클라우드 연결</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
-                    <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                  <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
+                </div>
               </div>
 
               {/* 작동 방식 안내 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-violet-500" /> 작동 방식</p>
-                {isBackendAvailable() ? (
-                  <div className="space-y-1.5 text-xs text-zinc-300">
-                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                    <p>② 클라우드 백엔드가 세션 쿠키(<code className="bg-white/8 px-1.5 py-0.5 rounded">IG_SESSION_ID</code>)를 이용해 릴스 데이터를 수집합니다.</p>
-                    <p>③ 결과가 즉시 아래 패널에 표시됩니다.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 text-xs text-zinc-300">
-                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                    <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                    <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_scraper.py</code> 실행.</p>
-                    <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
-                  </div>
-                )}
+                <div className="space-y-1.5 text-xs text-zinc-300">
+                  <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                  <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → Chrome으로 릴스 탭 직접 크롤링.</p>
+                  <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
+                </div>
                 <div className="border-t border-white/8 pt-3 text-xs space-y-1">
-                  {isBackendAvailable() ? (
-                    <>
-                      <p className="text-amber-400 font-medium">⚠ Instagram은 클라우드 서버 IP를 차단합니다.</p>
-                      <p className="text-zinc-300">백엔드 환경변수에 <code className="bg-white/8 px-1.5 py-0.5 rounded">IG_SESSION_ID</code>를 설정해야 작동합니다.</p>
-                      <p className="text-zinc-400">취득 방법: 브라우저 DevTools → Application → Cookies → instagram.com → <code className="bg-white/8 px-1.5 py-0.5 rounded">sessionid</code> 값 복사</p>
-                    </>
-                  ) : (
-                    <p className="text-zinc-300">로컬 PC에서 실행 시 로그인 없이 공개 계정을 수집합니다. 비공개 계정은 지원하지 않습니다.</p>
-                  )}
+                  <p className="text-zinc-300">로컬 PC에서 실제 Chrome을 실행하므로 봇 감지 없이 공개 계정을 수집합니다.</p>
                 </div>
               </div>
 
