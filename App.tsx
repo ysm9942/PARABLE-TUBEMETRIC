@@ -2522,10 +2522,10 @@ const App: React.FC = () => {
                       {igJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
                       {igJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
                       <span>{{
-                        submitting: 'GitHub에 요청 전송 중...',
-                        pending:    `로컬 서버 처리 중... (10초마다 확인)`,
+                        submitting: '요청 전송 중...',
+                        pending:    '로컬 서버 처리 중... (10초마다 확인)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
-                        error:      'GITHUB_TOKEN 미설정 또는 오류 발생',
+                        error:      '요청 실패 — 백엔드 연결 또는 local_server.py 실행 여부 확인',
                         idle:       '',
                       }[igJobStatus]}</span>
                     </div>
