@@ -50,8 +50,8 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, LiveCreatorResult } from './services/backendApiService';
-import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, SOFTC_INSTALLER_URLS } from './services/localAgentService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
+import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -72,10 +72,14 @@ const App: React.FC = () => {
   const [waitingForSoftcAgent, setWaitingForSoftcAgent] = useState<boolean>(false);
   const [showSoftcGuide, setShowSoftcGuide] = useState<boolean>(false);
 
+  // Instagram 로컬 에이전트 상태 (port 8003)
+  const [igLocalRunning, setIgLocalRunning] = useState<boolean>(false);
+
   // 앱 시작 시 로컬 에이전트 감지
   useEffect(() => {
     checkLocalAgent().then(ok => setLocalAgentRunning(ok));
     checkSoftcAgent().then(ok => setSoftcLocalRunning(ok));
+    checkInstagramAgent().then(ok => setIgLocalRunning(ok));
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
@@ -463,9 +467,23 @@ const App: React.FC = () => {
       alert('수집할 Instagram 계정을 입력하세요.');
       return;
     }
-    setIgJobStatus('submitting');
 
-    // 로컬 스크래퍼: GitHub 큐에 요청 등록 → local_server.py가 처리
+    // ── 로컬 에이전트(port 8003) 직접 호출 — softc_server.py와 동일한 패턴 ──
+    if (igLocalRunning) {
+      setIgJobStatus('submitting');
+      try {
+        const results = await fetchInstagramReelsLocal(igList, igAmount, INSTAGRAM_AGENT_URL);
+        setIgResults(results);
+        setIgJobStatus('done');
+      } catch (e: any) {
+        console.error('Instagram 로컬 에이전트 오류:', e);
+        setIgJobStatus('error');
+      }
+      return;
+    }
+
+    // ── 폴백: GitHub 큐 방식 ─────────────────────────────────────────────
+    setIgJobStatus('submitting');
     const result = await submitInstagramRequest(igList, igAmount);
     if (!result) {
       setIgJobStatus('error');
@@ -2432,23 +2450,42 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-semibold text-white">Instagram 릴스 분석</h2>
                   <p className="text-xs text-zinc-200 mt-0.5">로컬 서버를 통해 릴스 조회수·좋아요·댓글 수집</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
-                  <span className="text-xs text-amber-400 font-medium">로컬 서버 필요</span>
-                </div>
+                {igLocalRunning ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨 (port 8003)</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                    <span className="text-xs text-amber-400 font-medium">로컬 에이전트 필요</span>
+                  </div>
+                )}
               </div>
 
               {/* 작동 방식 안내 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-violet-500" /> 작동 방식</p>
-                <div className="space-y-1.5 text-xs text-zinc-300">
-                  <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
-                  <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
-                  <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → Chrome으로 릴스 탭 직접 크롤링.</p>
-                  <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
-                </div>
+                {igLocalRunning ? (
+                  <div className="space-y-1.5 text-xs text-zinc-300">
+                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">릴스 수집</strong>을 클릭합니다.</p>
+                    <p>② 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_server.py</code>(port 8003)가 Chrome으로 릴스 탭 직접 크롤링.</p>
+                    <p>③ 완료 시 결과가 바로 아래 패널에 표시됩니다.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 text-xs text-zinc-300">
+                    <p>① 아래에서 계정을 입력하고 <strong className="text-zinc-300">수집 요청</strong>을 클릭합니다.</p>
+                    <p>② GitHub <code className="bg-white/8 px-1.5 py-0.5 rounded">results/queue/</code>에 요청 파일이 생성됩니다.</p>
+                    <p>③ 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">local_server.py</code>가 감지 → Chrome으로 릴스 탭 직접 크롤링.</p>
+                    <p>④ 완료 후 GitHub에 결과 push → 아래 결과 패널에 자동 반영.</p>
+                  </div>
+                )}
                 <div className="border-t border-white/8 pt-3 text-xs space-y-1">
-                  <p className="text-zinc-300">로컬 PC에서 실제 Chrome을 실행하므로 봇 감지 없이 공개 계정을 수집합니다.</p>
+                  {igLocalRunning ? (
+                    <p className="text-emerald-400">로컬 에이전트 연결됨 — GitHub 토큰 없이 즉시 수집 가능합니다.</p>
+                  ) : (
+                    <p className="text-zinc-300">로컬 PC에서 실제 Chrome을 실행하므로 봇 감지 없이 공개 계정을 수집합니다.</p>
+                  )}
                 </div>
               </div>
 
@@ -2522,10 +2559,10 @@ const App: React.FC = () => {
                       {igJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
                       {igJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
                       <span>{{
-                        submitting: '요청 전송 중...',
+                        submitting: igLocalRunning ? '수집 중...' : '요청 전송 중...',
                         pending:    '로컬 서버 처리 중... (10초마다 확인)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
-                        error:      '요청 실패 — 백엔드 연결 또는 local_server.py 실행 여부 확인',
+                        error:      igLocalRunning ? '수집 실패 — instagram_server.py 실행 여부 확인' : '요청 실패 — 백엔드 연결 또는 local_server.py 실행 여부 확인',
                         idle:       '',
                       }[igJobStatus]}</span>
                     </div>
@@ -2540,7 +2577,7 @@ const App: React.FC = () => {
                       {(igJobStatus === 'submitting' || igJobStatus === 'pending')
                         ? <Loader2 className="animate-spin" size={16} />
                         : <Instagram size={16} />}
-                      {igJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : '수집 요청 전송'}
+                      {igJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : igLocalRunning ? '릴스 수집' : '수집 요청 전송'}
                     </button>
                   </div>
                 </div>

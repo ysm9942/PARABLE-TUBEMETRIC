@@ -101,6 +101,29 @@ export const fetchInstagramReels = async (
   return res.data;
 };
 
+// ── Instagram 릴스 — 로컬 에이전트(port 8003) 직접 호출 ───────────────────
+// softc_server.py와 동일한 패턴: start → 폴링 → 결과 반환
+
+export const fetchInstagramReelsLocal = async (
+  usernames: string[],
+  amount: number = 10,
+  localBaseUrl: string = 'http://localhost:8003'
+): Promise<InstagramUserResult[]> => {
+  const base = localBaseUrl.replace(/\/$/, '');
+
+  await axios.post(`${base}/api/crawl/start`, { usernames, amount });
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 3000));
+    const res = await axios.get(`${base}/api/crawl/status`);
+    const data = res.data;
+    if (data.status === 'done' || data.status === 'error') {
+      if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
+      return data.results as InstagramUserResult[];
+    }
+  }
+};
+
 // ── TikTok 영상 (yt-dlp 기반) ───────────────────────────────────────────
 
 export interface TikTokUserResult {
