@@ -215,9 +215,9 @@ def _build_driver():
     opts = uc.ChromeOptions()
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--start-maximized")
+    opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-blink-features=AutomationControlled")
-    # headless=False — Instagram은 headless 감지 시 접근 차단
+    opts.add_argument("--headless=new")
 
     driver = (
         uc.Chrome(options=opts, version_main=chrome_major)
