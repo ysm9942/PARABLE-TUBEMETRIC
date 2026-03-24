@@ -14,7 +14,7 @@ import importlib
 import subprocess
 import sys
 
-_REQUIRED = ["requests", "python-dotenv", "instaloader"]
+_REQUIRED = ["requests", "python-dotenv", "undetected-chromedriver", "selenium"]
 
 def _ensure_packages():
     missing = [p for p in _REQUIRED
