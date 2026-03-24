@@ -1,21 +1,21 @@
 """
-PARABLE-TUBEMETRIC Instagram 릴스 스크래퍼 — undetected_chromedriver 기반
+PARABLE-TUBEMETRIC Instagram 릴스 스크래퍼 — DOM + Hover 기반
 
-로컬 PC(가정용 IP)에서 실제 Chrome 브라우저를 열어 Instagram 릴스 탭을 크롤링합니다.
-fetch/XHR 인터셉터로 Instagram 내부 API 응답을 캡처합니다.
+instagram.com/{username}/reels/ 에서 릴스 썸네일 DOM을 직접 파싱합니다.
+- 조회수: 썸네일에 항상 표시된 span 크롤링
+- 좋아요 / 댓글: 썸네일 hover 시 표시되는 span 크롤링 (JS mouseover 이벤트)
 
 사용법:
-  python instagram_scraper.py @user1 @user2 --amount 10 --push
+  python instagram_scraper.py @user1 @user2 --amount 10
   python instagram_scraper.py user1 user2 --amount 20
 
 환경 변수 (선택):
-  IG_USERNAME : Instagram 로그인 아이디 (설정하면 비공개 계정도 수집 가능)
+  IG_USERNAME : Instagram 로그인 아이디 (비공개 계정 수집 시)
   IG_PASSWORD : Instagram 로그인 비밀번호
 """
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import random
 import re
@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# ── 경로 설정 ──────────────────────────────────────────────────────────────────
 SCRAPER_DIR = Path(__file__).parent
 
 try:
@@ -39,6 +38,22 @@ except ImportError:
 
 IG_USERNAME = os.environ.get("IG_USERNAME", "").strip()
 IG_PASSWORD = os.environ.get("IG_PASSWORD", "").strip()
+
+# ── 숫자 파싱 (한국 단위 지원) ────────────────────────────────────────────────
+
+def _parse_num(text: str) -> int:
+    """Instagram 표시 숫자 → int.  '161.4만' → 1614000,  '8,528' → 8528"""
+    t = (text or "").strip().replace(",", "").replace(" ", "")
+    m = re.match(r"^([\d.]+)([만억천]?)$", t)
+    if not m:
+        digits = re.sub(r"\D", "", t)
+        return int(digits) if digits else 0
+    n = float(m.group(1))
+    u = m.group(2)
+    if u == "만":   n *= 10_000
+    elif u == "억": n *= 100_000_000
+    elif u == "천": n *= 1_000
+    return int(n)
 
 
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -89,121 +104,6 @@ def _get_chrome_ver() -> Optional[int]:
     return None
 
 
-# ── JS 인터셉터 (fetch + XHR) ─────────────────────────────────────────────────
-
-_INTERCEPT_JS = """
-(function() {
-    if (window._igInterceptorInstalled) return;
-    window._igInterceptorInstalled = true;
-    window._igCaptures = [];
-
-    // fetch 인터셉터
-    const _origFetch = window.fetch;
-    window.fetch = async function(...args) {
-        const resp = await _origFetch(...args);
-        try {
-            const url = (typeof args[0] === 'string') ? args[0] : (args[0].url || '');
-            if (url.includes('clips/user') || url.includes('reels_media') ||
-                url.includes('graphql/query') || url.includes('api/v1/clips')) {
-                const clone = resp.clone();
-                clone.json().then(data => {
-                    window._igCaptures.push({url: url, data: data});
-                }).catch(() => {});
-            }
-        } catch(e) {}
-        return resp;
-    };
-
-    // XHR 인터셉터
-    const _origOpen = XMLHttpRequest.prototype.open;
-    const _origSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-        this._igUrl = url;
-        return _origOpen.call(this, method, url, ...rest);
-    };
-    XMLHttpRequest.prototype.send = function(...args) {
-        this.addEventListener('load', function() {
-            try {
-                const url = this._igUrl || '';
-                if (url.includes('clips/user') || url.includes('reels_media') ||
-                    url.includes('graphql/query') || url.includes('api/v1/clips')) {
-                    const data = JSON.parse(this.responseText);
-                    window._igCaptures.push({url: url, data: data});
-                }
-            } catch(e) {}
-        });
-        return _origSend.call(this, ...args);
-    };
-})();
-"""
-
-
-# ── 파싱 ──────────────────────────────────────────────────────────────────────
-
-def _parse_media(media: dict, username: str) -> dict:
-    """Instagram media dict → 표준 reel dict"""
-    code = media.get("code") or media.get("shortcode") or ""
-    cap = media.get("caption") or {}
-    caption_text = (cap.get("text") or "") if isinstance(cap, dict) else str(cap or "")
-
-    taken_at = media.get("taken_at", 0)
-    if isinstance(taken_at, (int, float)) and taken_at > 0:
-        taken_at_iso = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat()
-    else:
-        taken_at_iso = ""
-
-    thumbnails = (media.get("image_versions2") or {}).get("candidates") or []
-    thumbnail_url = thumbnails[0].get("url", "") if thumbnails else ""
-
-    return {
-        "username":       username,
-        "media_pk":       str(media.get("pk") or media.get("id") or ""),
-        "code":           code,
-        "caption_text":   caption_text[:300],
-        "taken_at":       taken_at_iso,
-        "like_count":     int(media.get("like_count") or 0),
-        "comment_count":  int(media.get("comment_count") or 0),
-        "view_count":     int(media.get("play_count") or media.get("view_count") or 0),
-        "video_duration": float(media.get("video_duration") or 0),
-        "thumbnail_url":  thumbnail_url,
-        "url":            f"https://www.instagram.com/reel/{code}/" if code else "",
-    }
-
-
-def _extract_reels_from_captures(captures: list, username: str) -> list[dict]:
-    """캡처된 API 응답들에서 릴스 목록을 추출"""
-    reels: list[dict] = []
-    seen: set[str] = set()
-
-    for cap in captures:
-        data = cap.get("data") or {}
-
-        # ── clips/user API 형식 ──────────────────────────────────────────────
-        items = data.get("items") or []
-        for item in items:
-            media = item.get("media") or item
-            code = media.get("code") or media.get("shortcode") or str(media.get("pk") or "")
-            if code and code not in seen:
-                seen.add(code)
-                reels.append(_parse_media(media, username))
-
-        # ── GraphQL xdt_api__v1__clips 형식 ─────────────────────────────────
-        gql_data = (data.get("data") or {})
-        for key, val in gql_data.items():
-            if not isinstance(val, dict):
-                continue
-            edges = val.get("edges") or []
-            for edge in edges:
-                node = edge.get("node") or {}
-                media = node.get("media") or node
-                code = media.get("code") or media.get("shortcode") or str(media.get("pk") or "")
-                if code and code not in seen:
-                    seen.add(code)
-                    reels.append(_parse_media(media, username))
-
-    return reels
-
-
 # ── 드라이버 빌드 ──────────────────────────────────────────────────────────────
 
 def _build_driver():
@@ -217,7 +117,7 @@ def _build_driver():
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_argument("--headless=new")
+    # headless=False: hover 이벤트 안정성 + bot 감지 우회
 
     driver = (
         uc.Chrome(options=opts, version_main=chrome_major)
@@ -231,7 +131,6 @@ def _build_driver():
 # ── 로그인 (선택) ──────────────────────────────────────────────────────────────
 
 def _try_login(driver) -> bool:
-    """IG_USERNAME / IG_PASSWORD 환경변수가 있으면 로그인 시도"""
     if not (IG_USERNAME and IG_PASSWORD):
         return False
 
@@ -264,10 +163,9 @@ def _try_login(driver) -> bool:
         return False
 
 
-# ── 릴스 수집 ──────────────────────────────────────────────────────────────────
+# ── 모달 닫기 ─────────────────────────────────────────────────────────────────
 
 def _dismiss_modal(driver) -> None:
-    """로그인 유도 팝업 닫기"""
     from selenium.webdriver.common.by import By
 
     selectors = [
@@ -283,58 +181,200 @@ def _dismiss_modal(driver) -> None:
             if btns:
                 driver.execute_script("arguments[0].click();", btns[0])
                 human_sleep(0.5, 1.0)
-                log("[팝업] 로그인 모달 닫기 완료")
+                log("[팝업] 모달 닫기 완료")
                 return
         except Exception:
             continue
 
 
+# ── stat span 선택자 ──────────────────────────────────────────────────────────
+# 조회수·좋아요·댓글 모두 동일한 CSS 클래스를 사용
+# (사용자 확인: span.html-span.xdj266r.x14z9mp.xat24cr...)
+STAT_SPAN = (
+    "span.html-span.xdj266r.x14z9mp.xat24cr"
+    ".x1lziwak.xexx8yu.xyri2b.x18d9i69"
+    ".x1c1uobl.x1hl2dhg.x16tdsg8.x1vvkbs"
+)
+
+# 폴백: 클래스를 조금만 써도 충분히 특정됨
+STAT_SPAN_FALLBACK = "span.xdj266r.x14z9mp.xat24cr"
+
+
+def _collect_stat_nums(driver, container_el) -> list[int]:
+    """container_el 내에서 보이는 stat span 숫자를 DOM 순서대로 반환."""
+    from selenium.webdriver.common.by import By
+
+    def _visible_nums(css: str) -> list[int]:
+        spans = container_el.find_elements(By.CSS_SELECTOR, css)
+        result = []
+        for s in spans:
+            txt = (s.text or "").strip()
+            if not txt:
+                continue
+            # opacity/display 확인
+            try:
+                visible = driver.execute_script(
+                    "var e=arguments[0], r=e.getBoundingClientRect(), cs=window.getComputedStyle(e);"
+                    "return r.width>0 && r.height>0 && cs.display!=='none' && cs.visibility!=='hidden' && parseFloat(cs.opacity)>0;",
+                    s
+                )
+            except Exception:
+                visible = True  # 판단 불가 시 포함
+            if visible:
+                result.append(_parse_num(txt))
+        return result
+
+    nums = _visible_nums(STAT_SPAN)
+    if not nums:
+        nums = _visible_nums(STAT_SPAN_FALLBACK)
+    return nums
+
+
+# ── JS hover (headless/비headless 모두 동작) ──────────────────────────────────
+
+_HOVER_JS = """
+var el = arguments[0];
+['mouseover','mouseenter','mousemove'].forEach(function(t){
+    el.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, view:window}));
+});
+"""
+
+_UNHOVER_JS = """
+var el = arguments[0];
+['mouseout','mouseleave'].forEach(function(t){
+    el.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, view:window}));
+});
+"""
+
+
+# ── 단일 릴스 통계 수집 ───────────────────────────────────────────────────────
+
+def _scrape_reel(driver, link_el) -> tuple[int, int, int, str]:
+    """(view_count, like_count, comment_count, thumbnail_url) 반환."""
+    from selenium.webdriver.common.by import By
+
+    # 화면 중앙 스크롤
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center', behavior:'smooth'});", link_el
+    )
+    time.sleep(0.25)
+
+    # 썸네일 URL (hover 전 수집)
+    thumbnail_url = ""
+    try:
+        img = link_el.find_element(By.TAG_NAME, "img")
+        thumbnail_url = img.get_attribute("src") or ""
+    except Exception:
+        pass
+
+    # ── hover 전: 조회수만 보임 ──────────────────────────────────────────
+    before = _collect_stat_nums(driver, link_el)
+
+    # ── JS hover ────────────────────────────────────────────────────────
+    driver.execute_script(_HOVER_JS, link_el)
+    time.sleep(0.7)   # React 상태 업데이트 대기
+
+    # ── hover 후: link_el 내부에서 수집 ─────────────────────────────────
+    after = _collect_stat_nums(driver, link_el)
+
+    # 못 찾으면 부모 1단계까지 확장
+    if len(after) < 2:
+        try:
+            parent = link_el.find_element(By.XPATH, "..")
+            after = _collect_stat_nums(driver, parent)
+        except Exception:
+            pass
+
+    # ── 숫자 배정 ────────────────────────────────────────────────────────
+    # 기대 순서: [조회수, 좋아요, 댓글]
+    view_count = like_count = comment_count = 0
+
+    if len(after) >= 3:
+        view_count, like_count, comment_count = after[0], after[1], after[2]
+    elif len(after) == 2:
+        # hover 전 조회수 + hover 후 좋아요·댓글
+        view_count = before[0] if before else 0
+        like_count, comment_count = after[0], after[1]
+    elif len(after) == 1:
+        view_count = after[0]
+    elif before:
+        view_count = before[0]
+
+    # hover 해제
+    driver.execute_script(_UNHOVER_JS, link_el)
+
+    return view_count, like_count, comment_count, thumbnail_url
+
+
+# ── 릴스 탭 수집 메인 ─────────────────────────────────────────────────────────
+
 def fetch_user_reels(driver, username: str, amount: int) -> dict:
-    """단일 유저의 릴스 탭을 크롤링하고 요약 dict를 반환한다."""
     from selenium.webdriver.common.by import By
 
     log(f"[수집] @{username} 시작 (최대 {amount}개)")
 
-    # 인터셉터 주입 후 릴스 탭 이동
-    driver.execute_script(_INTERCEPT_JS)
     driver.get(f"https://www.instagram.com/{username}/reels/")
     human_sleep(3.0, 5.0)
-
-    # 인터셉터가 새 페이지에서 다시 주입돼야 하므로 재실행
-    driver.execute_script(_INTERCEPT_JS)
-    human_sleep(1.0, 2.0)
-
-    # 로그인 모달 닫기
     _dismiss_modal(driver)
 
-    # 스크롤하며 데이터 로딩
-    scroll_count = max(3, (amount // 6) + 2)
-    for i in range(scroll_count):
-        driver.execute_script("window.scrollBy(0, window.innerHeight * 2);")
-        human_sleep(1.5, 2.5)
+    reels: list[dict] = []
+    seen_codes: set[str] = set()
+    no_new_rounds = 0
 
-        captures = driver.execute_script("return window._igCaptures || [];")
-        reels = _extract_reels_from_captures(captures, username)
-        log(f"  [스크롤 {i+1}/{scroll_count}] 캡처된 릴스: {len(reels)}개")
-        if len(reels) >= amount:
-            break
+    while len(reels) < amount and no_new_rounds < 5:
+        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+        new_this_round = 0
 
-    captures = driver.execute_script("return window._igCaptures || [];")
-    reels = _extract_reels_from_captures(captures, username)
+        for link in links:
+            if len(reels) >= amount:
+                break
 
-    # API 응답이 없으면 DOM 파싱 fallback
-    if not reels:
-        log("[fallback] API 응답 없음 — DOM에서 shortcode 추출 시도")
-        reels = _dom_fallback(driver, username, amount)
+            href = link.get_attribute("href") or ""
+            m = re.search(r"/reel/([A-Za-z0-9_-]+)", href)
+            if not m:
+                continue
+            code = m.group(1)
+            if code in seen_codes:
+                continue
+            seen_codes.add(code)
 
-    reels = reels[:amount]
+            try:
+                view_count, like_count, comment_count, thumbnail_url = _scrape_reel(driver, link)
+
+                reels.append({
+                    "username":       username,
+                    "media_pk":       "",
+                    "code":           code,
+                    "caption_text":   "",
+                    "taken_at":       "",
+                    "like_count":     like_count,
+                    "comment_count":  comment_count,
+                    "view_count":     view_count,
+                    "video_duration": 0.0,
+                    "thumbnail_url":  thumbnail_url,
+                    "url":            f"https://www.instagram.com/reel/{code}/",
+                })
+                new_this_round += 1
+                log(f"  [{len(reels):02d}] {code}: 조회수={view_count:,}  좋아요={like_count:,}  댓글={comment_count:,}")
+
+            except Exception as e:
+                log(f"  ⚠ {code} 파싱 오류: {e}")
+
+        if new_this_round == 0:
+            no_new_rounds += 1
+        else:
+            no_new_rounds = 0
+
+        if len(reels) < amount:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            human_sleep(2.0, 3.0)
+
     count = len(reels)
-
     avg_views    = round(sum(r["view_count"]    for r in reels) / count) if count else 0
     avg_likes    = round(sum(r["like_count"]    for r in reels) / count) if count else 0
     avg_comments = round(sum(r["comment_count"] for r in reels) / count) if count else 0
 
-    log(f"[완료] @{username}: {count}개 릴스, 평균 조회수 {avg_views:,}")
+    log(f"[완료] @{username}: {count}개, 평균 조회수 {avg_views:,}")
     return {
         "username":    username,
         "reelCount":   count,
@@ -346,39 +386,6 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
     }
 
 
-def _dom_fallback(driver, username: str, amount: int) -> list[dict]:
-    """API 인터셉트 실패 시 DOM href에서 shortcode만 추출"""
-    from selenium.webdriver.common.by import By
-
-    links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
-    reels = []
-    seen: set[str] = set()
-    for link in links:
-        href = link.get_attribute("href") or ""
-        m = re.search(r"/reel/([A-Za-z0-9_-]+)", href)
-        if m:
-            code = m.group(1)
-            if code not in seen:
-                seen.add(code)
-                reels.append({
-                    "username":       username,
-                    "media_pk":       "",
-                    "code":           code,
-                    "caption_text":   "",
-                    "taken_at":       "",
-                    "like_count":     0,
-                    "comment_count":  0,
-                    "view_count":     0,
-                    "video_duration": 0.0,
-                    "thumbnail_url":  "",
-                    "url":            f"https://www.instagram.com/reel/{code}/",
-                })
-        if len(reels) >= amount:
-            break
-    log(f"[fallback] DOM에서 {len(reels)}개 shortcode 추출")
-    return reels
-
-
 # ── 메인 실행 ─────────────────────────────────────────────────────────────────
 
 def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict]:
@@ -388,7 +395,6 @@ def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict
     try:
         driver = _build_driver()
 
-        # 로그인 (env 설정된 경우)
         if IG_USERNAME and IG_PASSWORD:
             _try_login(driver)
             human_sleep(2.0, 3.0)
@@ -419,9 +425,6 @@ def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict
                     "reels":       [],
                     "error":       str(e),
                 })
-                if push:
-                    from uploader import save_and_push
-                    save_and_push(results[-1], "instagram", username)
 
     finally:
         if driver:
@@ -435,7 +438,7 @@ def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Instagram 릴스 스크래퍼 (undetected_chromedriver · 로컬 PC 실행)"
+        description="Instagram 릴스 스크래퍼 (DOM + Hover 기반)"
     )
     parser.add_argument("usernames", nargs="+", help="@핸들 또는 유저명")
     parser.add_argument("--amount", type=int, default=10, help="유저당 수집할 릴스 수")
