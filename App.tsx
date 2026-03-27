@@ -2648,15 +2648,17 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     <p className="text-[10px] text-zinc-200">최신 릴스부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
-                    <div className="border-t border-white/8 pt-3 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-zinc-300">Headless 모드</p>
+                    <div className="border-t border-white/8 pt-3 space-y-2">
+                      <p className="text-xs text-zinc-300">Headless 모드</p>
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => setIgHeadless(v => !v)}
-                          className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${igHeadless ? 'bg-pink-600' : 'bg-zinc-600'}`}
-                        >
-                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${igHeadless ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </button>
+                          onClick={() => setIgHeadless(true)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${igHeadless ? 'bg-pink-600 text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                        >ON</button>
+                        <button
+                          onClick={() => setIgHeadless(false)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${!igHeadless ? 'bg-zinc-600 text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                        >OFF</button>
                       </div>
                       <p className="text-[10px] text-zinc-200">OFF 시 브라우저 창이 열림 (좋아요·댓글 수집 불안정 시 사용)</p>
                     </div>
