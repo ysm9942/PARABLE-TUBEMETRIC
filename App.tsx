@@ -2736,9 +2736,9 @@ const App: React.FC = () => {
                         <tr>
                           <th className="px-6 py-3 font-medium">Account</th>
                           <th className="px-6 py-3 text-center font-medium">Reels</th>
-                          <th className="px-6 py-3 text-right font-medium">Avg Views</th>
-                          <th className="px-6 py-3 text-right font-medium">Avg Likes</th>
                           <th className="px-6 py-3 text-right font-medium">Avg Comments</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Likes</th>
+                          <th className="px-6 py-3 text-right font-medium">Avg Views</th>
                           <th className="px-6 py-3 text-center font-medium">Scraped At</th>
                           <th className="px-6 py-3 text-center font-medium">Detail</th>
                         </tr>
@@ -2762,9 +2762,9 @@ const App: React.FC = () => {
                             <td className="px-6 py-3.5 text-center">
                               <span className="bg-white/5 px-2.5 py-1 rounded text-zinc-200 text-xs border border-white/8">{r.reelCount}</span>
                             </td>
-                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-zinc-200 tabular-nums">{r.avgComments.toLocaleString()}</td>
                             <td className="px-6 py-3.5 text-right text-xs text-violet-400 tabular-nums">{r.avgLikes.toLocaleString()}</td>
-                            <td className="px-6 py-3.5 text-right text-xs text-zinc-200 tabular-nums">{r.avgComments.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-400 tabular-nums">{r.avgViews.toLocaleString()}</td>
                             <td className="px-6 py-3.5 text-center text-xs text-zinc-200 font-mono">
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
