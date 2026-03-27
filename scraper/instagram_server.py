@@ -7,10 +7,13 @@ REST API로 결과를 제공합니다.
 포트: 8003
 
 API 엔드포인트:
-  GET  /api/health           — 서버 상태 확인
-  POST /api/crawl/start      — 크롤링 시작
-  GET  /api/crawl/status     — 진행 상태 + 로그 조회
-  POST /api/crawl/stop       — 크롤링 중지
+  GET  /api/health              — 서버 상태 확인
+  POST /api/crawl/start         — Instagram 크롤링 시작
+  GET  /api/crawl/status        — Instagram 진행 상태 + 로그 조회
+  POST /api/crawl/stop          — Instagram 크롤링 중지
+  POST /api/tiktok/start        — TikTok 크롤링 시작
+  GET  /api/tiktok/status       — TikTok 진행 상태 조회
+  POST /api/tiktok/stop         — TikTok 크롤링 중지
 """
 
 import builtins
@@ -42,7 +45,7 @@ def _log_print(*args, sep=" ", end="\n", file=None, flush=False):
 
 builtins.print = _log_print
 
-# ── 전역 잡(Job) 상태 ────────────────────────────────────────────────────────
+# ── Instagram 전역 잡(Job) 상태 ───────────────────────────────────────────────
 _job_lock = threading.Lock()
 _stop_evt = threading.Event()
 
@@ -55,9 +58,22 @@ _job_state: dict = {
     "error":            None,
 }
 
+# ── TikTok 전역 잡(Job) 상태 ──────────────────────────────────────────────────
+_tk_job_lock = threading.Lock()
+_tk_stop_evt = threading.Event()
+
+_tk_job_state: dict = {
+    "status":           "idle",
+    "progress_current": "",
+    "progress_done":    0,
+    "progress_total":   0,
+    "results":          [],
+    "error":            None,
+}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 크롤링 잡 실행 (instagram_scraper.py의 run() 재사용)
+# Instagram 크롤링 잡
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
@@ -76,7 +92,6 @@ def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
     total = len(usernames)
 
     try:
-        # instagram_scraper.py의 로직을 직접 가져와서 계정별로 실행
         from instagram_scraper import _build_driver, _try_login, fetch_user_reels, _clean_username
         import random
 
@@ -146,13 +161,93 @@ def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TikTok 크롤링 잡
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_tiktok_job(usernames: list[str], amount: int, headless: bool):
+    global _tk_job_state
+    with _tk_job_lock:
+        _tk_job_state.update({
+            "status":           "running",
+            "progress_current": "",
+            "progress_done":    0,
+            "progress_total":   len(usernames),
+            "results":          [],
+            "error":            None,
+        })
+
+    all_results = []
+    total = len(usernames)
+
+    try:
+        from tiktok_scraper import _build_driver, fetch_user_videos
+
+        driver = _build_driver(headless=headless)
+        try:
+            for idx, raw in enumerate(usernames, 1):
+                if _tk_stop_evt.is_set():
+                    break
+                username = raw.lstrip("@").strip()
+                if not username:
+                    continue
+
+                with _tk_job_lock:
+                    _tk_job_state["progress_current"] = username
+                    _tk_job_state["progress_done"] = idx - 1
+
+                print(f"\n[TikTok {idx}/{total}] @{username} 수집 시작")
+                try:
+                    data = fetch_user_videos(driver, username, amount)
+                    all_results.append(data)
+                    print(f"  ✅ @{username} → {data['videoCount']}개, 평균 {data['avgViews']:,} 조회")
+                except Exception as e:
+                    print(f"  ❌ @{username} 오류: {e}")
+                    all_results.append({
+                        "username":   username,
+                        "videoCount": 0,
+                        "videos":     [],
+                        "avgViews":   0,
+                        "status":     "error",
+                        "error":      str(e),
+                        "scrapedAt":  datetime.now(timezone.utc).isoformat(),
+                    })
+
+                if idx < total and not _tk_stop_evt.is_set():
+                    import time, random
+                    cd = random.uniform(2.0, 4.0)
+                    print(f"  ⏳ 쿨다운 {cd:.1f}s")
+                    time.sleep(cd)
+
+        finally:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+        with _tk_job_lock:
+            _tk_job_state.update({
+                "status":           "done",
+                "progress_done":    total,
+                "progress_current": "",
+                "results":          all_results,
+            })
+        print(f"\n[TikTok 완료] 총 {len(all_results)}개 계정")
+
+    except Exception as e:
+        import traceback
+        print(f"[TikTok 치명 오류] {e}\n{traceback.format_exc()}")
+        with _tk_job_lock:
+            _tk_job_state.update({"status": "error", "error": str(e)})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # FastAPI 앱
 # ══════════════════════════════════════════════════════════════════════════════
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("=" * 55)
-    print("  TubeMetric Instagram Scraper Agent  v1.0")
+    print("  TubeMetric Instagram + TikTok Scraper Agent  v1.1")
     print("  http://localhost:8003")
     print("  headless=new · undetected_chromedriver")
     print("=" * 55)
@@ -160,7 +255,7 @@ async def lifespan(app: FastAPI):
     print("[서버] 종료")
 
 
-app = FastAPI(title="Instagram Scraper Agent", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Instagram + TikTok Scraper Agent", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -177,10 +272,18 @@ class CrawlStartRequest(BaseModel):
     headless:  bool = True
 
 
+class TikTokStartRequest(BaseModel):
+    usernames: List[str]
+    amount:    int  = 20
+    headless:  bool = True
+
+
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "mode": "instagram-scraper-local", "version": "1.0.0"}
+    return {"status": "ok", "mode": "instagram-tiktok-scraper-local", "version": "1.1.0"}
 
+
+# ── Instagram 엔드포인트 ──────────────────────────────────────────────────────
 
 @app.post("/api/crawl/start")
 async def crawl_start(req: CrawlStartRequest):
@@ -229,6 +332,54 @@ async def crawl_stop():
     return {"status": "stopping"}
 
 
+# ── TikTok 엔드포인트 ─────────────────────────────────────────────────────────
+
+@app.post("/api/tiktok/start")
+async def tiktok_start(req: TikTokStartRequest):
+    with _tk_job_lock:
+        if _tk_job_state["status"] == "running":
+            raise HTTPException(status_code=409, detail="이미 실행 중인 TikTok 잡이 있습니다.")
+
+    usernames = [u.strip().lstrip("@") for u in req.usernames if u.strip()]
+    if not usernames:
+        raise HTTPException(status_code=400, detail="유효한 계정이 없습니다.")
+    if req.amount < 1 or req.amount > 50:
+        raise HTTPException(status_code=400, detail="amount는 1~50 사이여야 합니다.")
+
+    _tk_stop_evt.clear()
+    threading.Thread(
+        target=_run_tiktok_job,
+        args=(usernames, req.amount, req.headless),
+        daemon=True,
+    ).start()
+
+    return {"status": "started", "total": len(usernames), "usernames": usernames}
+
+
+@app.get("/api/tiktok/status")
+async def tiktok_status():
+    with _tk_job_lock:
+        state = dict(_tk_job_state)
+    return {
+        "status":        state["status"],
+        "progress": {
+            "current": state["progress_current"],
+            "done":    state["progress_done"],
+            "total":   state["progress_total"],
+        },
+        "results_count": len(state["results"]),
+        "results":       state["results"],
+        "error":         state["error"],
+        "log":           list(_LOG)[-100:],
+    }
+
+
+@app.post("/api/tiktok/stop")
+async def tiktok_stop():
+    _tk_stop_evt.set()
+    return {"status": "stopping"}
+
+
 def main():
     # PyInstaller console=False 모드에서 sys.stdout/stderr가 None이면
     # uvicorn 로깅 초기화가 NoneType.isatty() 오류로 실패함 → devnull로 대체
@@ -242,3 +393,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
