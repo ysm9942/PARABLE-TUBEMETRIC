@@ -51,8 +51,9 @@ a = Analysis(
         "selenium.webdriver.support.ui",
         "selenium.webdriver.support.expected_conditions",
         "selenium.common.exceptions",
-        # ── instagram_scraper.py 의존성 ────────────────────────────────────
+        # ── instagram_scraper.py / tiktok_scraper.py 의존성 ─────────────────
         "instagram_scraper",
+        "tiktok_scraper",
         # ── 비동기 / 네트워크 ──────────────────────────────────────────────
         "anyio",
         "anyio._backends._asyncio",
