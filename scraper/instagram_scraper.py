@@ -1,13 +1,14 @@
 """
-PARABLE-TUBEMETRIC Instagram 릴스 스크래퍼 — DOM + Hover 기반
+PARABLE-TUBEMETRIC Instagram 릴스 스크래퍼 — DOM + CDP Hover 기반
 
 instagram.com/{username}/reels/ 에서 릴스 썸네일 DOM을 직접 파싱합니다.
-- 조회수: 썸네일에 항상 표시된 span 크롤링
-- 좋아요 / 댓글: 썸네일 hover 시 표시되는 span 크롤링 (JS mouseover 이벤트)
+- 조회수: 썸네일에 항상 표시된 span
+- 좋아요 / 댓글: CDP mouseMoved 이벤트로 CSS :hover 트리거 후 span 수집
+  (headless 모드에서도 CDP는 CSS :hover를 정상 트리거)
 
 사용법:
   python instagram_scraper.py @user1 @user2 --amount 10
-  python instagram_scraper.py user1 user2 --amount 20
+  python instagram_scraper.py user1 user2 --amount 20 --no-headless
 
 환경 변수 (선택):
   IG_USERNAME : Instagram 로그인 아이디 (비공개 계정 수집 시)
@@ -42,7 +43,7 @@ IG_PASSWORD = os.environ.get("IG_PASSWORD", "").strip()
 # ── 숫자 파싱 (한국 단위 지원) ────────────────────────────────────────────────
 
 def _parse_num(text: str) -> int:
-    """Instagram 표시 숫자 → int.  '161.4만' → 1614000,  '8,528' → 8528"""
+    """Instagram 표시 숫자 → int.  '161.4만' → 1614000,  '8,534' → 8534"""
     t = (text or "").strip().replace(",", "").replace(" ", "")
     m = re.match(r"^([\d.]+)([만억천]?)$", t)
     if not m:
@@ -106,18 +107,19 @@ def _get_chrome_ver() -> Optional[int]:
 
 # ── 드라이버 빌드 ──────────────────────────────────────────────────────────────
 
-def _build_driver():
+def _build_driver(headless: bool = True):
     import undetected_chromedriver as uc
 
     chrome_major = _get_chrome_ver()
-    log(f"[Chrome] 버전: {chrome_major or '자동감지'}")
+    log(f"[Chrome] 버전: {chrome_major or '자동감지'}  headless={headless}")
 
     opts = uc.ChromeOptions()
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-blink-features=AutomationControlled")
-    # headless=False: hover 이벤트 안정성 + bot 감지 우회
+    if headless:
+        opts.add_argument("--headless=new")
 
     driver = (
         uc.Chrome(options=opts, version_main=chrome_major)
@@ -187,64 +189,67 @@ def _dismiss_modal(driver) -> None:
             continue
 
 
-# ── stat span 선택자 ──────────────────────────────────────────────────────────
-# 조회수·좋아요·댓글 모두 동일한 CSS 클래스를 사용
-# (사용자 확인: span.html-span.xdj266r.x14z9mp.xat24cr...)
+# ── stat span CSS 선택자 ──────────────────────────────────────────────────────
+# 조회수·좋아요·댓글 모두 동일한 CSS 클래스 (사용자 확인)
 STAT_SPAN = (
     "span.html-span.xdj266r.x14z9mp.xat24cr"
     ".x1lziwak.xexx8yu.xyri2b.x18d9i69"
     ".x1c1uobl.x1hl2dhg.x16tdsg8.x1vvkbs"
 )
+# 폴백 (클래스 일부만)
+STAT_SPAN_FB = "span.xdj266r.x14z9mp.xat24cr"
 
-# 폴백: 클래스를 조금만 써도 충분히 특정됨
-STAT_SPAN_FALLBACK = "span.xdj266r.x14z9mp.xat24cr"
-
-
-def _collect_stat_nums(driver, container_el) -> list[int]:
-    """container_el 내에서 보이는 stat span 숫자를 DOM 순서대로 반환."""
-    from selenium.webdriver.common.by import By
-
-    def _visible_nums(css: str) -> list[int]:
-        spans = container_el.find_elements(By.CSS_SELECTOR, css)
-        result = []
-        for s in spans:
-            txt = (s.text or "").strip()
-            if not txt:
-                continue
-            # opacity/display 확인
-            try:
-                visible = driver.execute_script(
-                    "var e=arguments[0], r=e.getBoundingClientRect(), cs=window.getComputedStyle(e);"
-                    "return r.width>0 && r.height>0 && cs.display!=='none' && cs.visibility!=='hidden' && parseFloat(cs.opacity)>0;",
-                    s
-                )
-            except Exception:
-                visible = True  # 판단 불가 시 포함
-            if visible:
-                result.append(_parse_num(txt))
-        return result
-
-    nums = _visible_nums(STAT_SPAN)
-    if not nums:
-        nums = _visible_nums(STAT_SPAN_FALLBACK)
-    return nums
-
-
-# ── JS hover (headless/비headless 모두 동작) ──────────────────────────────────
-
-_HOVER_JS = """
-var el = arguments[0];
-['mouseover','mouseenter','mousemove'].forEach(function(t){
-    el.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, view:window}));
-});
+# JS로 querySelectorAll → textContent 수집 (display:none 포함)
+_JS_COLLECT = """
+var els = arguments[0].querySelectorAll(arguments[1]);
+var res = [];
+for (var i = 0; i < els.length; i++) {
+    var t = (els[i].textContent || '').trim();
+    if (t) res.push(t);
+}
+return res;
 """
 
-_UNHOVER_JS = """
-var el = arguments[0];
-['mouseout','mouseleave'].forEach(function(t){
-    el.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, view:window}));
-});
-"""
+
+def _js_stat_nums(driver, container_el, css: str) -> list[int]:
+    """JS querySelectorAll로 stat span 숫자를 DOM 순서대로 반환 (hidden 포함)."""
+    try:
+        texts = driver.execute_script(_JS_COLLECT, container_el, css) or []
+        return [_parse_num(t) for t in texts]
+    except Exception:
+        return []
+
+
+# ── CDP hover (CSS :hover 트리거 — headless/비headless 모두 동작) ──────────────
+
+def _cdp_hover(driver, element) -> None:
+    """CDP Input.dispatchMouseEvent로 요소 위에 마우스 이동 → CSS :hover 트리거."""
+    try:
+        rect = driver.execute_script(
+            "var r=arguments[0].getBoundingClientRect();"
+            "return {x: r.left + r.width/2, y: r.top + r.height/2};",
+            element,
+        )
+        driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+            "type":    "mouseMoved",
+            "x":       int(rect["x"]),
+            "y":       int(rect["y"]),
+            "button":  "none",
+            "modifiers": 0,
+        })
+    except Exception:
+        pass
+
+
+def _cdp_unhover(driver) -> None:
+    """마우스를 화면 밖으로 이동시켜 hover 해제."""
+    try:
+        driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+            "type": "mouseMoved", "x": 0, "y": 0,
+            "button": "none", "modifiers": 0,
+        })
+    except Exception:
+        pass
 
 
 # ── 단일 릴스 통계 수집 ───────────────────────────────────────────────────────
@@ -255,11 +260,11 @@ def _scrape_reel(driver, link_el) -> tuple[int, int, int, str]:
 
     # 화면 중앙 스크롤
     driver.execute_script(
-        "arguments[0].scrollIntoView({block:'center', behavior:'smooth'});", link_el
+        "arguments[0].scrollIntoView({block:'center', behavior:'instant'});", link_el
     )
-    time.sleep(0.25)
+    time.sleep(0.15)
 
-    # 썸네일 URL (hover 전 수집)
+    # 썸네일 URL
     thumbnail_url = ""
     try:
         img = link_el.find_element(By.TAG_NAME, "img")
@@ -267,41 +272,40 @@ def _scrape_reel(driver, link_el) -> tuple[int, int, int, str]:
     except Exception:
         pass
 
-    # ── hover 전: 조회수만 보임 ──────────────────────────────────────────
-    before = _collect_stat_nums(driver, link_el)
+    # 컨테이너: link의 부모 요소 (hover overlay가 a 밖에 있을 수 있음)
+    try:
+        container = driver.execute_script("return arguments[0].parentElement;", link_el)
+    except Exception:
+        container = link_el
 
-    # ── JS hover ────────────────────────────────────────────────────────
-    driver.execute_script(_HOVER_JS, link_el)
-    time.sleep(0.7)   # React 상태 업데이트 대기
+    # ── hover 전: 조회수 span (항상 보임) ────────────────────────────────
+    before = _js_stat_nums(driver, link_el, STAT_SPAN)
+    if not before:
+        before = _js_stat_nums(driver, link_el, STAT_SPAN_FB)
 
-    # ── hover 후: link_el 내부에서 수집 ─────────────────────────────────
-    after = _collect_stat_nums(driver, link_el)
+    # ── CDP hover → CSS :hover 트리거 ────────────────────────────────────
+    _cdp_hover(driver, link_el)
+    time.sleep(0.35)   # CSS transition + React 렌더 대기
 
-    # 못 찾으면 부모 1단계까지 확장
-    if len(after) < 2:
-        try:
-            parent = link_el.find_element(By.XPATH, "..")
-            after = _collect_stat_nums(driver, parent)
-        except Exception:
-            pass
+    # ── hover 후: container 전체에서 span 수집 ───────────────────────────
+    after = _js_stat_nums(driver, container, STAT_SPAN)
+    if not after:
+        after = _js_stat_nums(driver, container, STAT_SPAN_FB)
 
-    # ── 숫자 배정 ────────────────────────────────────────────────────────
-    # 기대 순서: [조회수, 좋아요, 댓글]
+    _cdp_unhover(driver)
+
+    # ── 숫자 배정: [조회수, 좋아요, 댓글] 순서 ───────────────────────────
     view_count = like_count = comment_count = 0
 
     if len(after) >= 3:
         view_count, like_count, comment_count = after[0], after[1], after[2]
     elif len(after) == 2:
-        # hover 전 조회수 + hover 후 좋아요·댓글
         view_count = before[0] if before else 0
         like_count, comment_count = after[0], after[1]
     elif len(after) == 1:
         view_count = after[0]
     elif before:
         view_count = before[0]
-
-    # hover 해제
-    driver.execute_script(_UNHOVER_JS, link_el)
 
     return view_count, like_count, comment_count, thumbnail_url
 
@@ -314,7 +318,7 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
     log(f"[수집] @{username} 시작 (최대 {amount}개)")
 
     driver.get(f"https://www.instagram.com/{username}/reels/")
-    human_sleep(3.0, 5.0)
+    human_sleep(2.5, 4.0)
     _dismiss_modal(driver)
 
     reels: list[dict] = []
@@ -367,7 +371,7 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
 
         if len(reels) < amount:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            human_sleep(2.0, 3.0)
+            human_sleep(1.5, 2.0)
 
     count = len(reels)
     avg_views    = round(sum(r["view_count"]    for r in reels) / count) if count else 0
@@ -388,12 +392,12 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
 
 # ── 메인 실행 ─────────────────────────────────────────────────────────────────
 
-def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict]:
+def run(usernames: list[str], amount: int = 10, push: bool = False, headless: bool = True) -> list[dict]:
     driver = None
     results: list[dict] = []
 
     try:
-        driver = _build_driver()
+        driver = _build_driver(headless=headless)
 
         if IG_USERNAME and IG_PASSWORD:
             _try_login(driver)
@@ -438,14 +442,15 @@ def run(usernames: list[str], amount: int = 10, push: bool = False) -> list[dict
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Instagram 릴스 스크래퍼 (DOM + Hover 기반)"
+        description="Instagram 릴스 스크래퍼 (DOM + CDP Hover 기반)"
     )
     parser.add_argument("usernames", nargs="+", help="@핸들 또는 유저명")
-    parser.add_argument("--amount", type=int, default=10, help="유저당 수집할 릴스 수")
-    parser.add_argument("--push", action="store_true", help="결과를 GitHub에 push")
+    parser.add_argument("--amount",      type=int, default=10,  help="유저당 수집할 릴스 수")
+    parser.add_argument("--no-headless", action="store_true",   help="headless=False (브라우저 창 표시)")
+    parser.add_argument("--push",        action="store_true",   help="결과를 GitHub에 push")
     args = parser.parse_args()
 
-    results = run(args.usernames, amount=args.amount, push=args.push)
+    results = run(args.usernames, amount=args.amount, push=args.push, headless=not args.no_headless)
 
     print("\n── 수집 결과 요약 ──────────────────────────────────")
     for r in results:
