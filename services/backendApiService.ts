@@ -159,6 +159,27 @@ export const fetchTikTokVideos = async (
   return res.data;
 };
 
+export const fetchTikTokVideosLocal = async (
+  usernames: string[],
+  amount: number = 20,
+  localBaseUrl: string = 'http://localhost:8004',
+  headless: boolean = true
+): Promise<TikTokUserResult[]> => {
+  const base = localBaseUrl.replace(/\/$/, '');
+
+  await axios.post(`${base}/api/crawl/start`, { usernames, amount, headless });
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 3000));
+    const res = await axios.get(`${base}/api/crawl/status`);
+    const data = res.data;
+    if (data.status === 'done' || data.status === 'error') {
+      if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
+      return data.results as TikTokUserResult[];
+    }
+  }
+};
+
 // ── 라이브 지표 (CHZZK/SOOP · softc.one 기반) ──────────────────────────
 
 export interface LiveStreamRecord {

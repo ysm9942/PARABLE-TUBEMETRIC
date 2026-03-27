@@ -9,6 +9,7 @@ import axios from 'axios';
 export const LOCAL_AGENT_URL      = 'http://localhost:8001';
 export const SOFTC_AGENT_URL      = 'http://localhost:8002';
 export const INSTAGRAM_AGENT_URL  = 'http://localhost:8003';
+export const TIKTOK_AGENT_URL     = 'http://localhost:8004';
 
 const GITHUB_RELEASE_BASE =
   'https://github.com/ysm9942/PARABLE-TUBEMETRIC/releases/latest/download';
@@ -26,6 +27,11 @@ export const SOFTC_INSTALLER_URLS = {
 export const INSTAGRAM_INSTALLER_URLS = {
   windows: `${GITHUB_RELEASE_BASE}/TubeMetric-Instagram-Agent-Setup-Windows.exe`,
   macos: `${GITHUB_RELEASE_BASE}/TubeMetric-Instagram-Agent-Setup-macOS.pkg`,
+};
+
+export const TIKTOK_INSTALLER_URLS = {
+  windows: `${GITHUB_RELEASE_BASE}/TubeMetric-TikTok-Agent-Setup-Windows.exe`,
+  macos: `${GITHUB_RELEASE_BASE}/TubeMetric-TikTok-Agent-Setup-macOS.pkg`,
 };
 
 /** 현재 OS 감지 */
@@ -116,6 +122,36 @@ export const waitForSoftcAgent = (
   const timer = setInterval(async () => {
     attempts++;
     const ok = await checkSoftcAgent();
+    if (ok) {
+      clearInterval(timer);
+      onConnected();
+    } else if (attempts >= maxAttempts) {
+      clearInterval(timer);
+    }
+  }, intervalMs);
+  return () => clearInterval(timer);
+};
+
+/** TikTok 로컬 에이전트(8004)가 실행 중인지 확인 (타임아웃 1.5초) */
+export const checkTikTokAgent = async (): Promise<boolean> => {
+  try {
+    const res = await axios.get(`${TIKTOK_AGENT_URL}/api/health`, { timeout: 1500 });
+    return res.data?.status === 'ok';
+  } catch {
+    return false;
+  }
+};
+
+/** 주기적으로 TikTok 에이전트 감지 (설치 후 자동 연결) */
+export const waitForTikTokAgent = (
+  onConnected: () => void,
+  intervalMs = 3000,
+  maxAttempts = 20
+): () => void => {
+  let attempts = 0;
+  const timer = setInterval(async () => {
+    attempts++;
+    const ok = await checkTikTokAgent();
     if (ok) {
       clearInterval(timer);
       onConnected();
