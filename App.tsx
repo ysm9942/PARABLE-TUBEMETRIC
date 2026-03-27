@@ -528,7 +528,11 @@ const App: React.FC = () => {
   // ── TikTok 핸들러 ────────────────────────────────────────────────────────
   const tkList = tkInput.split('\n').map(s => s.trim()).filter(Boolean);
   const addTkItem = () => {
-    const v = tkDraft.trim().replace(/^@/, '');
+    let v = tkDraft.trim();
+    // TikTok URL 전체 입력 지원: https://www.tiktok.com/@haebom_ → haebom_
+    const urlMatch = v.match(/tiktok\.com\/@?([^/?#\s]+)/);
+    if (urlMatch) v = urlMatch[1];
+    v = v.replace(/^@/, '');
     if (!v) return;
     setTkInput(prev => prev ? prev + '\n' + v : v);
     setTkDraft('');
@@ -544,8 +548,8 @@ const App: React.FC = () => {
 
     if (!tkAgentReady) {
       alert(igLocalRunning
-        ? '에이전트 업데이트가 필요합니다. Instagram 탭에서 최신 버전으로 재설치하세요.'
-        : 'TikTok 수집은 로컬 에이전트가 필요합니다. Instagram 탭에서 에이전트를 설치하세요.');
+        ? '에이전트 업데이트가 필요합니다. 로컬 에이전트를 최신 버전으로 재설치하세요.'
+        : 'TikTok 수집은 로컬 에이전트가 필요합니다. 에이전트를 설치하세요.');
       return;
     }
 
@@ -2811,16 +2815,16 @@ const App: React.FC = () => {
                 <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle size={16} className="text-cyan-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-cyan-300">Instagram 로컬 에이전트가 필요합니다</p>
+                    <p className="text-xs font-medium text-cyan-300">TikTok 로컬 에이전트가 필요합니다</p>
                     <p className="text-xs text-zinc-300 mt-1">
-                      TikTok 수집은 Instagram 에이전트(port 8003)와 같은 서버를 사용합니다. Instagram 탭에서 에이전트를 설치하세요.
+                      PC에 에이전트를 설치하면 Chrome으로 직접 수집합니다. 고정됨 영상 제외 평균 조회수 계산.
                     </p>
                   </div>
                   <button
-                    onClick={() => setActiveTab('instagram-config')}
+                    onClick={() => setShowInstagramInstallModal(true)}
                     className="shrink-0 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-medium rounded-lg transition-colors"
                   >
-                    이동
+                    설치하기
                   </button>
                 </div>
               )}
@@ -2828,9 +2832,9 @@ const App: React.FC = () => {
                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle size={16} className="text-amber-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-amber-300">에이전트 업데이트가 필요합니다 (v1.0 → v1.1)</p>
+                    <p className="text-xs font-medium text-amber-300">에이전트 업데이트가 필요합니다</p>
                     <p className="text-xs text-zinc-300 mt-1">
-                      현재 설치된 에이전트가 TikTok 수집을 지원하지 않습니다. Instagram 탭에서 최신 버전으로 재설치하세요.
+                      현재 설치된 에이전트가 TikTok 수집을 지원하지 않습니다. 최신 버전으로 재설치하세요.
                     </p>
                   </div>
                   <button
@@ -2844,7 +2848,7 @@ const App: React.FC = () => {
               {tkAgentReady && (
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                   <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨 (port 8003) — Instagram + TikTok 수집 가능</span>
+                  <span className="text-xs text-emerald-400 font-medium">TikTok 에이전트 연결됨</span>
                 </div>
               )}
 
@@ -2854,13 +2858,13 @@ const App: React.FC = () => {
                 {tkAgentReady ? (
                   <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 TikTok 계정을 입력하고 <strong className="text-zinc-300">수집 시작</strong>을 클릭합니다.</p>
-                    <p>② 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_server.py</code>(port 8003)가 Chrome으로 TikTok 프로필 직접 크롤링.</p>
+                    <p>② 로컬 에이전트가 Chrome으로 TikTok 프로필을 직접 크롤링합니다.</p>
                     <p>③ 고정됨(Pinned) 영상은 제외하고 평균 조회수를 계산합니다.</p>
                     <p>④ 완료 시 결과가 바로 아래 패널에 표시됩니다.</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5 text-xs text-zinc-300">
-                    <p>① Instagram 탭에서 로컬 에이전트 최신 버전(v1.1)을 설치합니다.</p>
+                    <p>① 위 배너에서 TikTok 로컬 에이전트를 설치합니다.</p>
                     <p>② 에이전트 실행 후 TikTok 계정을 입력하고 수집을 시작합니다.</p>
                     <p>③ Chrome으로 직접 크롤링하므로 bot 감지를 우회합니다.</p>
                   </div>
@@ -2951,7 +2955,7 @@ const App: React.FC = () => {
                       <span>{{
                         submitting: '로컬 에이전트로 수집 중...',
                         done:       '완료! 아래에서 결과를 확인하세요.',
-                        error:      '수집 실패 — instagram_server.py 실행 여부 확인 (port 8003)',
+                        error:      '수집 실패 — 에이전트 오류 발생. 재시도하거나 Headless OFF로 전환해보세요.',
                         idle:       '',
                       }[tkJobStatus]}</span>
                     </div>
