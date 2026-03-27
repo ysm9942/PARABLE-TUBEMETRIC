@@ -77,6 +77,10 @@ const App: React.FC = () => {
   const [showInstagramInstallModal, setShowInstagramInstallModal] = useState<boolean>(false);
   const [waitingForInstagramAgent, setWaitingForInstagramAgent] = useState<boolean>(false);
 
+  // TikTok 설치 모달 (같은 에이전트지만 별도 모달)
+  const [showTikTokInstallModal, setShowTikTokInstallModal] = useState<boolean>(false);
+  const [waitingForTikTokInstall, setWaitingForTikTokInstall] = useState<boolean>(false);
+
   // TikTok: 같은 에이전트(8003)지만 v1.1+ 필요
   const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
   const [tkHeadless, setTkHeadless] = useState<boolean>(true);
@@ -2821,7 +2825,7 @@ const App: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowInstagramInstallModal(true)}
+                    onClick={() => setShowTikTokInstallModal(true)}
                     className="shrink-0 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-medium rounded-lg transition-colors"
                   >
                     설치하기
@@ -2838,11 +2842,87 @@ const App: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setActiveTab('instagram-config')}
+                    onClick={() => setShowTikTokInstallModal(true)}
                     className="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
                   >
                     업데이트
                   </button>
+                </div>
+              )}
+
+              {/* TikTok 설치 모달 */}
+              {showTikTokInstallModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                  <div className="bg-[#1a1b23] border border-white/10 rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                        <ShieldCheck size={18} className="text-cyan-400" />
+                        TubeMetric TikTok 에이전트 설치
+                      </h3>
+                      <button onClick={() => { setShowTikTokInstallModal(false); setWaitingForTikTokInstall(false); }} className="text-zinc-400 hover:text-white">
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="space-y-4 text-xs text-zinc-300">
+                      <p>TikTok 영상 지표를 PC의 Chrome으로 직접 수집하는 에이전트입니다.</p>
+                      <div className="bg-white/4 rounded-lg p-3 space-y-1.5">
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 고정됨(Pinned) 영상 제외 평균 조회수 계산</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> undetected_chromedriver — bot 감지 우회</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Windows 시작 시 자동 실행</p>
+                        <p className="flex items-center gap-2"><Info size={13} className="text-zinc-400" /> PC에 Chrome이 설치되어 있어야 합니다</p>
+                      </div>
+                    </div>
+                    <div className="mt-6 space-y-2">
+                      {(detectOS() === 'windows' || detectOS() === 'other') && (
+                        <a
+                          href={INSTAGRAM_INSTALLER_URLS.windows}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            setWaitingForTikTokInstall(true);
+                            const stop = waitForInstagramAgent(() => {
+                              setIgLocalRunning(true);
+                              checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok));
+                              setShowTikTokInstallModal(false);
+                              setWaitingForTikTokInstall(false);
+                            });
+                            setTimeout(stop, 180000);
+                          }}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <Download size={15} />
+                          Windows용 설치파일 다운로드 (.exe)
+                        </a>
+                      )}
+                      {(detectOS() === 'macos' || detectOS() === 'other') && (
+                        <a
+                          href={INSTAGRAM_INSTALLER_URLS.macos}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            setWaitingForTikTokInstall(true);
+                            const stop = waitForInstagramAgent(() => {
+                              setIgLocalRunning(true);
+                              checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok));
+                              setShowTikTokInstallModal(false);
+                              setWaitingForTikTokInstall(false);
+                            });
+                            setTimeout(stop, 180000);
+                          }}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <Download size={15} />
+                          macOS용 설치파일 다운로드 (.pkg)
+                        </a>
+                      )}
+                    </div>
+                    {waitingForTikTokInstall && (
+                      <div className="mt-4 flex items-center gap-2 text-xs text-zinc-400">
+                        <Loader2 size={13} className="animate-spin" />
+                        설치 후 에이전트 연결 대기 중... (자동으로 감지됩니다)
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               {tkAgentReady && (
