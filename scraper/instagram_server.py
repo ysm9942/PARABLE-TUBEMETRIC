@@ -180,49 +180,41 @@ def _run_tiktok_job(usernames: list[str], amount: int, headless: bool):
     total = len(usernames)
 
     try:
-        from tiktok_scraper import _build_driver, fetch_user_videos
+        from tiktok_scraper import fetch_user_videos
 
-        driver = _build_driver(headless=headless)
-        try:
-            for idx, raw in enumerate(usernames, 1):
-                if _tk_stop_evt.is_set():
-                    break
-                username = raw.lstrip("@").strip()
-                if not username:
-                    continue
+        for idx, raw in enumerate(usernames, 1):
+            if _tk_stop_evt.is_set():
+                break
+            username = raw.lstrip("@").strip()
+            if not username:
+                continue
 
-                with _tk_job_lock:
-                    _tk_job_state["progress_current"] = username
-                    _tk_job_state["progress_done"] = idx - 1
+            with _tk_job_lock:
+                _tk_job_state["progress_current"] = username
+                _tk_job_state["progress_done"] = idx - 1
 
-                print(f"\n[TikTok {idx}/{total}] @{username} 수집 시작")
-                try:
-                    data = fetch_user_videos(driver, username, amount)
-                    all_results.append(data)
-                    print(f"  ✅ @{username} → {data['videoCount']}개, 평균 {data['avgViews']:,} 조회")
-                except Exception as e:
-                    print(f"  ❌ @{username} 오류: {e}")
-                    all_results.append({
-                        "username":   username,
-                        "videoCount": 0,
-                        "videos":     [],
-                        "avgViews":   0,
-                        "status":     "error",
-                        "error":      str(e),
-                        "scrapedAt":  datetime.now(timezone.utc).isoformat(),
-                    })
-
-                if idx < total and not _tk_stop_evt.is_set():
-                    import time, random
-                    cd = random.uniform(2.0, 4.0)
-                    print(f"  ⏳ 쿨다운 {cd:.1f}s")
-                    time.sleep(cd)
-
-        finally:
+            print(f"\n[TikTok {idx}/{total}] @{username} 수집 시작")
             try:
-                driver.quit()
-            except Exception:
-                pass
+                data = fetch_user_videos(None, username, amount, headless=headless)
+                all_results.append(data)
+                print(f"  ✅ @{username} → {data['videoCount']}개, 평균 {data['avgViews']:,} 조회")
+            except Exception as e:
+                print(f"  ❌ @{username} 오류: {e}")
+                all_results.append({
+                    "username":   username,
+                    "videoCount": 0,
+                    "videos":     [],
+                    "avgViews":   0,
+                    "status":     "error",
+                    "error":      str(e),
+                    "scrapedAt":  datetime.now(timezone.utc).isoformat(),
+                })
+
+            if idx < total and not _tk_stop_evt.is_set():
+                import time, random
+                cd = random.uniform(2.0, 4.0)
+                print(f"  ⏳ 쿨다운 {cd:.1f}s")
+                time.sleep(cd)
 
         with _tk_job_lock:
             _tk_job_state.update({

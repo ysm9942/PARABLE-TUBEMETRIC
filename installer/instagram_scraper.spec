@@ -54,6 +54,11 @@ a = Analysis(
         # ── instagram_scraper.py / tiktok_scraper.py 의존성 ─────────────────
         "instagram_scraper",
         "tiktok_scraper",
+        # ── yt-dlp (TikTok 수집 1순위) ────────────────────────────────────
+        "yt_dlp",
+        "yt_dlp.extractor",
+        "yt_dlp.extractor.tiktok",
+        "yt_dlp.cookies",
         # ── 비동기 / 네트워크 ──────────────────────────────────────────────
         "anyio",
         "anyio._backends._asyncio",
