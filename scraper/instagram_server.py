@@ -15,6 +15,7 @@ API 엔드포인트:
 
 import builtins
 import os
+import sys
 import threading
 from collections import deque
 from contextlib import asynccontextmanager
@@ -228,6 +229,13 @@ async def crawl_stop():
 
 
 def main():
+    # PyInstaller console=False 모드에서 sys.stdout/stderr가 None이면
+    # uvicorn 로깅 초기화가 NoneType.isatty() 오류로 실패함 → devnull로 대체
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
     uvicorn.run(app, host="127.0.0.1", port=8003, log_level="warning")
 
 
