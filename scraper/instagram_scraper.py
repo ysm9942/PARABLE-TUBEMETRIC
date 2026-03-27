@@ -256,56 +256,60 @@ def _cdp_unhover(driver) -> None:
 
 def _scrape_reel(driver, link_el) -> tuple[int, int, int, str]:
     """(view_count, like_count, comment_count, thumbnail_url) 반환."""
-    from selenium.webdriver.common.by import By
 
-    # 화면 중앙 스크롤
+    # 화면 중앙 스크롤 후 이미지 로드 대기
     driver.execute_script(
         "arguments[0].scrollIntoView({block:'center', behavior:'instant'});", link_el
     )
-    time.sleep(0.15)
+    time.sleep(0.2)
 
-    # 썸네일 URL
-    thumbnail_url = ""
-    try:
-        img = link_el.find_element(By.TAG_NAME, "img")
-        thumbnail_url = img.get_attribute("src") or ""
-    except Exception:
-        pass
+    # 썸네일 URL — src / currentSrc / srcset 순으로 시도
+    thumbnail_url = driver.execute_script("""
+        var img = arguments[0].querySelector('img');
+        if (!img) return '';
+        if (img.currentSrc) return img.currentSrc;
+        if (img.src) return img.src;
+        if (img.srcset) return img.srcset.split(',')[0].trim().split(' ')[0];
+        return '';
+    """, link_el) or ""
 
-    # 컨테이너: link의 부모 요소 (hover overlay가 a 밖에 있을 수 있음)
+    # 컨테이너: link의 부모 요소 (hover overlay가 <a> 밖/앞에 위치)
     try:
         container = driver.execute_script("return arguments[0].parentElement;", link_el)
     except Exception:
         container = link_el
 
-    # ── hover 전: 조회수 span (항상 보임) ────────────────────────────────
+    # ── hover 전: link_el 내부에서 조회수 수집 (항상 보임) ───────────────
     before = _js_stat_nums(driver, link_el, STAT_SPAN)
     if not before:
         before = _js_stat_nums(driver, link_el, STAT_SPAN_FB)
+    view_count = before[0] if before else 0
 
     # ── CDP hover → CSS :hover 트리거 ────────────────────────────────────
     _cdp_hover(driver, link_el)
     time.sleep(0.35)   # CSS transition + React 렌더 대기
 
-    # ── hover 후: container 전체에서 span 수집 ───────────────────────────
+    # ── hover 후: container 전체 수집 → 조회수 제외하면 좋아요·댓글 ────────
+    # DOM 순서: [좋아요, 댓글, 조회수] (hover overlay가 <a> 앞에 위치)
     after = _js_stat_nums(driver, container, STAT_SPAN)
     if not after:
         after = _js_stat_nums(driver, container, STAT_SPAN_FB)
 
     _cdp_unhover(driver)
 
-    # ── 숫자 배정: [조회수, 좋아요, 댓글] 순서 ───────────────────────────
-    view_count = like_count = comment_count = 0
+    # view_count는 before에서 확정. after에서 view_count를 제외한 나머지 = 좋아요·댓글
+    like_count = comment_count = 0
+    hover_nums = [n for n in after if n != view_count] if view_count else after
 
-    if len(after) >= 3:
-        view_count, like_count, comment_count = after[0], after[1], after[2]
+    if len(hover_nums) >= 2:
+        like_count, comment_count = hover_nums[0], hover_nums[1]
+    elif len(hover_nums) == 1:
+        like_count = hover_nums[0]
+    elif len(after) >= 3:
+        # view_count가 0이어서 필터링 못 한 경우 — DOM 순서 직접 사용
+        like_count, comment_count, view_count = after[0], after[1], after[2]
     elif len(after) == 2:
-        view_count = before[0] if before else 0
         like_count, comment_count = after[0], after[1]
-    elif len(after) == 1:
-        view_count = after[0]
-    elif before:
-        view_count = before[0]
 
     return view_count, like_count, comment_count, thumbnail_url
 

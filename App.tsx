@@ -853,6 +853,7 @@ const App: React.FC = () => {
                     <span>릴스 {selectedIgUser.reelCount}개</span>
                     <span>평균 조회수 <span className="text-pink-400 font-medium">{selectedIgUser.avgViews.toLocaleString()}</span></span>
                     <span>평균 좋아요 <span className="text-violet-400 font-medium">{selectedIgUser.avgLikes.toLocaleString()}</span></span>
+                    <span>평균 댓글 <span className="text-zinc-300 font-medium">{selectedIgUser.avgComments.toLocaleString()}</span></span>
                   </div>
                 </div>
               </div>
@@ -886,7 +887,7 @@ const App: React.FC = () => {
                       <td className="px-5 py-3 text-right text-xs text-violet-400 tabular-nums">{reel.like_count.toLocaleString()}</td>
                       <td className="px-5 py-3 text-right text-xs text-zinc-200 tabular-nums">{reel.comment_count.toLocaleString()}</td>
                       <td className="px-5 py-3 text-center text-xs text-zinc-300">{reel.video_duration ? `${Math.round(reel.video_duration)}s` : '—'}</td>
-                      <td className="px-5 py-3 text-center text-xs text-zinc-200 font-mono">{new Date(reel.taken_at).toLocaleDateString('ko-KR')}</td>
+                      <td className="px-5 py-3 text-center text-xs text-zinc-200 font-mono">{reel.taken_at ? new Date(reel.taken_at).toLocaleDateString('ko-KR') : '—'}</td>
                       <td className="px-5 py-3 text-center">
                         {reel.url ? (
                           <a href={reel.url} target="_blank" className="p-1.5 bg-white/5 hover:bg-pink-600 hover:text-white text-zinc-200 rounded-lg transition-all inline-flex"><ExternalLink size={13} /></a>
