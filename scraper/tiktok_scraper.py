@@ -137,36 +137,30 @@ def _run_ytdlp(username: str, ydl_opts: dict, amount: int) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _detect_chrome_major() -> int | None:
-    """설치된 Chrome 메이저 버전 감지"""
-    import subprocess, sys, platform
-    candidates = []
+    """설치된 Chrome 메이저 버전 감지 (browser.py와 동일한 방식)"""
+    import subprocess, platform
     if platform.system() == "Windows":
-        candidates = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        ]
-        # 레지스트리에서도 시도
-        try:
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                 r"Software\Google\Chrome\BLBeacon")
-            ver_str, _ = winreg.QueryValueEx(key, "version")
-            return int(ver_str.split(".")[0])
-        except Exception:
-            pass
-    elif platform.system() == "Darwin":
-        candidates = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        ]
-    else:
-        candidates = ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"]
-
-    for exe in candidates:
+        # reg query 방식 — winreg보다 PyInstaller 환경에서 안정적
+        for cmd in [
+            r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version',
+            r'reg query "HKEY_LOCAL_MACHINE\Software\Google\Chrome\BLBeacon" /v version',
+            r'reg query "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Google\Chrome\BLBeacon" /v version',
+        ]:
+            try:
+                out = subprocess.check_output(cmd, shell=True, text=True,
+                                              encoding="utf-8", errors="ignore")
+                m = re.search(r"(\d+)\.\d+\.\d+\.\d+", out)
+                if m:
+                    return int(m.group(1))
+            except Exception:
+                continue
+    # macOS / Linux
+    for exe in ("google-chrome", "google-chrome-stable", "chromium-browser", "chromium",
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"):
         try:
             out = subprocess.check_output([exe, "--version"],
-                                          stderr=subprocess.DEVNULL,
-                                          timeout=5).decode()
-            m = re.search(r"(\d+)\.\d+", out)
+                                          stderr=subprocess.DEVNULL, timeout=5).decode()
+            m = re.search(r"(\d+)\.", out)
             if m:
                 return int(m.group(1))
         except Exception:
