@@ -51,7 +51,7 @@ import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, an
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
-import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
+import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -77,6 +77,8 @@ const App: React.FC = () => {
   const [showInstagramInstallModal, setShowInstagramInstallModal] = useState<boolean>(false);
   const [waitingForInstagramAgent, setWaitingForInstagramAgent] = useState<boolean>(false);
 
+  // TikTok: 같은 에이전트(8003)지만 v1.1+ 필요
+  const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
   const [tkHeadless, setTkHeadless] = useState<boolean>(true);
 
   // 앱 시작 시 로컬 에이전트 감지
@@ -84,6 +86,7 @@ const App: React.FC = () => {
     checkLocalAgent().then(ok => setLocalAgentRunning(ok));
     checkSoftcAgent().then(ok => setSoftcLocalRunning(ok));
     checkInstagramAgent().then(ok => setIgLocalRunning(ok));
+    checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok));
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
@@ -539,8 +542,10 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!igLocalRunning) {
-      alert('TikTok 수집은 로컬 에이전트가 필요합니다. Instagram 에이전트를 설치하세요.');
+    if (!tkAgentReady) {
+      alert(igLocalRunning
+        ? '에이전트 업데이트가 필요합니다. Instagram 탭에서 최신 버전으로 재설치하세요.'
+        : 'TikTok 수집은 로컬 에이전트가 필요합니다. Instagram 탭에서 에이전트를 설치하세요.');
       return;
     }
 
@@ -2819,7 +2824,24 @@ const App: React.FC = () => {
                   </button>
                 </div>
               )}
-              {igLocalRunning && (
+              {igLocalRunning && !tkAgentReady && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-amber-300">에이전트 업데이트가 필요합니다 (v1.0 → v1.1)</p>
+                    <p className="text-xs text-zinc-300 mt-1">
+                      현재 설치된 에이전트가 TikTok 수집을 지원하지 않습니다. Instagram 탭에서 최신 버전으로 재설치하세요.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('instagram-config')}
+                    className="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    업데이트
+                  </button>
+                </div>
+              )}
+              {tkAgentReady && (
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                   <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                   <span className="text-xs text-emerald-400 font-medium">로컬 에이전트 연결됨 (port 8003) — Instagram + TikTok 수집 가능</span>
@@ -2829,7 +2851,7 @@ const App: React.FC = () => {
               {/* 작동 방식 */}
               <div className="bg-[#1a1b23] border border-white/8 rounded-xl p-5 space-y-3">
                 <p className="text-xs font-medium text-zinc-300 flex items-center gap-2"><Activity size={13} className="text-cyan-500" /> 작동 방식</p>
-                {igLocalRunning ? (
+                {tkAgentReady ? (
                   <div className="space-y-1.5 text-xs text-zinc-300">
                     <p>① 아래에서 TikTok 계정을 입력하고 <strong className="text-zinc-300">수집 시작</strong>을 클릭합니다.</p>
                     <p>② 로컬 PC의 <code className="bg-white/8 px-1.5 py-0.5 rounded">instagram_server.py</code>(port 8003)가 Chrome으로 TikTok 프로필 직접 크롤링.</p>
@@ -2838,7 +2860,7 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-1.5 text-xs text-zinc-300">
-                    <p>① Instagram 탭에서 로컬 에이전트를 설치합니다.</p>
+                    <p>① Instagram 탭에서 로컬 에이전트 최신 버전(v1.1)을 설치합니다.</p>
                     <p>② 에이전트 실행 후 TikTok 계정을 입력하고 수집을 시작합니다.</p>
                     <p>③ Chrome으로 직접 크롤링하므로 bot 감지를 우회합니다.</p>
                   </div>
@@ -2902,7 +2924,7 @@ const App: React.FC = () => {
                     <p className="text-[10px] text-zinc-200">최신 영상부터 수집합니다. 많을수록 시간이 오래 걸립니다.</p>
 
                     {/* Headless toggle */}
-                    {igLocalRunning && (
+                    {tkAgentReady && (
                       <div className="border-t border-white/8 pt-3 space-y-2">
                         <p className="text-xs text-zinc-300">Headless 모드</p>
                         <div className="flex gap-2">
@@ -2938,13 +2960,13 @@ const App: React.FC = () => {
                   <div className="mt-auto">
                     <button
                       onClick={handleTkRequest}
-                      disabled={tkJobStatus === 'submitting' || !igLocalRunning}
+                      disabled={tkJobStatus === 'submitting' || !tkAgentReady}
                       className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
                     >
                       {tkJobStatus === 'submitting'
                         ? <Loader2 className="animate-spin" size={16} />
                         : <Music size={16} />}
-                      {tkJobStatus === 'submitting' ? '수집 중...' : igLocalRunning ? '수집 시작' : '에이전트 필요'}
+                      {tkJobStatus === 'submitting' ? '수집 중...' : tkAgentReady ? '수집 시작' : igLocalRunning ? '업데이트 필요' : '에이전트 필요'}
                     </button>
                   </div>
                 </div>
