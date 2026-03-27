@@ -1,31 +1,29 @@
 """
-TikTok 동영상 스크래퍼 — undetected_chromedriver 기반 DOM 파싱
+TikTok 동영상 스크래퍼
 
-• 프로필 페이지에서 최신 영상 수집
-• '고정됨(Pinned)' 영상 자동 제외
-• 조회수만 그리드에서 파싱 (좋아요/댓글은 개별 페이지 진입 필요 → 생략)
+수집 전략 (순서대로 시도):
+  1. yt-dlp + 로컬 Chrome 쿠키  → 가장 안정적 (실제 쿠키 사용)
+  2. yt-dlp (쿠키 없이)          → 쿠키 추출 실패 시 fallback
+  3. undetected_chromedriver      → yt-dlp 완전 실패 시 DOM 파싱
 
-주의: TikTok은 headless 모드에서 봇 감지 확률이 매우 높음.
-      headless=False(기본값)로 실제 브라우저처럼 실행 권장.
+TikTok 봇 감지 핵심: msToken·ttwid 등 쿠키 유효성.
+실제 Chrome 쿠키를 그대로 전달하면 정상 사용자로 인식.
 """
 
 import re
 import time
 from datetime import datetime, timezone
 
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
 
 # ── 숫자 파싱 ─────────────────────────────────────────────────────────────
 
-def _parse_num(text: str) -> int:
-    """TikTok 조회수 파싱: '679.2K' → 679200, '10.6M' → 10600000"""
+def _parse_num(text) -> int:
+    """'679.2K' → 679200, '10.6M' → 10600000, 숫자도 처리"""
+    if isinstance(text, (int, float)):
+        return int(text)
     if not text:
         return 0
-    text = text.strip().replace(',', '')
+    text = str(text).strip().replace(',', '')
     for suffix, mult in [('B', 1_000_000_000), ('M', 1_000_000), ('K', 1_000)]:
         if text.upper().endswith(suffix):
             try:
@@ -38,163 +36,90 @@ def _parse_num(text: str) -> int:
         return 0
 
 
-# ── 드라이버 빌드 ─────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# 방법 1: yt-dlp + 브라우저 쿠키
+# ══════════════════════════════════════════════════════════════════════════════
 
-def _build_driver(headless: bool = False):
+def _fetch_via_ytdlp(username: str, amount: int, use_browser_cookies: bool = True) -> dict:
     """
-    headless=False (기본값): TikTok 봇 감지 우회에 유리.
-    headless=True: 서버 환경 등 화면 없는 경우만 사용.
+    yt-dlp로 TikTok 영상 목록 수집.
+    use_browser_cookies=True: 로컬 Chrome 쿠키 자동 추출 → 봇 감지 우회
     """
-    options = uc.ChromeOptions()
-    if headless:
-        options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--lang=ko-KR,ko")
-    # 실제 사용자처럼 보이게
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-    options.add_argument("--start-maximized")
-    return uc.Chrome(options=options, use_subprocess=True)
+    import yt_dlp
+
+    # pinned 포함 여유분 추가 수집
+    fetch_count = amount + 5
+
+    ydl_opts: dict = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": "in_playlist",
+        "playlist_items": f"1-{fetch_count}",
+        "socket_timeout": 30,
+        "retries": 2,
+    }
+
+    if use_browser_cookies:
+        # Chrome 쿠키 우선, 실패 시 Firefox 시도
+        for browser in ("chrome", "firefox", "edge"):
+            try:
+                ydl_opts["cookiesfrombrowser"] = (browser,)
+                result = _run_ytdlp(username, ydl_opts, amount)
+                if result["videoCount"] > 0:
+                    print(f"  [yt-dlp/{browser}쿠키] @{username} → {result['videoCount']}개")
+                    return result
+            except Exception as e:
+                print(f"  [yt-dlp/{browser}쿠키] 실패: {e}")
+                ydl_opts.pop("cookiesfrombrowser", None)
+
+    # 쿠키 없이 재시도
+    ydl_opts.pop("cookiesfrombrowser", None)
+    return _run_ytdlp(username, ydl_opts, amount)
 
 
-# ── JS 헬퍼 ──────────────────────────────────────────────────────────────
+def _run_ytdlp(username: str, ydl_opts: dict, amount: int) -> dict:
+    import yt_dlp
 
-def _js_items(driver) -> list:
-    """JS querySelectorAll로 비디오 카드 수집 (display:none 포함)"""
-    return driver.execute_script(
-        "return Array.from(document.querySelectorAll('div[data-e2e=\"user-post-item\"]'));"
-    )
-
-
-def _is_pinned(driver, item) -> bool:
-    """고정됨 배지 존재 여부 확인"""
-    try:
-        badge_text = driver.execute_script(
-            "var b = arguments[0].querySelector('div[data-e2e=\"video-card-badge\"]');"
-            "return b ? b.textContent : '';",
-            item,
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(
+            f"https://www.tiktok.com/@{username}",
+            download=False,
         )
-        return bool(badge_text and ("고정됨" in badge_text or "Pinned" in badge_text.lower()))
-    except Exception:
-        return False
 
+    if not info:
+        raise ValueError("빈 응답")
 
-def _extract_item(driver, item) -> dict | None:
-    """DOM 항목에서 URL·조회수·썸네일 추출"""
-    try:
-        data = driver.execute_script("""
-            var el = arguments[0];
-            // URL
-            var a = el.querySelector('a[href*="/video/"], a[href*="/photo/"]');
-            var url = a ? a.href : '';
-            // 조회수
-            var sv = el.querySelector('strong[data-e2e="video-views"]');
-            var views = sv ? sv.textContent.trim() : '0';
-            // 썸네일
-            var thumb = '';
-            var imgs = el.querySelectorAll('img');
-            for (var i = 0; i < imgs.length; i++) {
-                var src = imgs[i].currentSrc || imgs[i].src || '';
-                if (src && src.indexOf('tiktok') !== -1 && src.indexOf('base64') === -1 && src.indexOf('gif') === -1) {
-                    thumb = src;
-                    break;
-                }
-            }
-            return {url: url, views: views, thumbnail: thumb};
-        """, item)
-        if not data or not data.get("url"):
-            return None
+    entries = info.get("entries") or []
+    videos = []
 
-        url: str = data["url"]
-        # id 추출
-        m = re.search(r"/(video|photo)/(\d+)", url)
-        video_id = m.group(2) if m else url
+    for entry in entries:
+        if not entry:
+            continue
 
-        return {
+        # yt-dlp가 pinned 필드를 제공하는 경우 건너뜀
+        if entry.get("pinned") or entry.get("is_pinned"):
+            print(f"    [고정됨 스킵] {entry.get('id', '')}")
+            continue
+
+        view_count = _parse_num(entry.get("view_count", 0))
+        video_id = entry.get("id", "")
+        url = entry.get("webpage_url") or entry.get("url") or ""
+
+        videos.append({
             "id": video_id,
             "url": url,
-            "viewCount": _parse_num(data.get("views", "0")),
-            "thumbnail": data.get("thumbnail", ""),
-            "title": "",
-            "likeCount": 0,
-            "commentCount": 0,
-            "duration": 0,
-            "uploadDate": "",
-        }
-    except Exception:
-        return None
-
-
-# ── 메인 수집 함수 ────────────────────────────────────────────────────────
-
-def fetch_user_videos(driver, username: str, amount: int) -> dict:
-    username = username.lstrip("@").strip()
-    url = f"https://www.tiktok.com/@{username}"
-
-    # 첫 방문: TikTok 메인 먼저 → 쿠키/세션 확보 후 프로필 이동
-    try:
-        if "tiktok.com" not in driver.current_url:
-            driver.get("https://www.tiktok.com/")
-            time.sleep(3)
-    except Exception:
-        pass
-
-    driver.get(url)
-
-    # 페이지 로드 대기 — 최대 25초, 봇 감지 시에도 기다림
-    try:
-        WebDriverWait(driver, 25).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-e2e="user-post-item"]'))
-        )
-    except Exception:
-        # 로드 실패 시 추가 대기 후 재시도
-        time.sleep(5)
-        driver.execute_script("window.scrollTo(0, 300);")
-        time.sleep(2)
-
-    videos: list[dict] = []
-    seen_ids: set[str] = set()
-    scroll_attempts = 0
-    max_scrolls = max(10, (amount // 8) + 5)
-    last_count = 0
-    stall = 0
-
-    while len(videos) < amount and scroll_attempts < max_scrolls:
-        items = _js_items(driver)
-
-        for item in items:
-            if _is_pinned(driver, item):
-                continue
-            v = _extract_item(driver, item)
-            if not v or v["id"] in seen_ids:
-                continue
-            seen_ids.add(v["id"])
-            videos.append(v)
-            if len(videos) >= amount:
-                break
+            "title": entry.get("title", ""),
+            "viewCount": view_count,
+            "likeCount": _parse_num(entry.get("like_count", 0)),
+            "commentCount": _parse_num(entry.get("comment_count", 0)),
+            "uploadDate": str(entry.get("upload_date", "") or ""),
+            "thumbnail": entry.get("thumbnail", ""),
+            "duration": int(entry.get("duration") or 0),
+        })
 
         if len(videos) >= amount:
             break
 
-        # 새 항목이 없으면 stall 카운트
-        if len(videos) == last_count:
-            stall += 1
-            if stall >= 3:
-                break
-        else:
-            stall = 0
-        last_count = len(videos)
-
-        driver.execute_script("window.scrollBy(0, 1800);")
-        time.sleep(1.5)
-        scroll_attempts += 1
-
-    videos = videos[:amount]
     avg_views = round(sum(v["viewCount"] for v in videos) / len(videos)) if videos else 0
 
     return {
@@ -207,35 +132,190 @@ def fetch_user_videos(driver, username: str, amount: int) -> dict:
     }
 
 
-# ── 진입점 ────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# 방법 2: undetected_chromedriver (DOM 파싱 fallback)
+# ══════════════════════════════════════════════════════════════════════════════
 
-def run(usernames: list[str], amount: int = 20, headless: bool = True) -> list[dict]:
-    driver = _build_driver(headless=headless)
-    results = []
+def _build_driver(headless: bool = False):
+    import undetected_chromedriver as uc
+    options = uc.ChromeOptions()
+    if headless:
+        options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--lang=ko-KR,ko")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+    options.add_argument("--start-maximized")
+    return uc.Chrome(options=options, use_subprocess=True)
+
+
+def _js_items(driver) -> list:
+    return driver.execute_script(
+        "return Array.from(document.querySelectorAll('div[data-e2e=\"user-post-item\"]'));"
+    )
+
+
+def _is_pinned(driver, item) -> bool:
     try:
-        for raw in usernames:
-            username = raw.lstrip("@").strip()
-            if not username:
-                continue
-            print(f"[TikTok] @{username} 수집 시작 (amount={amount})")
-            try:
-                result = fetch_user_videos(driver, username, amount)
-                print(f"[TikTok] @{username} → {result['videoCount']}개, 평균 {result['avgViews']:,} 조회")
-                results.append(result)
-            except Exception as e:
-                print(f"[TikTok] @{username} 오류: {e}")
-                results.append({
-                    "username": username,
-                    "videoCount": 0,
-                    "videos": [],
-                    "avgViews": 0,
-                    "status": "error",
-                    "error": str(e),
-                    "scrapedAt": datetime.now(timezone.utc).isoformat(),
-                })
+        badge_text = driver.execute_script(
+            "var b = arguments[0].querySelector('div[data-e2e=\"video-card-badge\"]');"
+            "return b ? b.textContent : '';",
+            item,
+        )
+        return bool(badge_text and ("고정됨" in badge_text or "pinned" in badge_text.lower()))
+    except Exception:
+        return False
+
+
+def _extract_item(driver, item) -> dict | None:
+    try:
+        data = driver.execute_script("""
+            var el = arguments[0];
+            var a = el.querySelector('a[href*="/video/"], a[href*="/photo/"]');
+            var url = a ? a.href : '';
+            var sv = el.querySelector('strong[data-e2e="video-views"]');
+            var views = sv ? sv.textContent.trim() : '0';
+            var thumb = '';
+            var imgs = el.querySelectorAll('img');
+            for (var i = 0; i < imgs.length; i++) {
+                var src = imgs[i].currentSrc || imgs[i].src || '';
+                if (src && src.indexOf('tiktok') !== -1 && src.indexOf('base64') === -1) {
+                    thumb = src; break;
+                }
+            }
+            return {url: url, views: views, thumbnail: thumb};
+        """, item)
+        if not data or not data.get("url"):
+            return None
+        url: str = data["url"]
+        m = re.search(r"/(video|photo)/(\d+)", url)
+        video_id = m.group(2) if m else url
+        return {
+            "id": video_id, "url": url,
+            "viewCount": _parse_num(data.get("views", "0")),
+            "thumbnail": data.get("thumbnail", ""),
+            "title": "", "likeCount": 0, "commentCount": 0,
+            "duration": 0, "uploadDate": "",
+        }
+    except Exception:
+        return None
+
+
+def _fetch_via_browser(username: str, amount: int, headless: bool = False) -> dict:
+    """undetected_chromedriver DOM 스크래핑 (fallback)"""
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    username = username.lstrip("@").strip()
+    driver = _build_driver(headless=headless)
+    try:
+        # TikTok 메인 먼저 → 쿠키 확보
+        driver.get("https://www.tiktok.com/")
+        time.sleep(3)
+
+        driver.get(f"https://www.tiktok.com/@{username}")
+        try:
+            WebDriverWait(driver, 25).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-e2e="user-post-item"]'))
+            )
+        except Exception:
+            time.sleep(5)
+
+        videos: list[dict] = []
+        seen_ids: set[str] = set()
+        last_count = 0
+        stall = 0
+        max_scrolls = max(10, (amount // 8) + 5)
+
+        for _ in range(max_scrolls):
+            for item in _js_items(driver):
+                if _is_pinned(driver, item):
+                    continue
+                v = _extract_item(driver, item)
+                if not v or v["id"] in seen_ids:
+                    continue
+                seen_ids.add(v["id"])
+                videos.append(v)
+                if len(videos) >= amount:
+                    break
+            if len(videos) >= amount:
+                break
+            if len(videos) == last_count:
+                stall += 1
+                if stall >= 3:
+                    break
+            else:
+                stall = 0
+            last_count = len(videos)
+            driver.execute_script("window.scrollBy(0, 1800);")
+            time.sleep(1.5)
     finally:
         try:
             driver.quit()
         except Exception:
             pass
+
+    videos = videos[:amount]
+    avg_views = round(sum(v["viewCount"] for v in videos) / len(videos)) if videos else 0
+    return {
+        "username": username,
+        "videoCount": len(videos),
+        "videos": videos,
+        "avgViews": avg_views,
+        "status": "completed",
+        "scrapedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 공개 인터페이스 (instagram_server.py에서 호출)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_user_videos(driver_unused, username: str, amount: int,
+                      headless: bool = False) -> dict:
+    """
+    driver_unused: 하위 호환성 유지용 (무시됨, 내부에서 직접 생성)
+    순서: yt-dlp(쿠키) → yt-dlp(무쿠키) → 브라우저 DOM 파싱
+    """
+    username = username.lstrip("@").strip()
+    print(f"  [TikTok] @{username} 수집 시작 (amount={amount})")
+
+    # 1. yt-dlp + 브라우저 쿠키
+    try:
+        result = _fetch_via_ytdlp(username, amount, use_browser_cookies=True)
+        if result["videoCount"] > 0:
+            return result
+        print(f"  [yt-dlp] 0개 수집됨 → 브라우저 fallback")
+    except Exception as e:
+        print(f"  [yt-dlp] 실패: {e} → 브라우저 fallback")
+
+    # 2. 브라우저 DOM 파싱 (undetected_chromedriver)
+    print(f"  [browser] @{username} 브라우저로 재시도...")
+    return _fetch_via_browser(username, amount, headless=headless)
+
+
+def run(usernames: list[str], amount: int = 20, headless: bool = False) -> list[dict]:
+    """독립 실행용 (driver 없이 직접 호출)"""
+    results = []
+    for raw in usernames:
+        username = raw.lstrip("@").strip()
+        if not username:
+            continue
+        try:
+            result = fetch_user_videos(None, username, amount, headless=headless)
+            print(f"[TikTok] @{username} → {result['videoCount']}개, 평균 {result['avgViews']:,} 조회")
+            results.append(result)
+        except Exception as e:
+            print(f"[TikTok] @{username} 오류: {e}")
+            results.append({
+                "username": username, "videoCount": 0, "videos": [],
+                "avgViews": 0, "status": "error", "error": str(e),
+                "scrapedAt": datetime.now(timezone.utc).isoformat(),
+            })
     return results
