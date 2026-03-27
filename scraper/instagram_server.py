@@ -60,7 +60,7 @@ _job_state: dict = {
 # 크롤링 잡 실행 (instagram_scraper.py의 run() 재사용)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _run_crawl_job(usernames: list[str], amount: int):
+def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
     global _job_state
     with _job_lock:
         _job_state.update({
@@ -83,7 +83,7 @@ def _run_crawl_job(usernames: list[str], amount: int):
         IG_USERNAME = os.environ.get("IG_USERNAME", "").strip()
         IG_PASSWORD = os.environ.get("IG_PASSWORD", "").strip()
 
-        driver = _build_driver()
+        driver = _build_driver(headless=headless)
         try:
             if IG_USERNAME and IG_PASSWORD:
                 _try_login(driver)
@@ -173,7 +173,8 @@ app.add_middleware(
 
 class CrawlStartRequest(BaseModel):
     usernames: List[str]
-    amount: int = 10
+    amount:    int  = 10
+    headless:  bool = True
 
 
 @app.get("/api/health")
@@ -197,7 +198,7 @@ async def crawl_start(req: CrawlStartRequest):
     _stop_evt.clear()
     threading.Thread(
         target=_run_crawl_job,
-        args=(usernames, req.amount),
+        args=(usernames, req.amount, req.headless),
         daemon=True,
     ).start()
 
