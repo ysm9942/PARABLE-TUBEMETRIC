@@ -92,6 +92,21 @@ export const checkInstagramAgent = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * Instagram 에이전트가 TikTok 수집을 지원하는지 확인 (v1.1+ 여부)
+ * health 응답의 mode 필드에 'tiktok'이 포함되면 지원
+ */
+export const checkInstagramAgentTikTokSupport = async (): Promise<boolean> => {
+  try {
+    const res = await axios.get(`${INSTAGRAM_AGENT_URL}/api/health`, { timeout: 1500 });
+    const data = res.data;
+    if (data?.status !== 'ok') return false;
+    return (data?.mode as string | undefined)?.includes('tiktok') ?? false;
+  } catch {
+    return false;
+  }
+};
+
 /** 주기적으로 Instagram 에이전트 감지 (설치 후 자동 연결) */
 export const waitForInstagramAgent = (
   onConnected: () => void,
