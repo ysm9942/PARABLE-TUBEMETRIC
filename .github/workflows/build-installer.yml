@@ -190,9 +190,69 @@ jobs:
           path: installer/dist/TubeMetric-Instagram-Agent-Setup-macOS.pkg
           retention-days: 7
 
+  # ─── TikTok Scraper Windows .exe 빌드 ───────────────────────────────────
+  build-tiktok-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip 패키지 설치
+        run: |
+          pip install pyinstaller
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv
+
+      - name: PyInstaller 빌드
+        working-directory: installer
+        run: pyinstaller tiktok_scraper.spec --clean
+
+      - name: Inno Setup 인스톨러 빌드
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer/setup_tiktok.iss
+          options: /O"installer/Output"
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiktok-windows-installer
+          path: installer/Output/TubeMetric-TikTok-Agent-Setup-Windows.exe
+          retention-days: 7
+
+  # ─── TikTok Scraper macOS .pkg 빌드 ─────────────────────────────────────
+  build-tiktok-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip 패키지 설치
+        run: |
+          pip install pyinstaller
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv
+
+      - name: macOS PKG 빌드
+        working-directory: installer
+        run: |
+          chmod +x build_tiktok_macos.sh
+          ./build_tiktok_macos.sh
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiktok-macos-installer
+          path: installer/dist/TubeMetric-TikTok-Agent-Setup-macOS.pkg
+          retention-days: 7
+
   # ─── GitHub Release에 인스톨러 배포 ──────────────────────────────────────
   release:
-    needs: [build-windows, build-macos, build-softc-windows, build-softc-macos, build-instagram-windows, build-instagram-macos]
+    needs: [build-windows, build-macos, build-softc-windows, build-softc-macos, build-instagram-windows, build-instagram-macos, build-tiktok-windows, build-tiktok-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -256,6 +316,23 @@ jobs:
 
             > PC에 Chrome이 설치되어 있어야 합니다.
             > GitHub 토큰 없이 즉시 수집 가능
+
+            ---
+
+            ## TubeMetric TikTok Scraper (로컬 에이전트) 설치 방법
+
+            1. 아래에서 본인 OS에 맞는 파일을 다운로드하세요
+            2. 실행 후 "다음" 클릭으로 설치 완료
+            3. **별도 설치 불필요** — 실행 즉시 포트 8004에서 서버 시작
+            4. TubeMetric 사이트의 [TikTok 분석] 탭에서 로컬 에이전트 모드로 수집 가능
+
+            | OS | 파일 |
+            |---|---|
+            | Windows 10/11 | `TubeMetric-TikTok-Agent-Setup-Windows.exe` |
+            | macOS (Intel/Apple Silicon) | `TubeMetric-TikTok-Agent-Setup-macOS.pkg` |
+
+            > PC에 Chrome이 설치되어 있어야 합니다.
+            > 고정됨(Pinned) 영상 제외 평균 조회수 계산
           files: |
             artifacts/windows-installer/TubeMetric-Agent-Setup-Windows.exe
             artifacts/macos-installer/TubeMetric-Agent-Setup-macOS.pkg
@@ -263,6 +340,8 @@ jobs:
             artifacts/softc-macos-installer/TubeMetric-SoftC-Scraper-Setup-macOS.pkg
             artifacts/instagram-windows-installer/TubeMetric-Instagram-Agent-Setup-Windows.exe
             artifacts/instagram-macos-installer/TubeMetric-Instagram-Agent-Setup-macOS.pkg
+            artifacts/tiktok-windows-installer/TubeMetric-TikTok-Agent-Setup-Windows.exe
+            artifacts/tiktok-macos-installer/TubeMetric-TikTok-Agent-Setup-macOS.pkg
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
