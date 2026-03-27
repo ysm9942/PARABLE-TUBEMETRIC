@@ -83,7 +83,7 @@ const App: React.FC = () => {
 
   // TikTok: 같은 에이전트(8003)지만 v1.1+ 필요
   const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
-  const [tkHeadless, setTkHeadless] = useState<boolean>(true);
+  const [tkHeadless, setTkHeadless] = useState<boolean>(false); // TikTok은 headless OFF가 기본 (봇 감지 우회)
 
   // 앱 시작 시 로컬 에이전트 감지
   useEffect(() => {

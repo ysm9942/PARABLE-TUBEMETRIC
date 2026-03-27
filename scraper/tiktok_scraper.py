@@ -4,6 +4,9 @@ TikTok 동영상 스크래퍼 — undetected_chromedriver 기반 DOM 파싱
 • 프로필 페이지에서 최신 영상 수집
 • '고정됨(Pinned)' 영상 자동 제외
 • 조회수만 그리드에서 파싱 (좋아요/댓글은 개별 페이지 진입 필요 → 생략)
+
+주의: TikTok은 headless 모드에서 봇 감지 확률이 매우 높음.
+      headless=False(기본값)로 실제 브라우저처럼 실행 권장.
 """
 
 import re
@@ -37,7 +40,11 @@ def _parse_num(text: str) -> int:
 
 # ── 드라이버 빌드 ─────────────────────────────────────────────────────────
 
-def _build_driver(headless: bool = True):
+def _build_driver(headless: bool = False):
+    """
+    headless=False (기본값): TikTok 봇 감지 우회에 유리.
+    headless=True: 서버 환경 등 화면 없는 경우만 사용.
+    """
     options = uc.ChromeOptions()
     if headless:
         options.add_argument("--headless=new")
@@ -45,8 +52,14 @@ def _build_driver(headless: bool = True):
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=ko-KR,ko")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    return uc.Chrome(options=options)
+    # 실제 사용자처럼 보이게
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+    options.add_argument("--start-maximized")
+    return uc.Chrome(options=options, use_subprocess=True)
 
 
 # ── JS 헬퍼 ──────────────────────────────────────────────────────────────
@@ -122,15 +135,27 @@ def _extract_item(driver, item) -> dict | None:
 def fetch_user_videos(driver, username: str, amount: int) -> dict:
     username = username.lstrip("@").strip()
     url = f"https://www.tiktok.com/@{username}"
+
+    # 첫 방문: TikTok 메인 먼저 → 쿠키/세션 확보 후 프로필 이동
+    try:
+        if "tiktok.com" not in driver.current_url:
+            driver.get("https://www.tiktok.com/")
+            time.sleep(3)
+    except Exception:
+        pass
+
     driver.get(url)
 
-    # 페이지 로드 대기
+    # 페이지 로드 대기 — 최대 25초, 봇 감지 시에도 기다림
     try:
-        WebDriverWait(driver, 15).until(
+        WebDriverWait(driver, 25).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-e2e="user-post-item"]'))
         )
     except Exception:
-        time.sleep(4)
+        # 로드 실패 시 추가 대기 후 재시도
+        time.sleep(5)
+        driver.execute_script("window.scrollTo(0, 300);")
+        time.sleep(2)
 
     videos: list[dict] = []
     seen_ids: set[str] = set()
