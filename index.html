@@ -12,93 +12,89 @@
           extend: {
             fontFamily: {
               sans: ['Pretendard Variable', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
-            },
-            colors: {
-              surface: {
-                base:    '#05050e',
-                sidebar: '#08081a',
-                card:    '#0c0c22',
-                raised:  '#111132',
-                modal:   '#13133a',
-              }
             }
           }
         }
       }
     </script>
     <style>
+        /* ── 라이트 테마 변수 ─────────────────────────────────────── */
         :root {
-            --bg-base:      #05050e;
-            --bg-sidebar:   #08081a;
-            --bg-card:      #0c0c22;
-            --bg-raised:    #111132;
-            --border:       rgba(255,255,255,0.09);
-            --border-md:    rgba(255,255,255,0.14);
-            --border-lg:    rgba(255,255,255,0.20);
-            --text-primary: #f1f1f8;
-            --text-secondary: #9494b8;
-            --text-muted:   #5c5c7a;
-            --accent:       #818cf8;
+            --bg-page:      #f2f3f8;
+            --bg-sidebar:   #ffffff;
+            --bg-card:      #ffffff;
+            --bg-input:     #f5f6fc;
+            --bg-hover:     rgba(0,0,0,0.04);
+            --border:       #e2e3ef;
+            --border-md:    #d0d2e4;
+            --text-heading: #0f0f23;
+            --text-body:    #2a2a42;
+            --text-sub:     #5c5c7c;
+            --text-muted:   #8f8fac;
+            --text-dim:     #b0b0c8;
+            --accent:       #6d28d9;
+            --accent-soft:  rgba(109,40,217,0.08);
         }
 
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; }
 
-        html { font-size: 14px; }
+        html, body, #root {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
 
         body {
             font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-primary);
+            background-color: var(--bg-page);
+            color: var(--text-body);
+            font-size: 14px;
+            line-height: 1.5;
             font-feature-settings: 'tnum' on, 'lnum' on;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             -webkit-user-select: none;
             -moz-user-select: none;
-            -ms-user-select: none;
             user-select: none;
         }
 
         input, textarea, [contenteditable="true"] {
             -webkit-user-select: auto !important;
-            -moz-user-select: auto !important;
-            -ms-user-select: auto !important;
             user-select: auto !important;
         }
 
-        /* ── scrollbar ─────────────────────────────────────────── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        /* ── 스크롤바 ──────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-            background: rgba(129,140,248,0.20);
+            background: rgba(109,40,217,0.18);
             border-radius: 99px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(129,140,248,0.38);
-        }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(109,40,217,0.30); }
 
-        /* ── glow pulse for status dot ──────────────────────────── */
+        /* ── 사이드바 활성 아이템 ──────────────────────────────── */
+        .nav-active {
+            background: linear-gradient(90deg, rgba(109,40,217,0.10) 0%, rgba(109,40,217,0.02) 100%);
+            border-left: 2px solid #6d28d9;
+            padding-left: 9px !important;
+            color: #5b21b6 !important;
+        }
+        .nav-active svg { color: #6d28d9 !important; }
+
+        /* ── 상태 dot ──────────────────────────────────────────── */
         @keyframes glow-pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
-            50%       { box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+            50%       { box-shadow: 0 0 0 4px rgba(16,185,129,0); }
         }
         .dot-live { animation: glow-pulse 2s ease-in-out infinite; }
 
-        /* ── sidebar gradient active item ───────────────────────── */
-        .nav-active {
-            background: linear-gradient(90deg, rgba(129,140,248,0.18) 0%, rgba(129,140,248,0.04) 100%);
-            border-left: 2px solid #818cf8;
-            padding-left: 9px;
-        }
-
-        /* ── bounce-x ───────────────────────────────────────────── */
         @keyframes bounce-x {
             0%, 100% { transform: translateX(0); }
             50%       { transform: translateX(5px); }
         }
         .animate-bounce-x { animation: bounce-x 1s infinite; }
-
-        /* ── number font on tables ──────────────────────────────── */
-        .tabular-nums { font-variant-numeric: tabular-nums; }
     </style>
     <script>
         // 마우스 우클릭 차단
@@ -145,7 +141,7 @@
 }
 </script>
 </head>
-<body class="antialiased overflow-hidden">
+<body class="antialiased">
     <div id="root"></div>
     <!-- Vite entry point: index.tsx를 모듈로 로드합니다. -->
     <script type="module" src="/index.tsx"></script>
