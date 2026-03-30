@@ -44,7 +44,8 @@ import {
   Tv2,
   Camera,
   History,
-  Music
+  Music,
+  Package2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
@@ -53,7 +54,7 @@ import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInst
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -1271,6 +1272,25 @@ const App: React.FC = () => {
                     {[channelResults.length > 0, videoResults.length > 0, adResults.length > 0, scraperResults.length > 0].filter(Boolean).length}
                   </span>
                 )}
+              </button>
+            </div>
+          </div>
+
+          {/* INSTALL */}
+          <div>
+            <div className="px-2 mb-2 text-[10px] font-semibold text-zinc-200 tracking-widest uppercase">설치</div>
+            <div className="space-y-0.5">
+              <button
+                onClick={() => setActiveTab('install')}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group ${
+                  activeTab === 'install'
+                    ? 'bg-violet-600/15 text-violet-300 border border-violet-500/20'
+                    : 'text-zinc-300 hover:bg-white/5 hover:text-zinc-300'
+                }`}
+              >
+                <Package2 size={14} className={activeTab === 'install' ? 'text-violet-400' : 'text-zinc-200 group-hover:text-zinc-200'} />
+                <span className="flex-1 text-left">로컬 에이전트 설치</span>
+                {activeTab === 'install' && <div className="w-1 h-1 bg-violet-400 rounded-full" />}
               </button>
             </div>
           </div>
@@ -3122,6 +3142,143 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+
+          ) : activeTab === 'install' ? (
+            /* ══════════════════════════════════════════════════════════
+               로컬 에이전트 통합 설치 탭
+               ══════════════════════════════════════════════════════════ */
+            <div className="space-y-6 animate-in fade-in duration-300 max-w-2xl">
+              <div>
+                <h2 className="text-xl font-semibold text-white">로컬 에이전트 설치</h2>
+                <p className="text-xs text-zinc-400 mt-1">라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다</p>
+              </div>
+
+              {/* 통합 설치 카드 */}
+              <div className="bg-gradient-to-br from-violet-600/10 to-blue-600/10 border border-violet-500/20 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-violet-600/20 flex items-center justify-center">
+                    <Package2 size={20} className="text-violet-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">TubeMetric 전체 에이전트</div>
+                    <div className="text-xs text-zinc-400">Python · 모든 패키지 내장 — 별도 설치 불필요</div>
+                  </div>
+                  <span className="ml-auto text-[10px] bg-violet-600/30 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20">권장</span>
+                </div>
+
+                {/* 포함 항목 */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                  {[
+                    { icon: Tv2,       color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', label: '라이브 지표 분석', port: '8001' },
+                    { icon: Instagram, color: 'text-pink-400',   bg: 'bg-pink-500/10 border-pink-500/20',     label: 'Instagram 분석', port: '8003' },
+                    { icon: Music,     color: 'text-cyan-400',   bg: 'bg-cyan-500/10 border-cyan-500/20',     label: 'TikTok 분석',    port: '8003' },
+                  ].map(({ icon: Icon, color, bg, label, port }) => (
+                    <div key={label} className={`flex items-center gap-2.5 p-3 rounded-xl border ${bg}`}>
+                      <Icon size={15} className={color} />
+                      <div>
+                        <div className="text-xs font-medium text-zinc-200">{label}</div>
+                        <div className="text-[10px] text-zinc-500">port {port}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 특징 */}
+                <div className="grid grid-cols-2 gap-2 mb-6 text-xs text-zinc-300">
+                  {[
+                    'Python 런타임 내장 — pip 불필요',
+                    'Windows 시작 시 자동 실행',
+                    'Chrome 버전 자동 감지 (146, 147, ...)',
+                    'bot 감지 우회 (yt-dlp 쿠키 방식)',
+                  ].map(t => (
+                    <p key={t} className="flex items-center gap-1.5">
+                      <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                      {t}
+                    </p>
+                  ))}
+                </div>
+
+                {/* 다운로드 버튼 */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {(detectOS() === 'windows' || detectOS() === 'other') && (
+                    <a
+                      href={ALL_INSTALLER_URLS.windows}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        setWaitingForAgent(true);
+                        const stop = waitForLocalAgent(() => {
+                          setLocalAgentRunning(true);
+                          setWaitingForAgent(false);
+                          checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
+                        });
+                        setTimeout(stop, 300000);
+                      }}
+                      className="flex items-center justify-center gap-2 flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl transition-colors"
+                    >
+                      <Download size={16} /> Windows (.exe) 다운로드
+                    </a>
+                  )}
+                  {(detectOS() === 'macos' || detectOS() === 'other') && (
+                    <a
+                      href={ALL_INSTALLER_URLS.macos}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        setWaitingForAgent(true);
+                        const stop = waitForLocalAgent(() => {
+                          setLocalAgentRunning(true);
+                          setWaitingForAgent(false);
+                          checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
+                        });
+                        setTimeout(stop, 300000);
+                      }}
+                      className="flex items-center justify-center gap-2 flex-1 py-3 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium rounded-xl transition-colors"
+                    >
+                      <Download size={16} /> macOS (.pkg) 다운로드
+                    </a>
+                  )}
+                </div>
+
+                {waitingForAgent && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-zinc-400">
+                    <Loader2 size={12} className="animate-spin" />
+                    설치 완료 후 에이전트 자동 감지 대기 중...
+                  </div>
+                )}
+              </div>
+
+              {/* 연결 상태 */}
+              <div className="bg-white/[0.02] border border-white/8 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-medium text-zinc-300 mb-3">현재 에이전트 연결 상태</p>
+                {[
+                  { label: '라이브 지표 에이전트', port: '8001', ok: localAgentRunning },
+                  { label: 'Instagram · TikTok 에이전트', port: '8003', ok: igLocalRunning },
+                ].map(({ label, port, ok }) => (
+                  <div key={port} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-zinc-300">
+                      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
+                      {label} <span className="text-zinc-600">:{port}</span>
+                    </div>
+                    <span className={`text-[10px] font-medium ${ok ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                      {ok ? '연결됨' : '미연결'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 설치 안내 */}
+              <div className="bg-white/[0.02] border border-white/8 rounded-xl p-4 space-y-2 text-xs text-zinc-400">
+                <p className="font-medium text-zinc-300">설치 방법</p>
+                <ol className="space-y-1 list-decimal list-inside">
+                  <li>위 다운로드 버튼으로 파일을 받습니다</li>
+                  <li>다운로드된 파일을 실행하고 <strong className="text-zinc-300">다음</strong>을 클릭합니다</li>
+                  <li>설치가 완료되면 두 에이전트가 자동으로 시작됩니다</li>
+                  <li>이 페이지에서 연결 상태가 <span className="text-emerald-400">연결됨</span>으로 바뀌면 수집 가능합니다</li>
+                </ol>
+                <p className="text-zinc-500 pt-1">※ PC에 Chrome이 설치되어 있어야 합니다</p>
+              </div>
             </div>
 
           ) : (
