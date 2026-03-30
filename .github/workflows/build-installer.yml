@@ -190,6 +190,72 @@ jobs:
           path: installer/dist/TubeMetric-Instagram-Agent-Setup-macOS.pkg
           retention-days: 7
 
+  # ─── 전체 통합 에이전트 Windows 빌드 (라이브 + Instagram·TikTok) ─────────
+  build-all-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip 패키지 설치 (전체)
+        run: |
+          pip install pyinstaller
+          pip install -r backend/requirements.txt
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp
+
+      - name: PyInstaller 빌드 — tubemetric-agent
+        working-directory: installer
+        run: pyinstaller tubemetric.spec --clean
+
+      - name: PyInstaller 빌드 — instagram-scraper (Instagram + TikTok)
+        working-directory: installer
+        run: pyinstaller instagram_scraper.spec --clean
+
+      - name: Inno Setup 통합 인스톨러 빌드
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer/setup_all.iss
+          options: /O"installer/Output"
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-windows-installer
+          path: installer/Output/TubeMetric-All-Agents-Setup-Windows.exe
+          retention-days: 7
+
+  # ─── 전체 통합 에이전트 macOS 빌드 ──────────────────────────────────────
+  build-all-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip 패키지 설치 (전체)
+        run: |
+          pip install pyinstaller
+          pip install -r backend/requirements.txt
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp
+
+      - name: macOS 통합 PKG 빌드
+        working-directory: installer
+        run: |
+          chmod +x build_all_macos.sh
+          ./build_all_macos.sh
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-macos-installer
+          path: installer/dist/TubeMetric-All-Agents-Setup-macOS.pkg
+          retention-days: 7
+
   # ─── TikTok Scraper Windows .exe 빌드 ───────────────────────────────────
   build-tiktok-windows:
     runs-on: windows-latest
@@ -252,7 +318,7 @@ jobs:
 
   # ─── GitHub Release에 인스톨러 배포 ──────────────────────────────────────
   release:
-    needs: [build-windows, build-macos, build-softc-windows, build-softc-macos, build-instagram-windows, build-instagram-macos, build-tiktok-windows, build-tiktok-macos]
+    needs: [build-all-windows, build-all-macos, build-windows, build-macos, build-softc-windows, build-softc-macos, build-instagram-windows, build-instagram-macos, build-tiktok-windows, build-tiktok-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -270,6 +336,22 @@ jobs:
           tag_name: local-agent-latest
           name: "TubeMetric Local Agent (최신)"
           body: |
+            ## ⭐ 통합 설치 (권장) — 라이브 지표 + Instagram + TikTok 한 번에
+
+            모든 로컬 에이전트를 한 번의 설치로 구성합니다.
+            Python 및 모든 패키지 내장 — 별도 설치 불필요.
+
+            | OS | 파일 |
+            |---|---|
+            | Windows 10/11 | `TubeMetric-All-Agents-Setup-Windows.exe` |
+            | macOS (Intel/Apple Silicon) | `TubeMetric-All-Agents-Setup-macOS.pkg` |
+
+            설치 후 Windows 시작 시 자동 실행:
+            - **라이브 지표 에이전트** → 포트 8001
+            - **Instagram·TikTok 에이전트** → 포트 8003
+
+            ---
+
             ## TubeMetric Local Agent 설치 방법
 
             1. 아래에서 본인 OS에 맞는 파일을 다운로드하세요
@@ -334,6 +416,8 @@ jobs:
             > PC에 Chrome이 설치되어 있어야 합니다.
             > 고정됨(Pinned) 영상 제외 평균 조회수 계산
           files: |
+            artifacts/all-windows-installer/TubeMetric-All-Agents-Setup-Windows.exe
+            artifacts/all-macos-installer/TubeMetric-All-Agents-Setup-macOS.pkg
             artifacts/windows-installer/TubeMetric-Agent-Setup-Windows.exe
             artifacts/macos-installer/TubeMetric-Agent-Setup-macOS.pkg
             artifacts/softc-windows-installer/TubeMetric-SoftC-Scraper-Setup-Windows.exe

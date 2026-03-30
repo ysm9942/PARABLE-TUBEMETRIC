@@ -14,6 +14,12 @@ export const TIKTOK_AGENT_URL     = 'http://localhost:8004';
 const GITHUB_RELEASE_BASE =
   'https://github.com/ysm9942/PARABLE-TUBEMETRIC/releases/latest/download';
 
+/** 통합 설치 (라이브 지표 + Instagram + TikTok 한 번에) */
+export const ALL_INSTALLER_URLS = {
+  windows: `${GITHUB_RELEASE_BASE}/TubeMetric-All-Agents-Setup-Windows.exe`,
+  macos:   `${GITHUB_RELEASE_BASE}/TubeMetric-All-Agents-Setup-macOS.pkg`,
+};
+
 export const INSTALLER_URLS = {
   windows: `${GITHUB_RELEASE_BASE}/TubeMetric-Agent-Setup-Windows.exe`,
   macos: `${GITHUB_RELEASE_BASE}/TubeMetric-Agent-Setup-macOS.pkg`,
