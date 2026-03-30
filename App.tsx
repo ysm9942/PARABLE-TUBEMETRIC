@@ -836,7 +836,7 @@ const App: React.FC = () => {
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="PIN Code"
                 autoFocus
-                className="w-full bg-white border border-[#e0e1ef] rounded-xl py-4 px-6 text-center text-2xl font-medium tracking-[0.4em] text-white focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-[#a8a8c0] placeholder:tracking-normal placeholder:text-base"
+                className="w-full bg-white border border-[#e0e1ef] rounded-xl py-4 px-6 text-center text-2xl font-medium tracking-[0.4em] text-[#1a1a2e] focus:outline-none focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-[#a8a8c0] placeholder:tracking-normal placeholder:text-base"
               />
             </div>
             <button
@@ -1397,7 +1397,7 @@ const App: React.FC = () => {
                         onChange={e => setChannelDraft(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addChannelItem()}
                         placeholder="UC코드 또는 채널 URL 입력 후 Enter"
-                        className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                        className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                       />
                       <button
                         onClick={addChannelItem}
@@ -1724,7 +1724,7 @@ const App: React.FC = () => {
                       onChange={e => setVideoDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addVideoItem()}
                       placeholder="영상 URL 또는 ID 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     />
                     <button onClick={addVideoItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -1895,7 +1895,7 @@ const App: React.FC = () => {
                       onChange={e => setAdDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addAdItem()}
                       placeholder="UC코드 또는 채널 URL 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     />
                     <button onClick={addAdItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -2339,7 +2339,7 @@ const App: React.FC = () => {
                       onChange={e => setLiveDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addLiveItem()}
                       placeholder="크리에이터 채널 ID 입력 후 Enter (또는 chzzk:ID)"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
+                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
                     />
                     <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -2662,7 +2662,7 @@ const App: React.FC = () => {
                       onChange={e => setIgDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addIgItem()}
                       placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
+                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
                     />
                     <button onClick={addIgItem} className="flex items-center gap-1.5 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -3004,7 +3004,7 @@ const App: React.FC = () => {
                       onChange={e => setTkDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addTkItem()}
                       placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-white font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
                     />
                     <button onClick={addTkItem} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
