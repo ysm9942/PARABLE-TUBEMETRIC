@@ -51,7 +51,7 @@ import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, an
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
-import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
+import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -2162,12 +2162,12 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="space-y-4 text-xs text-zinc-300">
-                      <p>라이브 지표 수집을 위해 PC에 소형 프로그램을 설치합니다.</p>
+                      <p>라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다.</p>
                       <div className="bg-white/4 rounded-lg p-3 space-y-1.5">
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Python 런타임 포함 — 별도 설치 불필요</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Python 런타임 및 모든 패키지 내장</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 라이브 지표(8001) + Instagram·TikTok(8003) 동시 설치</p>
                         <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Windows 시작 시 자동 실행</p>
                         <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 본인 IP/VPN으로 수집 (차단 우회)</p>
-                        <p className="flex items-center gap-2"><Info size={13} className="text-zinc-400" /> 첫 실행 시 Chromium 자동 다운로드 (~150MB)</p>
                       </div>
                     </div>
 
@@ -2175,7 +2175,7 @@ const App: React.FC = () => {
                       {/* OS별 다운로드 버튼 */}
                       {(detectOS() === 'windows' || detectOS() === 'other') && (
                         <a
-                          href={INSTALLER_URLS.windows}
+                          href={ALL_INSTALLER_URLS.windows}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
@@ -2196,7 +2196,7 @@ const App: React.FC = () => {
                       )}
                       {(detectOS() === 'macos' || detectOS() === 'other') && (
                         <a
-                          href={INSTALLER_URLS.macos}
+                          href={ALL_INSTALLER_URLS.macos}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
@@ -2523,10 +2523,10 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     <div className="space-y-4 text-xs text-zinc-300">
-                      <p>Instagram 릴스 지표를 PC의 Chrome으로 직접 수집하는 에이전트입니다.</p>
+                      <p>라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다.</p>
                       <div className="bg-white/4 rounded-lg p-3 space-y-1.5">
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> GitHub 토큰 없이 즉시 수집</p>
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> undetected_chromedriver — bot 감지 우회</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Python 런타임 및 모든 패키지 내장</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 라이브 지표(8001) + Instagram·TikTok(8003) 동시 설치</p>
                         <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Windows 시작 시 자동 실행</p>
                         <p className="flex items-center gap-2"><Info size={13} className="text-zinc-400" /> PC에 Chrome이 설치되어 있어야 합니다</p>
                       </div>
@@ -2534,7 +2534,7 @@ const App: React.FC = () => {
                     <div className="mt-6 space-y-2">
                       {(detectOS() === 'windows' || detectOS() === 'other') && (
                         <a
-                          href={INSTAGRAM_INSTALLER_URLS.windows}
+                          href={ALL_INSTALLER_URLS.windows}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
@@ -2554,7 +2554,7 @@ const App: React.FC = () => {
                       )}
                       {(detectOS() === 'macos' || detectOS() === 'other') && (
                         <a
-                          href={INSTAGRAM_INSTALLER_URLS.macos}
+                          href={ALL_INSTALLER_URLS.macos}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
@@ -2864,18 +2864,18 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     <div className="space-y-4 text-xs text-zinc-300">
-                      <p>TikTok 영상 지표를 PC의 Chrome으로 직접 수집하는 에이전트입니다.</p>
+                      <p>라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다.</p>
                       <div className="bg-white/4 rounded-lg p-3 space-y-1.5">
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 고정됨(Pinned) 영상 제외 평균 조회수 계산</p>
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> undetected_chromedriver — bot 감지 우회</p>
-                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Windows 시작 시 자동 실행</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> Python 런타임 및 모든 패키지 내장</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> 라이브 지표(8001) + Instagram·TikTok(8003) 동시 설치</p>
+                        <p className="flex items-center gap-2"><CheckCircle2 size={13} className="text-emerald-400" /> yt-dlp 쿠키 방식 — bot 감지 우회</p>
                         <p className="flex items-center gap-2"><Info size={13} className="text-zinc-400" /> PC에 Chrome이 설치되어 있어야 합니다</p>
                       </div>
                     </div>
                     <div className="mt-6 space-y-2">
                       {(detectOS() === 'windows' || detectOS() === 'other') && (
                         <a
-                          href={INSTAGRAM_INSTALLER_URLS.windows}
+                          href={ALL_INSTALLER_URLS.windows}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
@@ -2896,7 +2896,7 @@ const App: React.FC = () => {
                       )}
                       {(detectOS() === 'macos' || detectOS() === 'other') && (
                         <a
-                          href={INSTAGRAM_INSTALLER_URLS.macos}
+                          href={ALL_INSTALLER_URLS.macos}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => {
