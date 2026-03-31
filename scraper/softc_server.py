@@ -649,7 +649,7 @@ def main():
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-    uvicorn.run(app, host="127.0.0.1", port=8002, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=8002, log_level="warning", log_config=None)
 
 
 if __name__ == "__main__":
