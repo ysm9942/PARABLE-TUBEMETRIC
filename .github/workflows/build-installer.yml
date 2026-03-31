@@ -45,6 +45,7 @@ jobs:
   # ─── macOS .pkg 인스톨러 빌드 ─────────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -53,11 +54,14 @@ jobs:
           python-version: "3.11"
 
       - name: pip 패키지 설치
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: |
           pip install pyinstaller
           pip install -r backend/requirements.txt
 
       - name: macOS PKG 빌드
+        timeout-minutes: 20
         working-directory: installer
         run: |
           chmod +x build_macos.sh
@@ -105,6 +109,7 @@ jobs:
   # ─── SoftC Scraper macOS .pkg 빌드 ────────────────────────────────────────
   build-softc-macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -118,6 +123,7 @@ jobs:
           pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium beautifulsoup4 lxml
 
       - name: macOS PKG 빌드
+        timeout-minutes: 20
         working-directory: installer
         run: |
           chmod +x build_softc_macos.sh
@@ -165,6 +171,7 @@ jobs:
   # ─── Instagram Scraper macOS .pkg 빌드 ───────────────────────────────────
   build-instagram-macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -178,6 +185,7 @@ jobs:
           pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv
 
       - name: macOS PKG 빌드
+        timeout-minutes: 20
         working-directory: installer
         run: |
           chmod +x build_instagram_macos.sh
@@ -230,6 +238,7 @@ jobs:
   # ─── 전체 통합 에이전트 macOS 빌드 ──────────────────────────────────────
   build-all-macos:
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -238,12 +247,15 @@ jobs:
           python-version: "3.11"
 
       - name: pip 패키지 설치 (전체)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: |
           pip install pyinstaller
           pip install -r backend/requirements.txt
           pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp
 
       - name: macOS 통합 PKG 빌드
+        timeout-minutes: 35
         working-directory: installer
         run: |
           chmod +x build_all_macos.sh
@@ -291,6 +303,7 @@ jobs:
   # ─── TikTok Scraper macOS .pkg 빌드 ─────────────────────────────────────
   build-tiktok-macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -304,6 +317,7 @@ jobs:
           pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv
 
       - name: macOS PKG 빌드
+        timeout-minutes: 20
         working-directory: installer
         run: |
           chmod +x build_tiktok_macos.sh
