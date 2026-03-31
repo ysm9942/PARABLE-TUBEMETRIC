@@ -198,7 +198,7 @@ jobs:
           path: installer/dist/TubeMetric-Instagram-Agent-Setup-macOS.pkg
           retention-days: 7
 
-  # ─── 전체 통합 에이전트 Windows 빌드 (라이브 + Instagram·TikTok) ─────────
+  # ─── 전체 통합 에이전트 Windows 빌드 (라이브 + SoftC + Instagram·TikTok) ──
   build-all-windows:
     runs-on: windows-latest
     steps:
@@ -212,11 +212,15 @@ jobs:
         run: |
           pip install pyinstaller
           pip install -r backend/requirements.txt
-          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp beautifulsoup4 lxml
 
       - name: PyInstaller 빌드 — tubemetric-agent
         working-directory: installer
         run: pyinstaller tubemetric.spec --clean
+
+      - name: PyInstaller 빌드 — softc-scraper (라이브 headless=False)
+        working-directory: installer
+        run: pyinstaller softc_scraper.spec --clean
 
       - name: PyInstaller 빌드 — instagram-scraper (Instagram + TikTok)
         working-directory: installer
@@ -252,7 +256,7 @@ jobs:
         run: |
           pip install pyinstaller
           pip install -r backend/requirements.txt
-          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp
+          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp beautifulsoup4 lxml
 
       - name: macOS 통합 PKG 빌드
         timeout-minutes: 35

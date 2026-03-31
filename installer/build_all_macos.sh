@@ -1,19 +1,23 @@
 #!/bin/bash
 # macOS 통합 PKG 빌드 스크립트
-# 라이브 지표(8001) + Instagram·TikTok(8003) 에이전트를 하나의 .pkg로 패키징
+# 라이브 지표(8001) + SoftC(8002) + Instagram·TikTok(8003) 에이전트를 하나의 .pkg로 패키징
 set -e
 
 BUNDLE_ID_LIVE="com.tubemetric.local-agent"
+BUNDLE_ID_SOFTC="com.tubemetric.softc-scraper"
 BUNDLE_ID_IG="com.tubemetric.instagram-scraper"
-VERSION="1.1"
+VERSION="1.2"
 DIST_DIR="dist"
 PKG_ROOT="${DIST_DIR}/pkg_root_all"
 
 echo "=== TubeMetric All Agents macOS PKG 빌드 ==="
 
-# ── 1. PyInstaller 빌드 (두 스펙 순서대로) ────────────────────────────────
+# ── 1. PyInstaller 빌드 (세 스펙 순서대로) ────────────────────────────────
 echo "[1/5] PyInstaller: tubemetric-agent 빌드..."
 pyinstaller tubemetric.spec --clean
+
+echo "[1/5] PyInstaller: softc-scraper 빌드..."
+pyinstaller softc_scraper.spec --clean
 
 echo "[1/5] PyInstaller: instagram-scraper 빌드..."
 pyinstaller instagram_scraper.spec --clean
@@ -89,8 +93,9 @@ LAGENT
 
 # ── 4. 각 에이전트 .app 생성 ─────────────────────────────────────────────
 echo "[3/5] .app 번들 생성..."
-make_app "tubemetric-agent"  "TubeMetric Live Agent"             "${BUNDLE_ID_LIVE}" "live"
-make_app "instagram-scraper" "TubeMetric Instagram TikTok Agent" "${BUNDLE_ID_IG}"   "instagram"
+make_app "tubemetric-agent"  "TubeMetric Live Agent"             "${BUNDLE_ID_LIVE}"  "live"
+make_app "softc-scraper"     "TubeMetric SoftC Agent"            "${BUNDLE_ID_SOFTC}" "softc"
+make_app "instagram-scraper" "TubeMetric Instagram TikTok Agent" "${BUNDLE_ID_IG}"    "instagram"
 
 # ── 5. 통합 PKG 빌드 ─────────────────────────────────────────────────────
 echo "[4/5] 통합 PKG 패키징..."
