@@ -602,13 +602,18 @@ const App: React.FC = () => {
 
       let results: LiveCreatorResult[];
 
-      // 로컬 에이전트 (headless=False · undetected_chromedriver · port 8002)
-      if (!softcLocalRunning) {
-        setLiveErrorMsg('로컬 에이전트가 실행 중이지 않습니다. 설치 후 다시 시도하세요.');
+      // 우선순위: SoftC(8002) > tubemetric-agent(8001) > 에러
+      if (softcLocalRunning) {
+        // SoftC: headless=False · undetected_chromedriver (bot 감지 우회 최강)
+        results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate, [], SOFTC_AGENT_URL);
+      } else if (localAgentRunning) {
+        // tubemetric-agent: Playwright + 설치된 Chrome (all-in-one 인스톨러 포함)
+        results = await fetchLiveStreams(creators, liveStartDate, liveEndDate, [], LOCAL_AGENT_URL);
+      } else {
+        setLiveErrorMsg('로컬 에이전트가 실행 중이지 않습니다. 로컬 에이전트 설치 탭에서 설치 후 다시 시도하세요.');
         setLiveJobStatus('error');
         return;
       }
-      results = await fetchSoftcStreams(creators, liveStartDate, liveEndDate, [], SOFTC_AGENT_URL);
 
       setLiveResults(results);
       const errors = results.filter((r: any) => r.status === 'error');
@@ -2084,27 +2089,42 @@ const App: React.FC = () => {
               </div>
 
               {/* 로컬 에이전트 배너 */}
-              {!softcLocalRunning && (
-                <div className="bg-orange-500/5 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
-                  <AlertCircle size={16} className="text-orange-600 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-orange-300">SoftC 로컬 에이전트가 필요합니다</p>
-                    <p className="text-xs text-[#5a5a7a] mt-1">
-                      PC에 에이전트를 설치하면 headless=False Chrome으로 직접 수집합니다. bot 감지 우회에 효과적입니다.
-                    </p>
+              {softcLocalRunning ? (
+                /* SoftC 연결됨 — 최우선 */
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                  <span className="text-xs text-emerald-600 font-medium">SoftC 에이전트 연결됨 (port 8002) · headless=False 수집 모드</span>
+                </div>
+              ) : localAgentRunning ? (
+                /* tubemetric-agent 연결됨 — all-in-one 설치로 충분 */
+                <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-600 font-medium">라이브 에이전트 연결됨 (port 8001) · Playwright 수집 모드</span>
                   </div>
                   <button
                     onClick={() => setShowSoftcInstallModal(true)}
-                    className="shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                    className="shrink-0 px-2.5 py-1 bg-[#f0f0f8] hover:bg-orange-50 text-[#8888a8] hover:text-orange-600 text-[11px] rounded-lg transition-colors border border-[#e0e1ef]"
                   >
-                    설치하기
+                    SoftC 업그레이드 (선택)
                   </button>
                 </div>
-              )}
-              {softcLocalRunning && (
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="text-xs text-emerald-600 font-medium">로컬 에이전트 연결됨 (port 8002)</span>
+              ) : (
+                /* 에이전트 없음 — 설치 필요 */
+                <div className="bg-orange-500/5 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-orange-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-orange-600">로컬 에이전트가 필요합니다</p>
+                    <p className="text-xs text-[#5a5a7a] mt-1">
+                      로컬 에이전트 설치 탭에서 전체 패키지를 설치하면 바로 수집 가능합니다.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('install')}
+                    className="shrink-0 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    설치 탭으로 이동
+                  </button>
                 </div>
               )}
 
