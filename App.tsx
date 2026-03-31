@@ -2422,7 +2422,7 @@ const App: React.FC = () => {
                       {liveJobStatus === 'done'  && <CheckCircle2 size={13} className="shrink-0" />}
                       {liveJobStatus === 'error' && <AlertCircle size={13} className="shrink-0" />}
                       <span>{{
-                        submitting: 'softc.one에서 수집 중... (로컬 Chrome · headless=False)',
+                        submitting: softcLocalRunning ? 'softc.one에서 수집 중... (headless=False Chrome)' : 'softc.one에서 수집 중... (Playwright)',
                         done:       '완료! 아래에서 결과를 확인하세요.',
                         error:      liveErrorMsg ? `오류: ${liveErrorMsg}` : '백엔드 연결 실패 또는 수집 오류',
                         idle:       '',
@@ -2433,7 +2433,7 @@ const App: React.FC = () => {
                   <div className="mt-auto">
                     <button
                       onClick={handleLiveRequest}
-                      disabled={liveJobStatus === 'submitting' || !softcLocalRunning}
+                      disabled={liveJobStatus === 'submitting' || (!softcLocalRunning && !localAgentRunning)}
                       className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
                     >
                       {liveJobStatus === 'submitting'
