@@ -7,6 +7,7 @@ Playwright가 없으면 httpx로 직접 접근을 시도한다.
 """
 import asyncio
 import logging
+import os
 import re
 import traceback
 from datetime import datetime, timedelta
@@ -279,8 +280,41 @@ def _parse_html(html: str, creator_id: str, platform: str, start_year: int, cate
     return rows
 
 
+def _find_chrome_executable() -> str | None:
+    """PC에 설치된 Chrome 실행 파일 경로를 찾는다."""
+    import platform
+    import subprocess
+
+    system = platform.system()
+    if system == "Windows":
+        candidates = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ]
+        # %LocalAppData% 경로 추가
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        if local_app:
+            candidates.insert(0, os.path.join(local_app, r"Google\Chrome\Application\chrome.exe"))
+        for path in candidates:
+            if os.path.isfile(path):
+                return path
+    elif system == "Darwin":
+        path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if os.path.isfile(path):
+            return path
+    else:
+        for exe in ("google-chrome", "google-chrome-stable", "chromium-browser", "chromium"):
+            try:
+                result = subprocess.run(["which", exe], capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except Exception:
+                pass
+    return None
+
+
 async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
-    """Playwright headless Chromium + stealth 패치로 SPA 렌더링 후 HTML 반환.
+    """Playwright + PC 설치 Chrome으로 SPA 렌더링 후 HTML 반환.
 
     Returns:
         (html, api_responses): HTML 문자열과 가로챈 API JSON 응답 목록
@@ -295,18 +329,25 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
         stealth_async = None
 
     api_responses = []
+    chrome_path = _find_chrome_executable()
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
+        launch_kwargs: dict = {
+            "headless": True,
+            "args": [
                 "--disable-blink-features=AutomationControlled",
                 "--disable-features=IsolateOrigins,site-per-process",
                 "--disable-dev-shm-usage",
                 "--no-sandbox",
-                # --single-process, --disable-gpu 제거: Cloudflare가 봇으로 감지하는 주요 신호
             ],
-        )
+        }
+        if chrome_path:
+            launch_kwargs["executable_path"] = chrome_path
+            logger.info("[Playwright] Chrome 사용: %s", chrome_path)
+        else:
+            logger.warning("[Playwright] 설치된 Chrome을 찾지 못했습니다. Playwright 내장 브라우저를 시도합니다.")
+
+        browser = await p.chromium.launch(**launch_kwargs)
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
             user_agent=(
