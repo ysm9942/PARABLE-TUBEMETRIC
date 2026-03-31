@@ -814,14 +814,14 @@ const App: React.FC = () => {
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-[#f2f3f8] text-white flex items-center justify-center p-6 selection:bg-violet-500/30">
+      <div className="min-h-screen bg-[#f2f3f8] text-[#0f0f23] flex items-center justify-center p-6 selection:bg-violet-500/30">
         <div className="w-full max-w-md space-y-10 animate-in fade-in duration-500">
           <div className="text-center space-y-5">
             <div className="inline-flex items-center justify-center bg-violet-600 p-4 rounded-xl shadow-md mb-4">
               <Lock className="text-white w-8 h-8" strokeWidth={2} />
             </div>
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold text-white">
+              <h1 className="text-3xl font-semibold text-[#0f0f23]">
                 Parable TubeMetric
               </h1>
               <p className="text-[#5a5a7a] text-sm">Enter your PIN to continue</p>
@@ -866,7 +866,7 @@ const App: React.FC = () => {
                   <span className="text-white text-sm font-bold">{selectedIgUser.username[0]?.toUpperCase()}</span>
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-white">@{selectedIgUser.username}</div>
+                  <div className="text-base font-semibold text-[#0f0f23]">@{selectedIgUser.username}</div>
                   <div className="text-[13px] text-[#5a5a7a] mt-1 flex items-center gap-3">
                     <span>릴스 {selectedIgUser.reelCount}개</span>
                     <span>평균 조회수 <span className="text-pink-600 font-medium">{selectedIgUser.avgViews.toLocaleString()}</span></span>
@@ -875,7 +875,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedIgUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-[#5a5a7a] hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedIgUser(null)} className="p-2 hover:bg-[#f0f0f8] rounded-lg transition-colors text-[#5a5a7a] hover:text-[#1a1a2e]"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-left border-collapse">
@@ -930,7 +930,7 @@ const App: React.FC = () => {
                   <Tv2 size={18} className={selectedLiveCreator.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-white">{selectedLiveCreator.creatorId}</div>
+                  <div className="text-base font-semibold text-[#0f0f23]">{selectedLiveCreator.creatorId}</div>
                   <div className="text-[13px] text-[#5a5a7a] mt-1 flex items-center gap-3">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{selectedLiveCreator.platform}</span>
                     <span>방송 {selectedLiveCreator.streamCount}회</span>
@@ -939,7 +939,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedLiveCreator(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-[#5a5a7a] hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedLiveCreator(null)} className="p-2 hover:bg-[#f0f0f8] rounded-lg transition-colors text-[#5a5a7a] hover:text-[#1a1a2e]"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-left border-collapse">
@@ -983,14 +983,14 @@ const App: React.FC = () => {
                   <span className="text-white text-sm font-bold">{selectedTkUser.username[0]?.toUpperCase()}</span>
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-white">@{selectedTkUser.username}</div>
+                  <div className="text-base font-semibold text-[#0f0f23]">@{selectedTkUser.username}</div>
                   <div className="text-[13px] text-[#5a5a7a] mt-1 flex items-center gap-3">
                     <span>영상 {selectedTkUser.videoCount}개</span>
                     <span>평균 조회수 <span className="text-cyan-700 font-medium">{selectedTkUser.avgViews.toLocaleString()}</span></span>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedTkUser(null)} className="p-2 hover:bg-white/8 rounded-lg transition-colors text-[#5a5a7a] hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedTkUser(null)} className="p-2 hover:bg-[#f0f0f8] rounded-lg transition-colors text-[#5a5a7a] hover:text-[#1a1a2e]"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-left border-collapse">
@@ -1048,7 +1048,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-[#0f0f23] flex items-center gap-2">
                     {selectedChannel.channelName}
                     <a href={`https://youtube.com/channel/${selectedChannel.channelId}`} target="_blank" className="text-[#5a5a7a] hover:text-violet-600 transition-all"><ExternalLink size={16} /></a>
                   </h3>
@@ -1061,7 +1061,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={() => setSelectedChannel(null)} className="p-2 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded-lg transition-all">
+                <button onClick={() => setSelectedChannel(null)} className="p-2 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded-lg transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -1071,7 +1071,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-[#e0e1ef] pb-3">
-                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-[#0f0f23] flex items-center gap-2">
                       <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
                       Shorts <span className="text-[#5a5a7a] font-normal">({selectedChannel.shortsList.length})</span>
                     </h4>
@@ -1085,7 +1085,7 @@ const App: React.FC = () => {
                       <div key={v.id} className="bg-[#f0f0f8] p-3 rounded-xl border border-[#e4e5f0] shadow-sm flex items-center gap-4 hover:bg-[#f0f0fa] hover:border-violet-400 transition-all group">
                         <img src={v.thumbnail} className="w-12 h-12 rounded-lg object-cover" alt="" />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-[#1a1a2e] truncate leading-snug group-hover:text-white">{v.title}</div>
+                          <div className="text-sm font-medium text-[#1a1a2e] truncate leading-snug group-hover:text-violet-600">{v.title}</div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-violet-600 font-medium">{v.viewCount.toLocaleString()} views</span>
                             <span className="text-xs text-[#1a1a2e]">{new Date(v.publishedAt).toLocaleDateString()}</span>
@@ -1101,7 +1101,7 @@ const App: React.FC = () => {
 
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-[#e0e1ef] pb-3">
-                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-[#0f0f23] flex items-center gap-2">
                       <div className="w-1.5 h-5 bg-[#3a3a58] rounded-full"></div>
                       Longform <span className="text-[#5a5a7a] font-normal">({selectedChannel.longsList.length})</span>
                     </h4>
@@ -1121,7 +1121,7 @@ const App: React.FC = () => {
                             <span className="text-xs text-[#1a1a2e]">{new Date(v.publishedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 bg-[#f0f0f8] text-[#1a1a2e] hover:text-white hover:bg-[#eeeffe] rounded-lg transition-all">
+                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" className="p-2 bg-[#f0f0f8] text-[#1a1a2e] hover:bg-[#eeeffe] hover:text-violet-700 rounded-lg transition-all">
                           <ExternalLink size={14} />
                         </a>
                       </div>
@@ -1144,7 +1144,7 @@ const App: React.FC = () => {
                   <img src={selectedAdResult.thumbnail} className="w-12 h-12 rounded-xl border border-[#dddee8] shadow-sm object-cover" alt="" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-[#0f0f23] flex items-center gap-2">
                     {selectedAdResult.channelName} (광고 분석 결과)
                   </h3>
                   <div className="flex items-center gap-3 mt-1">
@@ -1155,7 +1155,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedAdResult(null)} className="p-2 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded-lg transition-all">
+              <button onClick={() => setSelectedAdResult(null)} className="p-2 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded-lg transition-all">
                 <X size={20} />
               </button>
             </div>
@@ -1171,7 +1171,7 @@ const App: React.FC = () => {
                         <img src={v.thumbnail} className={`shrink-0 rounded-lg object-cover ${v.isShort ? 'w-20 h-32' : 'w-28 h-18'}`} alt="" />
                         <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                           <div>
-                            <div className="text-sm font-medium text-white line-clamp-2 leading-snug group-hover:text-violet-600 transition-colors">{v.title}</div>
+                            <div className="text-sm font-medium text-[#0f0f23] line-clamp-2 leading-snug group-hover:text-violet-600 transition-colors">{v.title}</div>
                             <div className="flex items-center gap-3 mt-2">
                               <span className="text-xs text-[#1a1a2e] flex items-center gap-1"><Eye size={11}/> {v.viewCount.toLocaleString()}</span>
                               <span className="text-xs text-[#5a5a7a] flex items-center gap-1"><ThumbsUp size={11}/> {v.likeCount.toLocaleString()}</span>
@@ -1192,7 +1192,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="mt-4 flex items-center justify-between">
                          <div className="text-xs text-[#1a1a2e]">Published: {new Date(v.publishedAt).toLocaleDateString()}</div>
-                         <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" className="bg-white/8 hover:bg-violet-600 text-white p-2 rounded-lg transition-all">
+                         <a href={v.isShort ? `https://youtube.com/shorts/${v.id}` : `https://youtu.be/${v.id}`} target="_blank" className="bg-[#f0f0f8] hover:bg-violet-600 text-[#1a1a2e] hover:text-white p-2 rounded-lg transition-all">
                            <ExternalLink size={16} />
                          </a>
                       </div>
@@ -1338,7 +1338,7 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto bg-[#f2f3f8]">
-        <div className="p-5 xl:p-7 w-full min-h-full">
+        <div className="p-5 xl:p-7 w-full min-h-full max-w-none">
 
           {/* ── 공용 컴포넌트: Progress Bar ─────────────────────────────── */}
           {/* inline below each tab */}
@@ -1433,7 +1433,7 @@ const App: React.FC = () => {
                   <div className="xl:col-span-2 flex flex-col space-y-4">
                     {/* SECTION 1: 분석 기간 설정 (통합) */}
                     <div className="bg-white p-5 rounded-xl border border-[#e4e5f0] shadow-sm space-y-5">
-                        <h3 className="text-sm font-medium text-white flex items-center gap-2 pb-2 border-b border-[#e0e1ef]">
+                        <h3 className="text-sm font-medium text-[#0f0f23] flex items-center gap-2 pb-2 border-b border-[#e0e1ef]">
                           <Calendar size={15} className="text-violet-600" /> 분석 기간 설정
                         </h3>
 
@@ -1444,7 +1444,7 @@ const App: React.FC = () => {
                               </label>
                               <button
                                 onClick={() => setUseDateFilter(!useDateFilter)}
-                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-[#5a5a7a]'}`}
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useDateFilter ? 'bg-violet-600 text-white' : 'bg-[#f0f0f8] text-[#5a5a7a]'}`}
                               >
                                 {useDateFilter ? 'Enabled' : 'Disabled'}
                               </button>
@@ -1455,7 +1455,7 @@ const App: React.FC = () => {
                                  key={p}
                                  disabled={!useDateFilter}
                                  onClick={() => setPeriod(p)}
-                                 className={`py-2 text-xs font-medium rounded-lg transition-all ${period === p ? 'bg-white text-black' : 'bg-[#f0f0f8] text-[#1a1a2e] hover:bg-[#eaeaf4] hover:text-white'}`}
+                                 className={`py-2 text-xs font-medium rounded-lg transition-all ${period === p ? 'bg-white text-black' : 'bg-[#f0f0f8] text-[#1a1a2e] hover:bg-[#eaeaf4] hover:text-[#1a1a2e]'}`}
                                >
                                  {periodLabels[p]}
                                </button>
@@ -1468,12 +1468,12 @@ const App: React.FC = () => {
                     {/* SECTION 2: 영상 수집 개수 필터 (통합 ENABLED/DISABLED) */}
                     <div className="bg-white p-5 rounded-xl border border-[#e4e5f0] shadow-sm space-y-5">
                         <div className="flex justify-between items-center pb-2 border-b border-[#e0e1ef]">
-                          <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                          <h3 className="text-sm font-medium text-[#0f0f23] flex items-center gap-2">
                             <Activity size={15} className="text-violet-600" /> 영상 수집 개수 필터
                           </h3>
                           <button
                             onClick={() => setUseGlobalCountFilter(!useGlobalCountFilter)}
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useGlobalCountFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-emerald-500'}`}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${useGlobalCountFilter ? 'bg-violet-600 text-white' : 'bg-[#f0f0f8] text-emerald-500'}`}
                           >
                             {useGlobalCountFilter ? 'Enabled' : 'Disabled'}
                           </button>
@@ -1522,7 +1522,7 @@ const App: React.FC = () => {
                                 <button
                                   disabled={!useGlobalCountFilter}
                                   onClick={() => setUseLongs(!useLongs)}
-                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-white' : 'text-[#1a1a2e]'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
+                                  className={`${(useLongs && useGlobalCountFilter) ? 'text-violet-600' : 'text-[#1a1a2e]'} transition-opacity ${!useGlobalCountFilter ? 'opacity-30' : ''}`}
                                 >
                                   {(useLongs && useGlobalCountFilter) ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
                                 </button>
@@ -1563,7 +1563,7 @@ const App: React.FC = () => {
               {isProcessing && channelResults.length > 0 && (
                 <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-medium text-white">
+                    <div className="flex items-center gap-2 text-sm font-medium text-[#0f0f23]">
                       <Loader2 size={14} className="animate-spin text-violet-600" /> 분석 진행 중
                     </div>
                     <span className="text-xs text-[#5a5a7a] tabular-nums">{channelDone} / {channelTotal} 완료 · {channelProgress}%</span>
@@ -1588,7 +1588,7 @@ const App: React.FC = () => {
                   <button onClick={() => setShowChannelResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#f5f5fc] transition-colors">
                     <div className="flex items-center gap-2.5">
                       {showChannelResults ? <ChevronDown size={15} className="text-[#5a5a7a]" /> : <ChevronRight size={15} className="text-[#5a5a7a]" />}
-                      <span className="text-sm font-medium text-white">분석 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">분석 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{channelResults.filter(r => r.status === 'completed').length}개 완료{channelResults.filter(r => r.status === 'error').length > 0 ? ` · ${channelResults.filter(r => r.status === 'error').length}개 오류` : ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1606,8 +1606,8 @@ const App: React.FC = () => {
                           ))}
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => navigator.clipboard.writeText(channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')).join('\n'))} className="px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded text-xs transition-all">Copy</button>
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                          <button onClick={() => navigator.clipboard.writeText(channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')).join('\n'))} className="px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all">Copy</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
@@ -1763,7 +1763,7 @@ const App: React.FC = () => {
               {isProcessing && videoResults.length > 0 && (
                 <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-600" /> 수집 진행 중</div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-[#0f0f23]"><Loader2 size={14} className="animate-spin text-violet-600" /> 수집 진행 중</div>
                     <span className="text-xs text-[#5a5a7a] tabular-nums">{videoDone} / {videoTotal} 완료 · {videoProgress}%</span>
                   </div>
                   <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
@@ -1778,7 +1778,7 @@ const App: React.FC = () => {
                   <button onClick={() => setShowVideoResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#f5f5fc] transition-colors">
                     <div className="flex items-center gap-2.5">
                       {showVideoResults ? <ChevronDown size={15} className="text-[#5a5a7a]" /> : <ChevronRight size={15} className="text-[#5a5a7a]" />}
-                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{videoResults.filter(v => v.status === 'completed').length}개 완료</span>
                     </div>
                     {!isProcessing && videoResults.some(v => v.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
@@ -1794,7 +1794,7 @@ const App: React.FC = () => {
                           ))}
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                          <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                         </div>
                       </div>
                       {videoResultTab === 'table' && (
@@ -1824,9 +1824,9 @@ const App: React.FC = () => {
                                     <div className="text-xs text-violet-600 flex items-center justify-center gap-1"><ThumbsUp size={10} /> {v.likeCount.toLocaleString()}</div>
                                     <div className="text-[10px] text-[#1a1a2e] flex items-center justify-center gap-1 mt-0.5"><MessageSquare size={10} /> {v.commentCount.toLocaleString()}</div>
                                   </td>
-                                  <td className="px-6 py-3.5 text-right text-sm font-semibold text-white tabular-nums">{v.viewCount.toLocaleString()}</td>
+                                  <td className="px-6 py-3.5 text-right text-sm font-semibold text-[#1a1a2e] tabular-nums">{v.viewCount.toLocaleString()}</td>
                                   <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1.5">
-                                    <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-[#f0f0f8] hover:bg-white/12 text-[#1a1a2e] hover:text-white rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
+                                    <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
                                     <a href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} target="_blank" className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 text-[#1a1a2e] hover:text-white rounded-lg transition-all"><ExternalLink size={13} /></a>
                                   </td>
                                 </tr>
@@ -1917,17 +1917,17 @@ const App: React.FC = () => {
                   {/* Date filter */}
                   <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-[#e0e1ef]">
-                      <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Calendar size={13} className="text-violet-600" /> 분석 기간</h3>
+                      <h3 className="text-xs font-medium text-[#0f0f23] flex items-center gap-1.5"><Calendar size={13} className="text-violet-600" /> 분석 기간</h3>
                       <button
                         onClick={() => setAdUseDateFilter(!adUseDateFilter)}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${adUseDateFilter ? 'bg-violet-600 text-white' : 'bg-white/8 text-[#5a5a7a]'}`}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${adUseDateFilter ? 'bg-violet-600 text-white' : 'bg-[#f0f0f8] text-[#5a5a7a]'}`}
                       >
                         {adUseDateFilter ? 'Enabled' : 'Disabled'}
                       </button>
                     </div>
                     <div className={`grid grid-cols-4 gap-1.5 transition-opacity ${!adUseDateFilter ? 'opacity-30 pointer-events-none' : ''}`}>
                       {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
-                        <button key={p} onClick={() => setAdPeriod(p)} className={`py-2 text-xs font-medium rounded-lg transition-all ${adPeriod === p ? 'bg-white text-black' : 'bg-[#f0f0f8] text-[#1a1a2e] hover:bg-[#eaeaf4] hover:text-white'}`}>
+                        <button key={p} onClick={() => setAdPeriod(p)} className={`py-2 text-xs font-medium rounded-lg transition-all ${adPeriod === p ? 'bg-white text-black' : 'bg-[#f0f0f8] text-[#1a1a2e] hover:bg-[#eaeaf4] hover:text-[#1a1a2e]'}`}>
                           {periodLabels[p]}
                         </button>
                       ))}
@@ -1951,7 +1951,7 @@ const App: React.FC = () => {
               {isProcessing && adResults.length > 0 && (
                 <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-medium text-white"><Loader2 size={14} className="animate-spin text-violet-600" /> 분석 진행 중</div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-[#0f0f23]"><Loader2 size={14} className="animate-spin text-violet-600" /> 분석 진행 중</div>
                     <span className="text-xs text-[#5a5a7a] tabular-nums">{adDone} / {adTotal} 완료 · {adProgress}%</span>
                   </div>
                   <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden">
@@ -1966,7 +1966,7 @@ const App: React.FC = () => {
                   <button onClick={() => setShowAdResults(p => !p)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#f5f5fc] transition-colors">
                     <div className="flex items-center gap-2.5">
                       {showAdResults ? <ChevronDown size={15} className="text-[#5a5a7a]" /> : <ChevronRight size={15} className="text-[#5a5a7a]" />}
-                      <span className="text-sm font-medium text-white">광고 분석 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">광고 분석 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{adResults.filter(r => r.status === 'completed').length}개 완료</span>
                     </div>
                     {!isProcessing && adResults.some(r => r.status === 'completed') && <CheckCircle2 size={12} className="text-emerald-500" />}
@@ -1981,7 +1981,7 @@ const App: React.FC = () => {
                             </button>
                           ))}
                         </div>
-                        <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-white rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                        <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                       </div>
                       {adResultTab === 'table' && (
                         <div className="overflow-x-auto">
@@ -2113,11 +2113,11 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="bg-white border border-[#d4d5e2] rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
                     <div className="flex items-center justify-between mb-5">
-                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#0f0f23] flex items-center gap-2">
                         <ShieldCheck size={18} className="text-orange-600" />
                         TubeMetric SoftC Scraper 설치
                       </h3>
-                      <button onClick={() => { setShowSoftcInstallModal(false); setWaitingForSoftcAgent(false); }} className="text-[#8888a8] hover:text-white">
+                      <button onClick={() => { setShowSoftcInstallModal(false); setWaitingForSoftcAgent(false); }} className="text-[#8888a8] hover:text-[#1a1a2e]">
                         <X size={18} />
                       </button>
                     </div>
@@ -2165,7 +2165,7 @@ const App: React.FC = () => {
                             });
                             setTimeout(stop, 180000);
                           }}
-                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-[#3a3a58] text-white text-sm font-medium rounded-lg transition-colors"
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-violet-100 text-violet-700 text-sm font-medium rounded-lg transition-colors"
                         >
                           <Download size={15} />
                           macOS용 설치파일 다운로드 (.pkg)
@@ -2187,11 +2187,11 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="bg-white border border-[#d4d5e2] rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
                     <div className="flex items-center justify-between mb-5">
-                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#0f0f23] flex items-center gap-2">
                         <ShieldCheck size={18} className="text-orange-600" />
                         TubeMetric Local Agent 설치
                       </h3>
-                      <button onClick={() => { setShowInstallModal(false); setWaitingForAgent(false); }} className="text-[#8888a8] hover:text-white">
+                      <button onClick={() => { setShowInstallModal(false); setWaitingForAgent(false); }} className="text-[#8888a8] hover:text-[#1a1a2e]">
                         <X size={18} />
                       </button>
                     </div>
@@ -2243,7 +2243,7 @@ const App: React.FC = () => {
                             });
                             setTimeout(stop, 180000);
                           }}
-                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-[#3a3a58] text-white text-sm font-medium rounded-lg transition-colors"
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-violet-100 text-violet-700 text-sm font-medium rounded-lg transition-colors"
                         >
                           <Download size={15} />
                           macOS용 설치파일 다운로드 (.pkg)
@@ -2277,7 +2277,7 @@ const App: React.FC = () => {
                 {showSoftcGuide && (
                   <div className="px-5 pb-5 space-y-3 border-t border-[#e0e1ef]">
                     <div className="space-y-2 text-xs text-[#1a1a2e] pt-3">
-                      <p className="font-medium text-white">로컬 에이전트 (TubeMetric SoftC Scraper)</p>
+                      <p className="font-medium text-[#0f0f23]">로컬 에이전트 (TubeMetric SoftC Scraper)</p>
                       <p>① 위 [설치하기]에서 OS에 맞는 파일을 다운받아 설치합니다.</p>
                       <p>② 설치 완료 후 자동 실행되며 포트 <code className="bg-white/8 px-1.5 py-0.5 rounded">8002</code>에서 서버가 시작됩니다.</p>
                       <p>③ 연결됨 표시가 나타나면 크리에이터 ID를 입력하고 수집을 시작합니다.</p>
@@ -2362,7 +2362,7 @@ const App: React.FC = () => {
                 <div className="xl:col-span-2 flex flex-col gap-4">
                   {/* 날짜 범위 */}
                   <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
-                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><CalendarDays size={13} className="text-orange-500" /> 수집 기간</h3>
+                    <h3 className="text-xs font-medium text-[#0f0f23] flex items-center gap-1.5"><CalendarDays size={13} className="text-orange-500" /> 수집 기간</h3>
                     <div className="space-y-3">
                       <div className="group relative bg-[#f0f0f8] border border-[#e0e1ef] hover:border-orange-500/30 rounded-xl p-3 transition-all">
                         <label className="absolute -top-2 left-3 bg-white px-1.5 text-xs text-[#5a5a7a] group-hover:text-orange-600">Start</label>
@@ -2372,7 +2372,7 @@ const App: React.FC = () => {
                             type="date"
                             value={liveStartDate}
                             onChange={e => setLiveStartDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                            className="w-full bg-transparent border-none text-[#1a1a2e] text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:light]"
                           />
                         </div>
                       </div>
@@ -2384,7 +2384,7 @@ const App: React.FC = () => {
                             type="date"
                             value={liveEndDate}
                             onChange={e => setLiveEndDate(e.target.value)}
-                            className="w-full bg-transparent border-none text-white text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:dark]"
+                            className="w-full bg-transparent border-none text-[#1a1a2e] text-sm focus:ring-0 cursor-pointer outline-none [color-scheme:light]"
                           />
                         </div>
                       </div>
@@ -2431,7 +2431,7 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between px-6 py-4 border-b border-[#e0e1ef]">
                     <div className="flex items-center gap-2.5">
                       <Tv2 size={14} className="text-orange-500" />
-                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#5a5a7a]">{liveResults.length}개 크리에이터</span>
                     </div>
                   </div>
@@ -2458,7 +2458,7 @@ const App: React.FC = () => {
                                   <Tv2 size={14} className={r.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
                                 </div>
                                 <div>
-                                  <div className="text-xs font-medium text-white group-hover:text-orange-600 transition-colors">{r.creatorId}</div>
+                                  <div className="text-xs font-medium text-[#1a1a2e] group-hover:text-orange-600 transition-colors">{r.creatorId}</div>
                                   {r.error && <div className="text-[10px] text-red-600 mt-0.5">{r.error}</div>}
                                 </div>
                               </div>
@@ -2549,11 +2549,11 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="bg-white border border-[#d4d5e2] rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
                     <div className="flex items-center justify-between mb-5">
-                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#0f0f23] flex items-center gap-2">
                         <ShieldCheck size={18} className="text-orange-600" />
                         TubeMetric Instagram Scraper 설치
                       </h3>
-                      <button onClick={() => { setShowInstagramInstallModal(false); setWaitingForInstagramAgent(false); }} className="text-[#8888a8] hover:text-white">
+                      <button onClick={() => { setShowInstagramInstallModal(false); setWaitingForInstagramAgent(false); }} className="text-[#8888a8] hover:text-[#1a1a2e]">
                         <X size={18} />
                       </button>
                     </div>
@@ -2601,7 +2601,7 @@ const App: React.FC = () => {
                             });
                             setTimeout(stop, 180000);
                           }}
-                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-[#3a3a58] text-white text-sm font-medium rounded-lg transition-colors"
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-violet-100 text-violet-700 text-sm font-medium rounded-lg transition-colors"
                         >
                           <Download size={15} />
                           macOS용 설치파일 다운로드 (.pkg)
@@ -2683,7 +2683,7 @@ const App: React.FC = () => {
                 <div className="xl:col-span-2 flex flex-col gap-4">
                   {/* Amount slider */}
                   <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
-                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-pink-500" /> 수집 개수 설정</h3>
+                    <h3 className="text-xs font-medium text-[#0f0f23] flex items-center gap-1.5"><Activity size={13} className="text-pink-500" /> 수집 개수 설정</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between text-xs">
                         <span className="text-[#5a5a7a]">계정당 릴스 수</span>
@@ -2709,7 +2709,7 @@ const App: React.FC = () => {
                         >ON</button>
                         <button
                           onClick={() => setIgHeadless(false)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${!igHeadless ? 'bg-[#eeeffe] text-white' : 'bg-[#f0f0f8] text-[#8888a8] hover:bg-[#eaeaf4]'}`}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${!igHeadless ? 'bg-[#eeeffe] text-violet-700' : 'bg-[#f0f0f8] text-[#8888a8] hover:bg-[#eaeaf4]'}`}
                         >OFF</button>
                       </div>
                       <p className="text-[10px] text-[#1a1a2e]">OFF 시 브라우저 창이 열림 (좋아요·댓글 수집 불안정 시 사용)</p>
@@ -2758,10 +2758,10 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between px-6 py-4 border-b border-[#e0e1ef]">
                     <div className="flex items-center gap-2.5">
                       <Instagram size={14} className="text-pink-500" />
-                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{igResults.length}개 계정</span>
                     </div>
-                    <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-white transition-all">
+                    <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all">
                       {igResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 새로고침
                     </button>
                   </div>
@@ -2890,11 +2890,11 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="bg-white border border-[#d4d5e2] rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl">
                     <div className="flex items-center justify-between mb-5">
-                      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#0f0f23] flex items-center gap-2">
                         <ShieldCheck size={18} className="text-cyan-700" />
                         TubeMetric TikTok 에이전트 설치
                       </h3>
-                      <button onClick={() => { setShowTikTokInstallModal(false); setWaitingForTikTokInstall(false); }} className="text-[#8888a8] hover:text-white">
+                      <button onClick={() => { setShowTikTokInstallModal(false); setWaitingForTikTokInstall(false); }} className="text-[#8888a8] hover:text-[#1a1a2e]">
                         <X size={18} />
                       </button>
                     </div>
@@ -2944,7 +2944,7 @@ const App: React.FC = () => {
                             });
                             setTimeout(stop, 180000);
                           }}
-                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-[#3a3a58] text-white text-sm font-medium rounded-lg transition-colors"
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#eeeffe] hover:bg-violet-100 text-violet-700 text-sm font-medium rounded-lg transition-colors"
                         >
                           <Download size={15} />
                           macOS용 설치파일 다운로드 (.pkg)
@@ -3024,7 +3024,7 @@ const App: React.FC = () => {
                 {/* Right: options + run */}
                 <div className="xl:col-span-2 flex flex-col gap-4">
                   <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
-                    <h3 className="text-xs font-medium text-white flex items-center gap-1.5"><Activity size={13} className="text-cyan-500" /> 수집 개수 설정</h3>
+                    <h3 className="text-xs font-medium text-[#0f0f23] flex items-center gap-1.5"><Activity size={13} className="text-cyan-500" /> 수집 개수 설정</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between text-xs">
                         <span className="text-[#5a5a7a]">계정당 영상 수</span>
@@ -3050,7 +3050,7 @@ const App: React.FC = () => {
                           <button onClick={() => setTkHeadless(true)}
                             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${tkHeadless ? 'bg-cyan-600 text-white' : 'bg-[#f0f0f8] text-[#8888a8] hover:bg-[#eaeaf4]'}`}>ON</button>
                           <button onClick={() => setTkHeadless(false)}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${!tkHeadless ? 'bg-[#eeeffe] text-white' : 'bg-[#f0f0f8] text-[#8888a8] hover:bg-[#eaeaf4]'}`}>OFF</button>
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${!tkHeadless ? 'bg-[#eeeffe] text-violet-700' : 'bg-[#f0f0f8] text-[#8888a8] hover:bg-[#eaeaf4]'}`}>OFF</button>
                         </div>
                         <p className="text-[10px] text-[#1a1a2e]">OFF 시 브라우저 창이 열림 (수집 불안정 시 사용)</p>
                       </div>
@@ -3097,7 +3097,7 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between px-6 py-4 border-b border-[#e0e1ef]">
                     <div className="flex items-center gap-2.5">
                       <Music size={14} className="text-cyan-500" />
-                      <span className="text-sm font-medium text-white">수집 결과</span>
+                      <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{tkResults.length}개 계정</span>
                     </div>
                   </div>
@@ -3163,136 +3163,152 @@ const App: React.FC = () => {
             /* ══════════════════════════════════════════════════════════
                로컬 에이전트 통합 설치 탭
                ══════════════════════════════════════════════════════════ */
-            <div className="space-y-6 animate-in fade-in duration-300 max-w-2xl">
+            <div className="animate-in fade-in duration-300 w-full space-y-6">
+              {/* 헤더 */}
               <div>
                 <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">로컬 에이전트 설치</h2>
-                <p className="text-xs text-[#8888a8] mt-1">라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다</p>
+                <p className="text-sm text-[#8888a8] mt-1">라이브 지표 · Instagram · TikTok 분석에 필요한 모든 에이전트를 한 번에 설치합니다</p>
               </div>
 
-              {/* 통합 설치 카드 */}
-              <div className="bg-gradient-to-br from-violet-600/10 to-blue-600/10 border border-violet-300 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100/70 flex items-center justify-center">
-                    <Package2 size={20} className="text-violet-600" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">TubeMetric 전체 에이전트</div>
-                    <div className="text-xs text-[#8888a8]">Python · 모든 패키지 내장 — 별도 설치 불필요</div>
-                  </div>
-                  <span className="ml-auto text-[10px] bg-violet-600/30 text-violet-700 px-2 py-0.5 rounded-full border border-violet-300">권장</span>
-                </div>
+              {/* 2-column grid on wide screens */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-                {/* 포함 항목 */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                  {[
-                    { icon: Tv2,       color: 'text-orange-600', bg: 'bg-orange-50 border-orange-200', label: '라이브 지표 분석', port: '8001' },
-                    { icon: Instagram, color: 'text-pink-600',   bg: 'bg-pink-50 border-pink-200',     label: 'Instagram 분석', port: '8003' },
-                    { icon: Music,     color: 'text-cyan-700',   bg: 'bg-cyan-50 border-cyan-200',     label: 'TikTok 분석',    port: '8003' },
-                  ].map(({ icon: Icon, color, bg, label, port }) => (
-                    <div key={label} className={`flex items-center gap-2.5 p-3 rounded-xl border ${bg}`}>
-                      <Icon size={15} className={color} />
-                      <div>
-                        <div className="text-[12px] font-semibold text-[#3a3a5a]">{label}</div>
-                        <div className="text-[10px] text-[#aaaac0]">port {port}</div>
+                {/* 통합 설치 카드 — 넓게 */}
+                <div className="xl:col-span-2 bg-gradient-to-br from-violet-600/10 to-blue-600/10 border border-violet-300 rounded-2xl p-7">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                      <Package2 size={22} className="text-violet-600" />
+                    </div>
+                    <div>
+                      <div className="text-base font-bold text-[#0f0f23]">TubeMetric 전체 에이전트</div>
+                      <div className="text-xs text-[#8888a8] mt-0.5">Python · 모든 패키지 내장 — 별도 설치 불필요</div>
+                    </div>
+                    <span className="ml-auto text-[10px] bg-violet-600/20 text-violet-700 px-2.5 py-1 rounded-full border border-violet-300 font-semibold shrink-0">권장</span>
+                  </div>
+
+                  {/* 포함 항목 */}
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    {[
+                      { icon: Tv2,       color: 'text-orange-600', bg: 'bg-orange-50 border-orange-200', label: '라이브 지표 분석', port: '8001' },
+                      { icon: Instagram, color: 'text-pink-600',   bg: 'bg-pink-50 border-pink-200',     label: 'Instagram 분석', port: '8003' },
+                      { icon: Music,     color: 'text-cyan-700',   bg: 'bg-cyan-50 border-cyan-200',     label: 'TikTok 분석',    port: '8003' },
+                    ].map(({ icon: Icon, color, bg, label, port }) => (
+                      <div key={label} className={`flex items-center gap-3 p-4 rounded-xl border ${bg}`}>
+                        <Icon size={18} className={color} />
+                        <div>
+                          <div className="text-[13px] font-semibold text-[#3a3a5a]">{label}</div>
+                          <div className="text-[11px] text-[#aaaac0] mt-0.5">port {port}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 특징 */}
-                <div className="grid grid-cols-2 gap-2 mb-6 text-xs text-[#5a5a7a]">
-                  {[
-                    'Python 런타임 내장 — pip 불필요',
-                    'Windows 시작 시 자동 실행',
-                    'Chrome 버전 자동 감지 (146, 147, ...)',
-                    'bot 감지 우회 (yt-dlp 쿠키 방식)',
-                  ].map(t => (
-                    <p key={t} className="flex items-center gap-1.5">
-                      <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
-                      {t}
-                    </p>
-                  ))}
-                </div>
-
-                {/* 다운로드 버튼 */}
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {(detectOS() === 'windows' || detectOS() === 'other') && (
-                    <a
-                      href={ALL_INSTALLER_URLS.windows}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        setWaitingForAgent(true);
-                        const stop = waitForLocalAgent(() => {
-                          setLocalAgentRunning(true);
-                          setWaitingForAgent(false);
-                          checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
-                        });
-                        setTimeout(stop, 300000);
-                      }}
-                      className="flex items-center justify-center gap-2 flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl transition-colors"
-                    >
-                      <Download size={16} /> Windows (.exe) 다운로드
-                    </a>
-                  )}
-                  {(detectOS() === 'macos' || detectOS() === 'other') && (
-                    <a
-                      href={ALL_INSTALLER_URLS.macos}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        setWaitingForAgent(true);
-                        const stop = waitForLocalAgent(() => {
-                          setLocalAgentRunning(true);
-                          setWaitingForAgent(false);
-                          checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
-                        });
-                        setTimeout(stop, 300000);
-                      }}
-                      className="flex items-center justify-center gap-2 flex-1 py-3 bg-[#eeeffe] hover:bg-[#eeeffe] text-white text-sm font-medium rounded-xl transition-colors"
-                    >
-                      <Download size={16} /> macOS (.pkg) 다운로드
-                    </a>
-                  )}
-                </div>
-
-                {waitingForAgent && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-[#8888a8]">
-                    <Loader2 size={12} className="animate-spin" />
-                    설치 완료 후 에이전트 자동 감지 대기 중...
+                    ))}
                   </div>
-                )}
-              </div>
 
-              {/* 연결 상태 */}
-              <div className="bg-[#f2f2f8] border border-[#e0e1ef] rounded-xl p-4 space-y-2">
-                <p className="text-xs font-medium text-[#5a5a7a] mb-3">현재 에이전트 연결 상태</p>
-                {[
-                  { label: '라이브 지표 에이전트', port: '8001', ok: localAgentRunning },
-                  { label: 'Instagram · TikTok 에이전트', port: '8003', ok: igLocalRunning },
-                ].map(({ label, port, ok }) => (
-                  <div key={port} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-[#5a5a7a]">
-                      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-400 animate-pulse' : 'bg-[#eeeffe]'}`} />
-                      {label} <span className="text-[#ccccda]">:{port}</span>
-                    </div>
-                    <span className={`text-[10px] font-medium ${ok ? 'text-emerald-600' : 'text-[#aaaac0]'}`}>
-                      {ok ? '연결됨' : '미연결'}
-                    </span>
+                  {/* 특징 */}
+                  <div className="grid grid-cols-2 gap-2 mb-7 text-xs text-[#5a5a7a]">
+                    {[
+                      'Python 런타임 내장 — pip 불필요',
+                      'Windows 시작 시 자동 실행',
+                      'Chrome 버전 자동 감지 (146, 147, ...)',
+                      'bot 감지 우회 (yt-dlp 쿠키 방식)',
+                    ].map(t => (
+                      <p key={t} className="flex items-center gap-2">
+                        <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                        {t}
+                      </p>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* 설치 안내 */}
-              <div className="bg-[#f2f2f8] border border-[#e0e1ef] rounded-xl p-4 space-y-2 text-xs text-[#8888a8]">
-                <p className="font-medium text-[#5a5a7a]">설치 방법</p>
-                <ol className="space-y-1 list-decimal list-inside">
-                  <li>위 다운로드 버튼으로 파일을 받습니다</li>
-                  <li>다운로드된 파일을 실행하고 <strong className="text-[#5a5a7a]">다음</strong>을 클릭합니다</li>
-                  <li>설치가 완료되면 두 에이전트가 자동으로 시작됩니다</li>
-                  <li>이 페이지에서 연결 상태가 <span className="text-emerald-600">연결됨</span>으로 바뀌면 수집 가능합니다</li>
-                </ol>
-                <p className="text-[#aaaac0] pt-1">※ PC에 Chrome이 설치되어 있어야 합니다</p>
+                  {/* 다운로드 버튼 */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {(detectOS() === 'windows' || detectOS() === 'other') && (
+                      <a
+                        href={ALL_INSTALLER_URLS.windows}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          setWaitingForAgent(true);
+                          const stop = waitForLocalAgent(() => {
+                            setLocalAgentRunning(true);
+                            setWaitingForAgent(false);
+                            checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
+                          });
+                          setTimeout(stop, 300000);
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 py-3.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm shadow-violet-200"
+                      >
+                        <Download size={16} /> Windows (.exe) 다운로드
+                      </a>
+                    )}
+                    {(detectOS() === 'macos' || detectOS() === 'other') && (
+                      <a
+                        href={ALL_INSTALLER_URLS.macos}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          setWaitingForAgent(true);
+                          const stop = waitForLocalAgent(() => {
+                            setLocalAgentRunning(true);
+                            setWaitingForAgent(false);
+                            checkInstagramAgentTikTokSupport().then(ok => { setIgLocalRunning(ok); setTkAgentReady(ok); });
+                          });
+                          setTimeout(stop, 300000);
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 py-3.5 bg-[#eeeffe] hover:bg-violet-100 text-violet-700 text-sm font-semibold rounded-xl transition-colors"
+                      >
+                        <Download size={16} /> macOS (.pkg) 다운로드
+                      </a>
+                    )}
+                  </div>
+
+                  {waitingForAgent && (
+                    <div className="mt-4 flex items-center gap-2 text-xs text-[#8888a8]">
+                      <Loader2 size={12} className="animate-spin text-violet-600" />
+                      설치 완료 후 에이전트 자동 감지 대기 중...
+                    </div>
+                  )}
+                </div>
+
+                {/* 오른쪽: 연결 상태 + 설치 안내 */}
+                <div className="flex flex-col gap-4">
+                  {/* 연결 상태 */}
+                  <div className="bg-white border border-[#e0e1ef] rounded-xl p-5 space-y-3">
+                    <p className="text-sm font-semibold text-[#0f0f23]">에이전트 연결 상태</p>
+                    {[
+                      { label: '라이브 지표 에이전트', port: '8001', ok: localAgentRunning },
+                      { label: 'Instagram · TikTok 에이전트', port: '8003', ok: igLocalRunning },
+                    ].map(({ label, port, ok }) => (
+                      <div key={port} className="flex items-center justify-between py-2 border-b border-[#f0f0f8] last:border-0">
+                        <div className="flex items-center gap-2.5 text-xs text-[#5a5a7a]">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-emerald-400 animate-pulse' : 'bg-[#d0d0e8]'}`} />
+                          <span>{label}</span>
+                          <span className="text-[#c0c0d8] font-mono">:{port}</span>
+                        </div>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${ok ? 'text-emerald-700 bg-emerald-50' : 'text-[#9090b0] bg-[#f0f0f8]'}`}>
+                          {ok ? '연결됨' : '미연결'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 설치 방법 */}
+                  <div className="bg-white border border-[#e0e1ef] rounded-xl p-5 flex-1">
+                    <p className="text-sm font-semibold text-[#0f0f23] mb-4">설치 방법</p>
+                    <ol className="space-y-3 text-xs text-[#5a5a7a]">
+                      {[
+                        '위 다운로드 버튼으로 파일을 받습니다',
+                        <>다운로드된 파일을 실행하고 <strong className="text-[#1a1a2e]">다음</strong>을 클릭합니다</>,
+                        '설치가 완료되면 두 에이전트가 자동으로 시작됩니다',
+                        <>이 페이지에서 연결 상태가 <span className="text-emerald-600 font-medium">연결됨</span>으로 바뀌면 수집 가능합니다</>,
+                      ].map((step, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</span>
+                          <span className="leading-relaxed">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="text-[11px] text-[#aaaac0] mt-5 pt-3 border-t border-[#f0f0f8]">※ PC에 Chrome이 설치되어 있어야 합니다</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -3323,7 +3339,7 @@ const App: React.FC = () => {
                     key={tab.id}
                     onClick={() => { setDashboardSubTab(tab.id); if (tab.id === 'scraper') loadScraperResults(); }}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                      dashboardSubTab === tab.id ? 'bg-[#eeeef6] text-white' : 'text-[#5a5a7a] hover:text-[#5a5a7a]'
+                      dashboardSubTab === tab.id ? 'bg-[#eeeef6] text-violet-700' : 'text-[#5a5a7a] hover:text-[#5a5a7a]'
                     }`}
                   >
                     <tab.icon size={13} /> {tab.label}
@@ -3421,12 +3437,12 @@ const App: React.FC = () => {
                   <div className="px-6 py-4 border-b border-[#e0e1ef] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Activity size={15} className="text-violet-600" />
-                      <span className="font-medium text-white text-sm">로컬 스크래퍼 결과</span>
+                      <span className="font-medium text-[#0f0f23] text-sm">로컬 스크래퍼 결과</span>
                       <span className="text-xs text-[#1a1a2e]">from GitHub Raw</span>
                     </div>
                     <button
                       onClick={loadScraperResults}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-[12px] font-semibold text-[#3a3a5a] hover:text-white transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-[12px] font-semibold text-[#3a3a5a] hover:text-[#1a1a2e] transition-all"
                     >
                       {scraperResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                       새로고침
@@ -3467,7 +3483,7 @@ const App: React.FC = () => {
                                   <div className="w-10 h-10 bg-[#f0f1f8] rounded-lg flex items-center justify-center"><Activity className="text-[#1a1a2e]" size={16} /></div>
                                 )}
                                 <div>
-                                  <div className="font-medium text-white text-sm group-hover:text-violet-600 transition-colors">{r.channelName}</div>
+                                  <div className="font-medium text-[#1a1a2e] text-sm group-hover:text-violet-600 transition-colors">{r.channelName}</div>
                                   <div className="text-xs text-[#1a1a2e] font-mono mt-0.5">{r.channelId}</div>
                                 </div>
                               </td>
@@ -3541,7 +3557,7 @@ const App: React.FC = () => {
                                     )}
                                   </div>
                                   <div>
-                                    <div className="font-medium text-white text-sm group-hover:text-violet-600 transition-colors flex items-center gap-2">
+                                    <div className="font-medium text-[#1a1a2e] text-sm group-hover:text-violet-600 transition-colors flex items-center gap-2">
                                       {r.channelName}
                                       {r.status === 'error' && (
                                         <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-500/20">Error</span>
@@ -3612,7 +3628,7 @@ const App: React.FC = () => {
                                     )}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="font-medium text-white text-sm group-hover:text-violet-600 transition-colors truncate max-w-[300px]">{v.title}</div>
+                                    <div className="font-medium text-[#1a1a2e] text-sm group-hover:text-violet-600 transition-colors truncate max-w-[300px]">{v.title}</div>
                                     <div className="text-xs text-[#1a1a2e] font-mono mt-0.5">{v.status === 'error' ? v.error : v.videoId}</div>
                                   </div>
                                 </td>
@@ -3630,13 +3646,13 @@ const App: React.FC = () => {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  <div className="text-base font-semibold text-white">{v.viewCount.toLocaleString()}</div>
+                                  <div className="text-base font-semibold text-[#1a1a2e]">{v.viewCount.toLocaleString()}</div>
                                 </td>
                                 <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
                                   <button
                                     disabled={v.status !== 'completed'}
                                     onClick={() => setSelectedVideo(v)}
-                                    className="p-2 bg-[#f0f0f8] hover:bg-white/12 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                    className="p-2 bg-[#f0f0f8] hover:bg-[#eaeaf4] hover:text-[#1a1a2e] text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
                                   >
                                     <Eye size={16} />
                                   </button>
