@@ -10,6 +10,14 @@ import sys
 import os
 from contextlib import asynccontextmanager
 
+# PyInstaller console=False 빌드에서는 sys.stdout/stderr 가 None.
+# uvicorn 로깅이 stdout.isatty() 를 호출하므로 로그 파일로 리다이렉트한다.
+if getattr(sys, "frozen", False) and sys.stdout is None:
+    _log_path = os.path.join(os.path.expanduser("~"), "tubemetric-agent.log")
+    _log_file = open(_log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _log_file
+    sys.stderr = _log_file
+
 # PyInstaller로 빌드된 경우 backend 경로 설정
 if getattr(sys, "frozen", False):
     _base = sys._MEIPASS  # type: ignore
@@ -50,11 +58,15 @@ async def health():
 
 
 def main():
-    print("=" * 50)
-    print("  TubeMetric Local Agent 시작")
-    print("  http://localhost:8001")
-    print("=" * 50)
-    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="warning")
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=8001,
+        log_level="warning",
+        # log_config=None 으로 uvicorn 기본 포매터 비활성화
+        # (console=False 빌드에서 formatter 'default' 오류 방지)
+        log_config=None,
+    )
 
 
 if __name__ == "__main__":
