@@ -1125,9 +1125,8 @@ const App: React.FC = () => {
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Views</th>
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Likes</th>
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Comments</th>
-                    <th className="px-5 py-3 text-center font-medium">Duration</th>
-                    <th className="px-5 py-3 text-center font-medium">Date</th>
-                    <th className="px-5 py-3 text-center font-medium">Link</th>
+                    <th className="px-5 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Date</th>
+                    <th className="px-5 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Link</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececf5]">
@@ -1144,7 +1143,6 @@ const App: React.FC = () => {
                       <td className="px-5 py-3 text-right text-sm font-semibold text-cyan-700 tabular-nums">{v.viewCount.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-pink-600 tabular-nums">{v.likeCount.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-[#1a1a2e] tabular-nums">{v.commentCount.toLocaleString()}</td>
-                      <td className="px-5 py-3.5 text-center text-[13px] text-[#5a5a7a]">{v.duration ? `${v.duration}s` : '—'}</td>
                       <td className="px-5 py-3.5 text-center text-[13px] text-[#1a1a2e] font-mono">{v.uploadDate ? `${v.uploadDate.slice(0,4)}-${v.uploadDate.slice(4,6)}-${v.uploadDate.slice(6,8)}` : '—'}</td>
                       <td className="px-5 py-3 text-center">
                         {v.url ? (
