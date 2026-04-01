@@ -1012,9 +1012,8 @@ const App: React.FC = () => {
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Views</th>
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Likes</th>
                     <th className="px-5 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Comments</th>
-                    <th className="px-5 py-3 text-center font-medium">Duration</th>
-                    <th className="px-5 py-3 text-center font-medium">Date</th>
-                    <th className="px-5 py-3 text-center font-medium">Link</th>
+                    <th className="px-5 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Date</th>
+                    <th className="px-5 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Link</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececf5]">
@@ -1026,12 +1025,11 @@ const App: React.FC = () => {
                         ) : (
                           <div className="w-9 h-14 bg-[#f0f1f8] rounded-lg flex items-center justify-center shrink-0"><Instagram size={14} className="text-[#1a1a2e]" /></div>
                         )}
-                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[260px]">{reel.caption_text || '(캡션 없음)'}</span>
+                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[260px]">{reel.caption_text || '—'}</span>
                       </td>
                       <td className="px-5 py-3 text-right text-sm font-semibold text-pink-600 tabular-nums">{reel.view_count.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-violet-600 tabular-nums">{reel.like_count.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-[#1a1a2e] tabular-nums">{reel.comment_count.toLocaleString()}</td>
-                      <td className="px-5 py-3.5 text-center text-[13px] text-[#5a5a7a]">{reel.video_duration ? `${Math.round(reel.video_duration)}s` : '—'}</td>
                       <td className="px-5 py-3.5 text-center text-[13px] text-[#1a1a2e] font-mono">{reel.taken_at ? new Date(reel.taken_at).toLocaleDateString('ko-KR') : '—'}</td>
                       <td className="px-5 py-3 text-center">
                         {reel.url ? (

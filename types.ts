@@ -104,7 +104,6 @@ export interface InstagramReel {
   like_count: number;
   comment_count: number;
   view_count: number;
-  video_duration: number;
   thumbnail_url: string;
   url: string | null;
 }
