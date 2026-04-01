@@ -2950,11 +2950,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {igResults.length === 0 && !igResultsLoading && igJobStatus === 'idle' && (
-                <button onClick={loadIgResults} className="w-full bg-[#f0f0f8] hover:bg-white/8 text-[#1a1a2e] hover:text-[#1a1a2e] py-3 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
-                  <Instagram size={15} /> 이전 수집 결과 불러오기
-                </button>
-              )}
             </div>
 
           ) : activeTab === 'tiktok-config' ? (
