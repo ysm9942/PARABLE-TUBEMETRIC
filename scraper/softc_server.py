@@ -19,6 +19,8 @@ API 엔드포인트:
 import sys
 import os
 import re
+import shutil
+import tempfile
 import time
 import random
 import threading
@@ -287,7 +289,11 @@ def _crawl_creator(
     chrome_major = _get_chrome_ver()
     print(f"  [{creator_id}] Chrome: {chrome_major or '자동감지'}")
 
+    # 독립적인 Chrome 프로파일 → 다른 스크래퍼(8001/8003)와 충돌 방지
+    tmp_dir = tempfile.mkdtemp(prefix="sc_chrome_")
+
     opts = uc.ChromeOptions()
+    opts.add_argument(f"--user-data-dir={tmp_dir}")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--start-maximized")
@@ -299,6 +305,7 @@ def _crawl_creator(
         driver.implicitly_wait(3)
     except Exception as e:
         import traceback
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         print(f"  [{creator_id}] 드라이버 오류: {e}\n{traceback.format_exc()}")
         raise
 
@@ -483,6 +490,7 @@ def _crawl_creator(
             driver.quit()
         except Exception:
             pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _parse_creator_line(line: str, default_platform: str = "chzzk"):

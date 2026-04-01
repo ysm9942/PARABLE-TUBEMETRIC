@@ -17,11 +17,14 @@ instagram.com/{username}/reels/ 에서 릴스 썸네일 DOM을 직접 파싱합�
 from __future__ import annotations
 
 import argparse
+import atexit
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -113,7 +116,13 @@ def _build_driver(headless: bool = True):
     chrome_major = _get_chrome_ver()
     log(f"[Chrome] 버전: {chrome_major or '자동감지'}  headless={headless}")
 
+    # 각 드라이버 인스턴스마다 독립적인 Chrome 프로파일 사용
+    # → SoftC(8002) 등 다른 Chrome 프로세스와 충돌 방지 (invalid session id 오류 해소)
+    tmp_dir = tempfile.mkdtemp(prefix="ig_chrome_")
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
+
     opts = uc.ChromeOptions()
+    opts.add_argument(f"--user-data-dir={tmp_dir}")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1920,1080")
@@ -127,6 +136,16 @@ def _build_driver(headless: bool = True):
         else uc.Chrome(options=opts)
     )
     driver.implicitly_wait(5)
+
+    # 드라이버 quit 시 임시 디렉토리 정리
+    _original_quit = driver.quit
+    def _patched_quit():
+        try:
+            _original_quit()
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+    driver.quit = _patched_quit  # type: ignore
+
     return driver
 
 
