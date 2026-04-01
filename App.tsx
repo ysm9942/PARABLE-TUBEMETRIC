@@ -2579,7 +2579,6 @@ const App: React.FC = () => {
                           <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">평균 시청자</th>
                           <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">최고 시청자</th>
                           <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">총 방송시간</th>
-                          <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Status</th>
                           <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Detail</th>
                         </tr>
                       </thead>
@@ -2608,11 +2607,6 @@ const App: React.FC = () => {
                             <td className="px-6 py-3.5 text-right text-sm font-semibold text-orange-600 tabular-nums">{r.avgViewers.toLocaleString()}</td>
                             <td className="px-6 py-4 text-right text-[13px] text-red-600 tabular-nums font-medium">{r.peakViewers.toLocaleString()}</td>
                             <td className="px-6 py-4 text-right text-[13px] text-[#1a1a2e] tabular-nums">{Math.round(r.totalDurationMin / 60)}시간 {r.totalDurationMin % 60}분</td>
-                            <td className="px-6 py-3.5 text-center">
-                              <span className={`text-[10px] px-2 py-0.5 rounded ${r.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                                {r.status === 'completed' ? '완료' : '오류'}
-                              </span>
-                            </td>
                             <td className="px-6 py-3.5 text-center">
                               <button
                                 onClick={() => setSelectedLiveCreator(r)}
