@@ -2817,9 +2817,9 @@ const App: React.FC = () => {
                             <td className="px-6 py-3.5 text-center">
                               <span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.reelCount}</span>
                             </td>
-                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-600 tabular-nums">{r.avgViews.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-pink-600 tabular-nums">{r.avgComments.toLocaleString()}</td>
                             <td className="px-6 py-4 text-right text-[13px] text-violet-600 tabular-nums">{r.avgLikes.toLocaleString()}</td>
-                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-[#1a1a2e] tabular-nums">{r.avgComments.toLocaleString()}</td>
+                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-[#1a1a2e] tabular-nums">{r.avgViews.toLocaleString()}</td>
                             <td className="px-6 py-4 text-center text-[13px] text-[#1a1a2e] font-mono">
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
