@@ -335,25 +335,76 @@ def _scrape_reel(driver, link_el) -> tuple[int, int, int, str]:
 
 # ── 릴스 탭 수집 메인 ─────────────────────────────────────────────────────────
 
+MONTHS_EN = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+def _fetch_reel_meta(driver, code: str) -> tuple[str, str]:
+    """개별 릴스 페이지에서 og:title과 날짜를 추출합니다.
+    Returns (title, taken_at_iso) — 실패 시 빈 문자열 반환.
+    """
+    try:
+        reel_url = f"https://www.instagram.com/reel/{code}/"
+        driver.get(reel_url)
+        human_sleep(1.5, 2.5)
+
+        # og:title → 제목
+        title = ""
+        try:
+            og = driver.find_element("css selector", 'meta[property="og:title"]')
+            title = og.get_attribute("content") or ""
+            # "Instagram의 해봄님 : ..." → 콜론 이후 불필요한 경우 그대로 사용
+        except Exception:
+            pass
+
+        # description meta → 날짜 추출
+        taken_at = ""
+        try:
+            desc_el = driver.find_element("css selector", 'meta[name="description"]')
+            desc = desc_el.get_attribute("content") or ""
+            # 예: "8,565 likes, 189 comments - haebom_m - December 10, 2024: ..."
+            m = re.search(
+                r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+                r"\s+(\d{1,2}),\s+(\d{4})",
+                desc, re.IGNORECASE,
+            )
+            if m:
+                month = MONTHS_EN[m.group(1).lower()]
+                day   = int(m.group(2))
+                year  = int(m.group(3))
+                taken_at = f"{year:04d}-{month:02d}-{day:02d}T00:00:00Z"
+        except Exception:
+            pass
+
+        return title, taken_at
+
+    except Exception as e:
+        log(f"  ⚠ {code} 메타 수집 오류: {e}")
+        return "", ""
+
+
 def fetch_user_reels(driver, username: str, amount: int) -> dict:
     from selenium.webdriver.common.by import By
 
     log(f"[수집] @{username} 시작 (최대 {amount}개)")
 
+    # ── Phase 1: 릴스 그리드에서 통계 수집 ───────────────────────────────────
     driver.get(f"https://www.instagram.com/{username}/reels/")
     human_sleep(2.5, 4.0)
     _dismiss_modal(driver)
 
-    reels: list[dict] = []
+    raw_reels: list[dict] = []
     seen_codes: set[str] = set()
     no_new_rounds = 0
 
-    while len(reels) < amount and no_new_rounds < 5:
+    while len(raw_reels) < amount and no_new_rounds < 5:
         links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
         new_this_round = 0
 
         for link in links:
-            if len(reels) >= amount:
+            if len(raw_reels) >= amount:
                 break
 
             href = link.get_attribute("href") or ""
@@ -367,22 +418,15 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
 
             try:
                 view_count, like_count, comment_count, thumbnail_url = _scrape_reel(driver, link)
-
-                reels.append({
-                    "username":       username,
-                    "media_pk":       "",
-                    "code":           code,
-                    "caption_text":   "",
-                    "taken_at":       "",
-                    "like_count":     like_count,
-                    "comment_count":  comment_count,
-                    "view_count":     view_count,
-                    "video_duration": 0.0,
-                    "thumbnail_url":  thumbnail_url,
-                    "url":            f"https://www.instagram.com/reel/{code}/",
+                raw_reels.append({
+                    "code":          code,
+                    "like_count":    like_count,
+                    "comment_count": comment_count,
+                    "view_count":    view_count,
+                    "thumbnail_url": thumbnail_url,
                 })
                 new_this_round += 1
-                log(f"  [{len(reels):02d}] {code}: 조회수={view_count:,}  좋아요={like_count:,}  댓글={comment_count:,}")
+                log(f"  [{len(raw_reels):02d}] {code}: 조회수={view_count:,}  좋아요={like_count:,}  댓글={comment_count:,}")
 
             except Exception as e:
                 log(f"  ⚠ {code} 파싱 오류: {e}")
@@ -392,9 +436,28 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
         else:
             no_new_rounds = 0
 
-        if len(reels) < amount:
+        if len(raw_reels) < amount:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             human_sleep(1.5, 2.0)
+
+    # ── Phase 2: 개별 릴스 페이지 방문 → 제목·날짜 수집 ────────────────────
+    reels: list[dict] = []
+    for idx, r in enumerate(raw_reels):
+        code = r["code"]
+        log(f"  [메타 {idx+1}/{len(raw_reels)}] {code} 제목·날짜 수집 중...")
+        title, taken_at = _fetch_reel_meta(driver, code)
+        reels.append({
+            "username":      username,
+            "media_pk":      "",
+            "code":          code,
+            "caption_text":  title,
+            "taken_at":      taken_at,
+            "like_count":    r["like_count"],
+            "comment_count": r["comment_count"],
+            "view_count":    r["view_count"],
+            "thumbnail_url": r["thumbnail_url"],
+            "url":           f"https://www.instagram.com/reel/{code}/",
+        })
 
     count = len(reels)
     avg_views    = round(sum(r["view_count"]    for r in reels) / count) if count else 0
