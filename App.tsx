@@ -98,6 +98,18 @@ const App: React.FC = () => {
   const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
   const [tkHeadless, setTkHeadless] = useState<boolean>(false); // TikTok은 headless OFF가 기본 (봇 감지 우회)
 
+  // ── 플랫폼 URL → softc 형식 변환 ────────────────────────────────────────────
+  const parseLiveUrl = (raw: string): string => {
+    const v = raw.trim().replace(/^@/, '');
+    const chzzk = v.match(/chzzk\.naver\.com\/([a-zA-Z0-9]+)/);
+    if (chzzk) return `chzzk:${chzzk[1]}`;
+    const soop = v.match(/sooplive\.com\/station\/([^/?#\s]+)/);
+    if (soop) return `soop:${soop[1]}`;
+    const afreeca = v.match(/afreecatv\.com\/([^/?#\s]+)/);
+    if (afreeca) return `soop:${afreeca[1]}`;
+    return v;
+  };
+
   // ── Creator 상태 ─────────────────────────────────────────────────────────────
   const [creators, setCreators] = useState<Creator[]>(() => {
     try { return JSON.parse(localStorage.getItem('tubemetric-creators') ?? '[]'); } catch { return []; }
@@ -126,7 +138,7 @@ const App: React.FC = () => {
       id:  c.id ?? crypto.randomUUID(),
       name: (c.name ?? '').trim(),
       youtubeChannelIds: (c.youtubeChannelIds ?? []).map(s => s.trim()).filter(Boolean),
-      liveMetricsIds:    (c.liveMetricsIds    ?? []).map(s => s.trim()).filter(Boolean),
+      liveMetricsIds:    (c.liveMetricsIds    ?? []).map(s => parseLiveUrl(s)).filter(Boolean),
       instagramUsername: (c.instagramUsername ?? '').trim().replace(/^@/, '') || undefined,
       tiktokUsername:    (c.tiktokUsername    ?? '').trim().replace(/^@/, '') || undefined,
       memo:              (c.memo              ?? '').trim() || undefined,
@@ -670,8 +682,9 @@ const App: React.FC = () => {
 
   // ── 라이브 지표 핸들러 ────────────────────────────────────────────────────
   const liveList = liveInput.split('\n').map(s => s.trim()).filter(Boolean);
+
   const addLiveItem = () => {
-    const v = liveDraft.trim().replace(/^@/, '');
+    const v = parseLiveUrl(liveDraft);
     if (!v) return;
     setLiveInput(prev => prev ? prev + '\n' + v : v);
     setLiveDraft('');
@@ -2470,7 +2483,7 @@ const App: React.FC = () => {
                       onAddMultiple={vals => { vals.forEach(v => { setLiveInput(prev => prev ? prev + '\n' + v : v); }); setLiveDraft(''); }}
                       creators={creators}
                       field="live"
-                      placeholder="채널 ID · 크리에이터명 입력 (또는 chzzk:ID)"
+                      placeholder="CHZZK·SOOP URL 또는 크리에이터명 입력"
                       className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
                     />
                     <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
@@ -3373,7 +3386,7 @@ const App: React.FC = () => {
                         value={creatorLiveDraft}
                         onChange={e => setCreatorLiveDraft(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter' && creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); e.preventDefault(); }}}
-                        placeholder="chzzk:ID 또는 채널 ID 입력 후 Enter"
+                        placeholder="CHZZK·SOOP URL 또는 chzzk:ID 입력 후 Enter"
                         className="flex-1 bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-orange-400 transition-colors font-mono"
                       />
                       <button type="button" onClick={() => { if (creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); }}} className="px-3 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-xs font-medium transition-all"><Plus size={13} /></button>
