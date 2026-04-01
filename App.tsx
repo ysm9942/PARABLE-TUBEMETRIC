@@ -52,16 +52,19 @@ import {
   WifiOff,
   Filter,
   RefreshCw,
+  BookUser,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
-import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult } from './types';
+import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult, Creator } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured } from './services/firebaseService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -92,6 +95,36 @@ const App: React.FC = () => {
   // TikTok: 같은 에이전트(8003)지만 v1.1+ 필요
   const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
   const [tkHeadless, setTkHeadless] = useState<boolean>(false); // TikTok은 headless OFF가 기본 (봇 감지 우회)
+
+  // ── Creator 상태 ─────────────────────────────────────────────────────────────
+  const [creators, setCreators] = useState<Creator[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tubemetric-creators') ?? '[]'); } catch { return []; }
+  });
+  const [creatorForm, setCreatorForm] = useState<Partial<Creator> | null>(null); // null=닫힘, {}=새로추가, {id=...}=편집
+  const saveCreators = (list: Creator[]) => {
+    setCreators(list);
+    localStorage.setItem('tubemetric-creators', JSON.stringify(list));
+  };
+  const deleteCreator = (id: string) => saveCreators(creators.filter(c => c.id !== id));
+  const upsertCreator = (c: Partial<Creator>) => {
+    const trimmed: Creator = {
+      id: c.id ?? crypto.randomUUID(),
+      name: (c.name ?? '').trim(),
+      youtubeChannelId:   (c.youtubeChannelId ?? '').trim() || undefined,
+      liveMetricsId:      (c.liveMetricsId ?? '').trim() || undefined,
+      instagramUsername:  (c.instagramUsername ?? '').trim().replace(/^@/, '') || undefined,
+      tiktokUsername:     (c.tiktokUsername ?? '').trim().replace(/^@/, '') || undefined,
+      memo:               (c.memo ?? '').trim() || undefined,
+    };
+    if (!trimmed.name) return;
+    const exists = creators.findIndex(x => x.id === trimmed.id);
+    if (exists >= 0) {
+      const next = [...creators]; next[exists] = trimmed; saveCreators(next);
+    } else {
+      saveCreators([...creators, trimmed]);
+    }
+    setCreatorForm(null);
+  };
 
   // ── System Log 상태 ──────────────────────────────────────────────────────────
   const [sysLogAuthed, setSysLogAuthed] = useState<boolean>(
@@ -1335,6 +1368,23 @@ const App: React.FC = () => {
             <p className="px-2 mb-1 text-[9px] font-bold text-[#b0b0c8] tracking-[0.14em] uppercase">Data</p>
             <div className="space-y-0.5">
               {(() => {
+                const isActive = activeTab === 'creator';
+                return (
+                  <button
+                    onClick={() => setActiveTab('creator')}
+                    className={`w-full flex items-center gap-2.5 py-[9px] rounded-lg text-[13px] font-medium transition-all group relative ${
+                      isActive ? 'nav-active' : 'px-2.5 text-[#4a4a6a] hover:text-[#1a1a2e] hover:bg-[#f5f5fc]'
+                    }`}
+                  >
+                    <BookUser size={15} className={isActive ? 'text-violet-600' : 'text-[#a0a0b8] group-hover:text-violet-500'} />
+                    <span className="flex-1 text-left">Creator</span>
+                    {creators.length > 0 && (
+                      <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-bold">{creators.length}</span>
+                    )}
+                  </button>
+                );
+              })()}
+              {(() => {
                 const isActive = activeTab === 'system-log';
                 return (
                   <button
@@ -1435,12 +1485,14 @@ const App: React.FC = () => {
                     </div>
                     {/* Add field */}
                     <div className="flex gap-2">
-                      <input
+                      <CreatorAutocomplete
                         value={channelDraft}
-                        onChange={e => setChannelDraft(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addChannelItem()}
-                        placeholder="UC코드 또는 채널 URL 입력 후 Enter"
-                        className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                        onChange={setChannelDraft}
+                        onCommit={addChannelItem}
+                        creators={creators}
+                        field="youtube"
+                        placeholder="UC코드 · 채널 URL · 크리에이터명 입력"
+                        className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                       />
                       <button
                         onClick={addChannelItem}
@@ -2392,12 +2444,14 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="flex gap-2">
-                    <input
+                    <CreatorAutocomplete
                       value={liveDraft}
-                      onChange={e => setLiveDraft(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addLiveItem()}
-                      placeholder="크리에이터 채널 ID 입력 후 Enter (또는 chzzk:ID)"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
+                      onChange={setLiveDraft}
+                      onCommit={addLiveItem}
+                      creators={creators}
+                      field="live"
+                      placeholder="채널 ID · 크리에이터명 입력 (또는 chzzk:ID)"
+                      className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
                     />
                     <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -2715,12 +2769,14 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <input
+                    <CreatorAutocomplete
                       value={igDraft}
-                      onChange={e => setIgDraft(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addIgItem()}
-                      placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
+                      onChange={setIgDraft}
+                      onCommit={addIgItem}
+                      creators={creators}
+                      field="instagram"
+                      placeholder="@username · 크리에이터명 입력 후 Enter"
+                      className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20"
                     />
                     <button onClick={addIgItem} className="flex items-center gap-1.5 px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -3057,12 +3113,14 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <input
+                    <CreatorAutocomplete
                       value={tkDraft}
-                      onChange={e => setTkDraft(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addTkItem()}
-                      placeholder="@username 또는 username 입력 후 Enter"
-                      className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                      onChange={setTkDraft}
+                      onCommit={addTkItem}
+                      creators={creators}
+                      field="tiktok"
+                      placeholder="@username · 크리에이터명 입력 후 Enter"
+                      className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
                     />
                     <button onClick={addTkItem} className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
                   </div>
@@ -3213,6 +3271,142 @@ const App: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+            </div>
+
+          ) : activeTab === 'creator' ? (
+            /* ══════════════════════════════════════════════════════════
+               Creator 탭
+               ══════════════════════════════════════════════════════════ */
+            <div className="animate-in fade-in duration-300 w-full space-y-6">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight flex items-center gap-2">
+                    <BookUser size={20} className="text-violet-600" /> Creator
+                  </h2>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">크리에이터 정보를 저장하면 분석 탭에서 자동완성으로 불러올 수 있어요</p>
+                </div>
+                <button
+                  onClick={() => setCreatorForm({})}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all active:scale-95"
+                >
+                  <Plus size={14} /> 크리에이터 추가
+                </button>
+              </div>
+
+              {/* 추가/편집 폼 */}
+              {creatorForm !== null && (
+                <div className="bg-white border border-violet-200 rounded-2xl p-6 shadow-sm">
+                  <h3 className="text-sm font-bold text-[#0f0f23] mb-4">
+                    {creatorForm.id ? '크리에이터 편집' : '새 크리에이터 추가'}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {([
+                      { key: 'name',               label: '크리에이터명 *', placeholder: '예: 해봄',               icon: Users },
+                      { key: 'youtubeChannelId',   label: 'YouTube 채널',   placeholder: 'UC코드 또는 채널 URL',   icon: Youtube },
+                      { key: 'liveMetricsId',      label: '라이브 지표 ID', placeholder: 'chzzk:ID 또는 채널 ID', icon: Tv2 },
+                      { key: 'instagramUsername',  label: 'Instagram',      placeholder: '@username',              icon: Instagram },
+                      { key: 'tiktokUsername',     label: 'TikTok',         placeholder: '@username',              icon: Music },
+                      { key: 'memo',               label: '메모',           placeholder: '추가 메모 (선택)',        icon: MessageSquare },
+                    ] as { key: keyof Creator; label: string; placeholder: string; icon: React.ElementType }[]).map(({ key, label, placeholder, icon: Icon }) => (
+                      <div key={key} className={key === 'memo' ? 'md:col-span-2' : ''}>
+                        <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5">
+                          <Icon size={11} /> {label}
+                        </label>
+                        <input
+                          value={(creatorForm[key] as string) ?? ''}
+                          onChange={e => setCreatorForm(prev => ({ ...prev!, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      onClick={() => upsertCreator(creatorForm)}
+                      disabled={!(creatorForm.name ?? '').trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-all active:scale-95"
+                    >
+                      <Save size={13} /> 저장
+                    </button>
+                    <button
+                      onClick={() => setCreatorForm(null)}
+                      className="px-4 py-2 bg-[#f0f0f8] hover:bg-[#e8e8f4] text-[#5a5a7a] rounded-lg text-sm font-medium transition-all"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 크리에이터 테이블 */}
+              {creators.length === 0 && creatorForm === null ? (
+                <div className="bg-white border border-[#e4e5f0] rounded-2xl py-20 flex flex-col items-center gap-3">
+                  <BookUser size={36} className="text-[#c0c0d4]" strokeWidth={1.2} />
+                  <p className="text-[14px] text-[#8888a8]">저장된 크리에이터가 없습니다</p>
+                  <button
+                    onClick={() => setCreatorForm({})}
+                    className="mt-1 flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all active:scale-95"
+                  >
+                    <Plus size={14} /> 지금 추가하기
+                  </button>
+                </div>
+              ) : creators.length > 0 && (
+                <div className="bg-white border border-[#e4e5f0] rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[12px]">
+                      <thead className="bg-[#f4f5fb]">
+                        <tr>
+                          {['크리에이터명', 'YouTube', '라이브 지표', 'Instagram', 'TikTok', '메모', ''].map(h => (
+                            <th key={h} className="px-4 py-3 text-left font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8] whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#f0f0f8]">
+                        {creators.map(c => (
+                          <tr key={c.id} className="hover:bg-[#f8f8fd] transition-colors group">
+                            <td className="px-4 py-3 font-semibold text-[#0f0f23] whitespace-nowrap">{c.name}</td>
+                            <td className="px-4 py-3 text-[#5a5a7a] font-mono max-w-[140px] truncate" title={c.youtubeChannelId}>{c.youtubeChannelId ?? <span className="text-[#c0c0d4]">—</span>}</td>
+                            <td className="px-4 py-3 text-[#5a5a7a] font-mono max-w-[130px] truncate" title={c.liveMetricsId}>{c.liveMetricsId ?? <span className="text-[#c0c0d4]">—</span>}</td>
+                            <td className="px-4 py-3 text-pink-600 font-mono">{c.instagramUsername ? `@${c.instagramUsername}` : <span className="text-[#c0c0d4]">—</span>}</td>
+                            <td className="px-4 py-3 text-cyan-700 font-mono">{c.tiktokUsername ? `@${c.tiktokUsername}` : <span className="text-[#c0c0d4]">—</span>}</td>
+                            <td className="px-4 py-3 text-[#8888a8] max-w-[120px] truncate">{c.memo ?? ''}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => setCreatorForm({ ...c })}
+                                  className="p-1.5 rounded-lg bg-[#f0f0f8] hover:bg-violet-100 hover:text-violet-700 text-[#8888a8] transition-all"
+                                  title="편집"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  onClick={() => { if (confirm(`"${c.name}" 크리에이터를 삭제할까요?`)) deleteCreator(c.id); }}
+                                  className="p-1.5 rounded-lg bg-[#f0f0f8] hover:bg-red-50 hover:text-red-600 text-[#8888a8] transition-all"
+                                  title="삭제"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 안내 배너 */}
+              {creators.length > 0 && (
+                <div className="bg-violet-50 border border-violet-200 rounded-xl px-5 py-3.5 flex items-start gap-3">
+                  <Info size={15} className="text-violet-500 shrink-0 mt-0.5" />
+                  <p className="text-[12px] text-violet-700 leading-relaxed">
+                    분석 탭의 입력창에 크리에이터 이름(예: <strong>해봄</strong>)을 입력하면 자동완성 목록이 나타납니다. 선택 시 해당 탭에 맞는 ID가 자동으로 입력됩니다.
+                  </p>
                 </div>
               )}
             </div>
@@ -3808,6 +4002,99 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+    </div>
+  );
+};
+
+// ── CreatorAutocomplete 컴포넌트 ─────────────────────────────────────────────
+type ACField = 'youtube' | 'live' | 'instagram' | 'tiktok';
+
+interface CreatorAutocompleteProps {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  creators: Creator[];
+  field: ACField;
+  placeholder?: string;
+  className?: string;
+}
+
+function getFieldValue(c: Creator, field: ACField): string {
+  switch (field) {
+    case 'youtube':   return c.youtubeChannelId ?? '';
+    case 'live':      return c.liveMetricsId ?? '';
+    case 'instagram': return c.instagramUsername ?? '';
+    case 'tiktok':    return c.tiktokUsername ?? '';
+  }
+}
+
+const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
+  value, onChange, onCommit, creators, field, placeholder, className,
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const suggestions = value.trim().length > 0
+    ? creators.filter(c =>
+        c.name.toLowerCase().includes(value.toLowerCase()) ||
+        getFieldValue(c, field).toLowerCase().includes(value.toLowerCase()),
+      )
+    : [];
+
+  // 외부 클릭 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const pick = (c: Creator) => {
+    const val = getFieldValue(c, field);
+    onChange(val || c.name);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <input
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { setOpen(false); onCommit(); }
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder={placeholder}
+        className={className}
+      />
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#e0e1ef] rounded-xl shadow-lg overflow-hidden">
+          {suggestions.map(c => {
+            const fv = getFieldValue(c, field);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); pick(c); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-violet-50 text-left transition-colors"
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shrink-0">
+                  <span className="text-white text-[10px] font-bold">{c.name[0]?.toUpperCase()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-[#0f0f23] truncate">{c.name}</div>
+                  {fv && <div className="text-[11px] text-[#8888a8] font-mono truncate">{fv}</div>}
+                </div>
+                {!fv && (
+                  <span className="text-[10px] text-[#c0c0d4] shrink-0">ID 없음</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
