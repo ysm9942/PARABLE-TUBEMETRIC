@@ -137,11 +137,7 @@ const App: React.FC = () => {
   };
 
   // ── System Log 상태 ──────────────────────────────────────────────────────────
-  const [sysLogAuthed, setSysLogAuthed] = useState<boolean>(
-    () => sessionStorage.getItem('syslog-auth') === '1',
-  );
-  const [sysLogPin, setSysLogPin] = useState<string>('');
-  const [sysLogPinError, setSysLogPinError] = useState<boolean>(false);
+  const [sysLogAuthed] = useState<boolean>(true);
   const [sysLogs, setSysLogs] = useState<SystemLogEntry[]>([]);
   const [sysLogFilter, setSysLogFilter] = useState<'all' | 'connection' | 'analysis' | 'error' | 'system'>('all');
   const sysLogUnsubRef = useRef<(() => void) | null>(null);
@@ -3518,71 +3514,14 @@ const App: React.FC = () => {
                System Log 탭 (PIN 보호)
                ══════════════════════════════════════════════════════════ */
             <div className="animate-in fade-in duration-300 w-full min-h-[70vh]">
-              {!sysLogAuthed ? (
-                /* ── PIN 입력 게이트 ──────────────────────────────────── */
-                <div className="flex items-center justify-center min-h-[70vh]">
-                  <div className="bg-white border border-[#e4e5f0] rounded-2xl p-10 w-full max-w-sm shadow-lg text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-5">
-                      <Shield size={32} className="text-violet-600" />
-                    </div>
-                    <h2 className="text-xl font-bold text-[#0f0f23] mb-1">System Log</h2>
-                    <p className="text-[13px] text-[#8888a8] mb-7">관리자 전용 액세스입니다. PIN을 입력하세요.</p>
-                    <div className="space-y-3">
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={8}
-                        value={sysLogPin}
-                        onChange={e => { setSysLogPin(e.target.value); setSysLogPinError(false); }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            if (sysLogPin === '265350') {
-                              setSysLogAuthed(true);
-                              sessionStorage.setItem('syslog-auth', '1');
-                              setSysLogPin('');
-                            } else {
-                              setSysLogPinError(true);
-                              setSysLogPin('');
-                            }
-                          }
-                        }}
-                        placeholder="PIN 번호 입력"
-                        className={`w-full text-center text-lg tracking-[0.3em] font-mono px-4 py-3 rounded-xl border ${
-                          sysLogPinError ? 'border-red-400 bg-red-50 text-red-700' : 'border-[#e0e1ef] bg-[#f8f8fd] text-[#0f0f23]'
-                        } outline-none focus:border-violet-400 transition-colors`}
-                      />
-                      {sysLogPinError && (
-                        <p className="text-[12px] text-red-600 font-medium">잘못된 PIN입니다. 다시 시도하세요.</p>
-                      )}
-                      <button
-                        onClick={() => {
-                          if (sysLogPin === '265350') {
-                            setSysLogAuthed(true);
-                            sessionStorage.setItem('syslog-auth', '1');
-                            setSysLogPin('');
-                          } else {
-                            setSysLogPinError(true);
-                            setSysLogPin('');
-                          }
-                        }}
-                        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition-all active:scale-95"
-                      >
-                        확인
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* ── 로그 뷰어 ────────────────────────────────────────── */
-                <SystemLogViewer
-                  logs={sysLogs}
-                  filter={sysLogFilter}
-                  onFilterChange={setSysLogFilter}
-                  onLogout={() => { setSysLogAuthed(false); sessionStorage.removeItem('syslog-auth'); }}
-                  subscribeRef={sysLogUnsubRef}
-                  onLogsUpdate={setSysLogs}
-                />
-              )}
+              <SystemLogViewer
+                logs={sysLogs}
+                filter={sysLogFilter}
+                onFilterChange={setSysLogFilter}
+                onLogout={() => {}}
+                subscribeRef={sysLogUnsubRef}
+                onLogsUpdate={setSysLogs}
+              />
             </div>
 
           ) : activeTab === 'install' ? (
@@ -4296,12 +4235,6 @@ const SystemLogViewer: React.FC<SystemLogViewerProps> = ({
             </span>
           </div>
         </div>
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#8888a8] hover:text-red-600 hover:bg-red-50 transition-all border border-[#e4e5f0]"
-        >
-          <Lock size={12} /> 잠금
-        </button>
       </div>
 
       {/* 필터 */}
