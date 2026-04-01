@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Play,
   Download,
@@ -45,7 +45,13 @@ import {
   Camera,
   History,
   Music,
-  Package2
+  Package2,
+  Terminal,
+  Shield,
+  Wifi,
+  WifiOff,
+  Filter,
+  RefreshCw,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
@@ -53,8 +59,9 @@ import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult,
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
+import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured } from './services/firebaseService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -86,12 +93,34 @@ const App: React.FC = () => {
   const [tkAgentReady, setTkAgentReady] = useState<boolean>(false);
   const [tkHeadless, setTkHeadless] = useState<boolean>(false); // TikTok은 headless OFF가 기본 (봇 감지 우회)
 
+  // ── System Log 상태 ──────────────────────────────────────────────────────────
+  const [sysLogAuthed, setSysLogAuthed] = useState<boolean>(
+    () => sessionStorage.getItem('syslog-auth') === '1',
+  );
+  const [sysLogPin, setSysLogPin] = useState<string>('');
+  const [sysLogPinError, setSysLogPinError] = useState<boolean>(false);
+  const [sysLogs, setSysLogs] = useState<SystemLogEntry[]>([]);
+  const [sysLogFilter, setSysLogFilter] = useState<'all' | 'connection' | 'analysis' | 'error' | 'system'>('all');
+  const sysLogUnsubRef = useRef<(() => void) | null>(null);
+
   // 앱 시작 시 로컬 에이전트 감지
   useEffect(() => {
-    checkLocalAgent().then(ok => setLocalAgentRunning(ok));
-    checkSoftcAgent().then(ok => setSoftcLocalRunning(ok));
-    checkInstagramAgent().then(ok => setIgLocalRunning(ok));
-    checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok));
+    const agents: string[] = [];
+    Promise.all([
+      checkLocalAgent().then(ok => { setLocalAgentRunning(ok); if (ok) agents.push('tubemetric-agent:8001'); }),
+      checkSoftcAgent().then(ok => { setSoftcLocalRunning(ok); if (ok) agents.push('softc-scraper:8002'); }),
+      checkInstagramAgent().then(ok => { setIgLocalRunning(ok); if (ok) agents.push('instagram-scraper:8003'); }),
+      checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok)),
+    ]).then(() => {
+      if (agents.length > 0) {
+        addSystemLog('info', 'connection', `로컬 에이전트 접속: ${agents.join(', ')}`, {
+          agents,
+          os: navigator.platform,
+        });
+      } else {
+        addSystemLog('info', 'connection', '로컬 에이전트 없음 (오프라인 모드)', { os: navigator.platform });
+      }
+    });
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
@@ -488,8 +517,10 @@ const App: React.FC = () => {
         const results = await fetchInstagramReelsLocal(igList, igAmount, INSTAGRAM_AGENT_URL, igHeadless);
         setIgResults(results);
         setIgJobStatus('done');
+        addSystemLog('info', 'analysis', `Instagram 수집 완료: ${results.length}명`);
       } catch (e: any) {
         console.error('Instagram 로컬 에이전트 오류:', e);
+        addSystemLog('error', 'error', `Instagram 수집 오류: ${e?.message ?? String(e)}`);
         setIgJobStatus('error');
       }
       return;
@@ -563,8 +594,10 @@ const App: React.FC = () => {
       const results = await fetchTikTokVideosLocal(tkList, tkAmount, INSTAGRAM_AGENT_URL, tkHeadless);
       setTkResults(results);
       setTkJobStatus('done');
+      addSystemLog('info', 'analysis', `TikTok 수집 완료: ${results.length}명`);
     } catch (e: any) {
       console.error('TikTok 로컬 에이전트 오류:', e.message);
+      addSystemLog('error', 'error', `TikTok 수집 오류: ${e?.message ?? String(e)}`);
       setTkJobStatus('error');
     }
   };
@@ -616,9 +649,16 @@ const App: React.FC = () => {
       }
 
       setLiveResults(results);
+      addSystemLog('info', 'analysis', `라이브 지표 수집 완료: ${results.length}명`, {
+        total: results.length,
+        agent: softcLocalRunning ? 'softc:8002' : 'tubemetric-agent:8001',
+      });
+      setLiveResults(results);
       const errors = results.filter((r: any) => r.status === 'error');
       if (errors.length > 0 && errors.length === results.length) {
-        setLiveErrorMsg(errors.map((r: any) => `${r.creatorId}: ${r.error}`).join('; '));
+        const msg = errors.map((r: any) => `${r.creatorId}: ${r.error}`).join('; ');
+        addSystemLog('error', 'error', `라이브 지표 전체 실패: ${msg}`);
+        setLiveErrorMsg(msg);
         setLiveJobStatus('error');
       } else {
         setLiveJobStatus('done');
@@ -626,6 +666,7 @@ const App: React.FC = () => {
     } catch (e: any) {
       const msg = e?.response?.data?.detail || e?.message || String(e);
       console.error('라이브 지표 오류:', msg);
+      addSystemLog('error', 'error', `라이브 지표 수집 오류: ${msg}`);
       setLiveErrorMsg(msg);
       setLiveJobStatus('error');
     }
@@ -1294,20 +1335,17 @@ const App: React.FC = () => {
             <p className="px-2 mb-1 text-[9px] font-bold text-[#b0b0c8] tracking-[0.14em] uppercase">Data</p>
             <div className="space-y-0.5">
               {(() => {
-                const isActive = activeTab === 'dashboard';
-                const count = [channelResults.length > 0, videoResults.length > 0, adResults.length > 0, scraperResults.length > 0].filter(Boolean).length;
+                const isActive = activeTab === 'system-log';
                 return (
                   <button
-                    onClick={() => setActiveTab('dashboard')}
+                    onClick={() => setActiveTab('system-log')}
                     className={`w-full flex items-center gap-2.5 py-[9px] rounded-lg text-[13px] font-medium transition-all group relative ${
                       isActive ? 'nav-active' : 'px-2.5 text-[#4a4a6a] hover:text-[#1a1a2e] hover:bg-[#f5f5fc]'
                     }`}
                   >
-                    <History size={15} className={isActive ? 'text-violet-600' : 'text-[#a0a0b8] group-hover:text-violet-500'} />
-                    <span className="flex-1 text-left">Analysis History</span>
-                    {count > 0 && (
-                      <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-bold">{count}</span>
-                    )}
+                    <Terminal size={15} className={isActive ? 'text-violet-600' : 'text-[#a0a0b8] group-hover:text-violet-500'} />
+                    <span className="flex-1 text-left">System Log</span>
+                    <Lock size={11} className="text-[#b0b0c8]" />
                   </button>
                 );
               })()}
@@ -3179,6 +3217,78 @@ const App: React.FC = () => {
               )}
             </div>
 
+          ) : activeTab === 'system-log' ? (
+            /* ══════════════════════════════════════════════════════════
+               System Log 탭 (PIN 보호)
+               ══════════════════════════════════════════════════════════ */
+            <div className="animate-in fade-in duration-300 w-full min-h-[70vh]">
+              {!sysLogAuthed ? (
+                /* ── PIN 입력 게이트 ──────────────────────────────────── */
+                <div className="flex items-center justify-center min-h-[70vh]">
+                  <div className="bg-white border border-[#e4e5f0] rounded-2xl p-10 w-full max-w-sm shadow-lg text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-5">
+                      <Shield size={32} className="text-violet-600" />
+                    </div>
+                    <h2 className="text-xl font-bold text-[#0f0f23] mb-1">System Log</h2>
+                    <p className="text-[13px] text-[#8888a8] mb-7">관리자 전용 액세스입니다. PIN을 입력하세요.</p>
+                    <div className="space-y-3">
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={8}
+                        value={sysLogPin}
+                        onChange={e => { setSysLogPin(e.target.value); setSysLogPinError(false); }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (sysLogPin === '265350') {
+                              setSysLogAuthed(true);
+                              sessionStorage.setItem('syslog-auth', '1');
+                              setSysLogPin('');
+                            } else {
+                              setSysLogPinError(true);
+                              setSysLogPin('');
+                            }
+                          }
+                        }}
+                        placeholder="PIN 번호 입력"
+                        className={`w-full text-center text-lg tracking-[0.3em] font-mono px-4 py-3 rounded-xl border ${
+                          sysLogPinError ? 'border-red-400 bg-red-50 text-red-700' : 'border-[#e0e1ef] bg-[#f8f8fd] text-[#0f0f23]'
+                        } outline-none focus:border-violet-400 transition-colors`}
+                      />
+                      {sysLogPinError && (
+                        <p className="text-[12px] text-red-600 font-medium">잘못된 PIN입니다. 다시 시도하세요.</p>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (sysLogPin === '265350') {
+                            setSysLogAuthed(true);
+                            sessionStorage.setItem('syslog-auth', '1');
+                            setSysLogPin('');
+                          } else {
+                            setSysLogPinError(true);
+                            setSysLogPin('');
+                          }
+                        }}
+                        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition-all active:scale-95"
+                      >
+                        확인
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ── 로그 뷰어 ────────────────────────────────────────── */
+                <SystemLogViewer
+                  logs={sysLogs}
+                  filter={sysLogFilter}
+                  onFilterChange={setSysLogFilter}
+                  onLogout={() => { setSysLogAuthed(false); sessionStorage.removeItem('syslog-auth'); }}
+                  subscribeRef={sysLogUnsubRef}
+                  onLogsUpdate={setSysLogs}
+                />
+              )}
+            </div>
+
           ) : activeTab === 'install' ? (
             /* ══════════════════════════════════════════════════════════
                로컬 에이전트 통합 설치 탭
@@ -3698,6 +3808,177 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+    </div>
+  );
+};
+
+// ── SystemLogViewer 컴포넌트 ──────────────────────────────────────────────────
+interface SystemLogViewerProps {
+  logs: SystemLogEntry[];
+  filter: 'all' | 'connection' | 'analysis' | 'error' | 'system';
+  onFilterChange: (f: 'all' | 'connection' | 'analysis' | 'error' | 'system') => void;
+  onLogout: () => void;
+  subscribeRef: React.MutableRefObject<(() => void) | null>;
+  onLogsUpdate: (logs: SystemLogEntry[]) => void;
+}
+
+const LEVEL_STYLE: Record<string, string> = {
+  info:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  warn:  'bg-yellow-50 text-yellow-700 border-yellow-200',
+  error: 'bg-red-50 text-red-700 border-red-200',
+};
+
+const CAT_STYLE: Record<string, string> = {
+  connection: 'bg-blue-50 text-blue-700 border-blue-200',
+  analysis:   'bg-violet-50 text-violet-700 border-violet-200',
+  error:      'bg-red-50 text-red-700 border-red-200',
+  system:     'bg-[#f0f0f8] text-[#5a5a7a] border-[#e0e1ef]',
+};
+
+const CAT_LABEL: Record<string, string> = {
+  connection: '연결',
+  analysis:   '분석',
+  error:      '오류',
+  system:     '시스템',
+};
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60)  return `${s}초 전`;
+  if (s < 3600) return `${Math.floor(s/60)}분 전`;
+  if (s < 86400) return `${Math.floor(s/3600)}시간 전`;
+  return `${Math.floor(s/86400)}일 전`;
+}
+
+const SystemLogViewer: React.FC<SystemLogViewerProps> = ({
+  logs, filter, onFilterChange, onLogout, subscribeRef, onLogsUpdate,
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeSystemLogs(onLogsUpdate);
+    subscribeRef.current = unsub;
+    return () => { unsub(); subscribeRef.current = null; };
+  }, []);
+
+  const filtered = filter === 'all' ? logs : logs.filter(l => l.category === filter);
+
+  const FILTERS: Array<{ id: typeof filter; label: string }> = [
+    { id: 'all',        label: '전체' },
+    { id: 'connection', label: '연결' },
+    { id: 'analysis',   label: '분석' },
+    { id: 'error',      label: '오류' },
+    { id: 'system',     label: '시스템' },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* 헤더 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight flex items-center gap-2">
+            <Terminal size={20} className="text-violet-600" /> System Log
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[13px] text-[#5a5a7a]">에이전트 접속 기록 · 분석 이벤트 · 오류 추적</p>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${isFirebaseConfigured() ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+              {isFirebaseConfigured() ? '● Firebase 연결됨' : '● 로컬 저장'}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#8888a8] hover:text-red-600 hover:bg-red-50 transition-all border border-[#e4e5f0]"
+        >
+          <Lock size={12} /> 잠금
+        </button>
+      </div>
+
+      {/* 필터 */}
+      <div className="flex gap-1 bg-[#f2f2f8] p-1 rounded-xl w-fit">
+        {FILTERS.map(f => (
+          <button
+            key={f.id}
+            onClick={() => onFilterChange(f.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              filter === f.id ? 'bg-white text-violet-700 shadow-sm' : 'text-[#5a5a7a] hover:text-[#1a1a2e]'
+            }`}
+          >
+            {f.label}
+            {f.id !== 'all' && (
+              <span className="ml-1 text-[9px] opacity-60">
+                {logs.filter(l => l.category === f.id).length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* 로그 목록 */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white border border-[#e4e5f0] rounded-xl py-16 text-center">
+            <Terminal size={28} className="mx-auto text-[#c0c0d4] mb-3" />
+            <p className="text-[13px] text-[#8888a8]">기록된 로그가 없습니다.</p>
+          </div>
+        ) : (
+          filtered.map((log, idx) => {
+            const key = log.id ?? `${log.timestamp}-${idx}`;
+            const isOpen = expandedId === key;
+            return (
+              <div
+                key={key}
+                className={`bg-white border rounded-xl overflow-hidden transition-all ${
+                  log.level === 'error' ? 'border-red-200' : 'border-[#e4e5f0]'
+                }`}
+              >
+                <button
+                  className="w-full px-5 py-3.5 flex items-start gap-3 text-left hover:bg-[#f8f8fd] transition-colors"
+                  onClick={() => setExpandedId(isOpen ? null : key)}
+                >
+                  {/* level dot */}
+                  <span className={`mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-bold ${LEVEL_STYLE[log.level] ?? LEVEL_STYLE.info}`}>
+                    {log.level.toUpperCase()}
+                  </span>
+                  {/* category */}
+                  <span className={`mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium ${CAT_STYLE[log.category] ?? CAT_STYLE.system}`}>
+                    {CAT_LABEL[log.category] ?? log.category}
+                  </span>
+                  {/* message */}
+                  <span className="flex-1 text-[13px] text-[#1a1a2e] font-medium leading-snug">{log.message}</span>
+                  {/* time */}
+                  <span className="shrink-0 text-[11px] text-[#a0a0b8] font-mono" title={log.timestamp}>
+                    {relTime(log.timestamp)}
+                  </span>
+                  <ChevronDown size={13} className={`shrink-0 text-[#a0a0b8] transition-transform mt-0.5 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="px-5 pb-4 pt-0 border-t border-[#f0f0f8] text-[12px] text-[#5a5a7a] space-y-1.5">
+                    <div className="font-mono text-[11px] text-[#a0a0b8]">
+                      {new Date(log.timestamp).toLocaleString('ko-KR')}
+                    </div>
+                    {log.clientOS && (
+                      <div>
+                        <span className="text-[#a0a0b8]">OS: </span>
+                        <span className="font-medium text-[#3a3a5a]">{log.clientOS}</span>
+                        {log.userAgent && (
+                          <span className="text-[#c0c0d4] ml-2 truncate max-w-xs inline-block align-middle">{log.userAgent.slice(0, 80)}</span>
+                        )}
+                      </div>
+                    )}
+                    {log.details && Object.keys(log.details).length > 0 && (
+                      <pre className="bg-[#f4f5fb] rounded-lg px-3 py-2 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all text-[#3a3a5a]">
+                        {JSON.stringify(log.details, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };
