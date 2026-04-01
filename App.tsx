@@ -1019,13 +1019,8 @@ const App: React.FC = () => {
                 <tbody className="divide-y divide-[#ececf5]">
                   {selectedIgUser.reels.map((reel, i) => (
                     <tr key={reel.media_pk || i} className="hover:bg-[#f5f5fc] transition-colors">
-                      <td className="px-5 py-3 flex items-center gap-3">
-                        {reel.thumbnail_url ? (
-                          <img src={reel.thumbnail_url} className="w-9 h-14 object-cover rounded-lg border border-[#e0e1ef] shrink-0" />
-                        ) : (
-                          <div className="w-9 h-14 bg-[#f0f1f8] rounded-lg flex items-center justify-center shrink-0"><Instagram size={14} className="text-[#1a1a2e]" /></div>
-                        )}
-                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[260px]">{reel.caption_text || '—'}</span>
+                      <td className="px-5 py-3">
+                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[300px]">{reel.caption_text || '—'}</span>
                       </td>
                       <td className="px-5 py-3 text-right text-sm font-semibold text-pink-600 tabular-nums">{reel.view_count.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-violet-600 tabular-nums">{reel.like_count.toLocaleString()}</td>
@@ -1132,13 +1127,8 @@ const App: React.FC = () => {
                 <tbody className="divide-y divide-[#ececf5]">
                   {selectedTkUser.videos.map((v, i) => (
                     <tr key={v.id || i} className="hover:bg-[#f5f5fc] transition-colors">
-                      <td className="px-5 py-3 flex items-center gap-3">
-                        {v.thumbnail ? (
-                          <img src={v.thumbnail} className="w-9 h-14 object-cover rounded-lg border border-[#e0e1ef] shrink-0" />
-                        ) : (
-                          <div className="w-9 h-14 bg-[#f0f1f8] rounded-lg flex items-center justify-center shrink-0"><Music size={14} className="text-[#1a1a2e]" /></div>
-                        )}
-                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[260px]">{v.title || '(제목 없음)'}</span>
+                      <td className="px-5 py-3">
+                        <span className="text-xs text-[#1a1a2e] line-clamp-2 max-w-[300px]">{v.title || '(제목 없음)'}</span>
                       </td>
                       <td className="px-5 py-3 text-right text-sm font-semibold text-cyan-700 tabular-nums">{v.viewCount.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-[13px] text-pink-600 tabular-nums">{v.likeCount.toLocaleString()}</td>
