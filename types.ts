@@ -2,8 +2,8 @@
 export interface Creator {
   id: string;
   name: string;
-  youtubeChannelId?: string;    // UC... 코드 또는 채널 URL
-  liveMetricsId?: string;       // chzzk:ID / soop:ID / 순수 ID
+  youtubeChannelIds: string[];   // UC... 코드 또는 채널 URL (여러 개 가능)
+  liveMetricsIds: string[];      // chzzk:ID / soop:ID / 순수 ID (여러 개 가능)
   instagramUsername?: string;   // @ 없는 username
   tiktokUsername?: string;      // @ 없는 username
   memo?: string;
