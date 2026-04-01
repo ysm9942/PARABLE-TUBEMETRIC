@@ -1,4 +1,14 @@
 
+export interface Creator {
+  id: string;
+  name: string;
+  youtubeChannelId?: string;    // UC... 코드 또는 채널 URL
+  liveMetricsId?: string;       // chzzk:ID / soop:ID / 순수 ID
+  instagramUsername?: string;   // @ 없는 username
+  tiktokUsername?: string;      // @ 없는 username
+  memo?: string;
+}
+
 export interface CommentInfo {
   author: string;
   text: string;
