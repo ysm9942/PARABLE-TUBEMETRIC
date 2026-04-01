@@ -68,7 +68,9 @@ type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | '
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(
+    () => localStorage.getItem('tubemetric-auth') === '1',
+  );
   const [pinInput, setPinInput] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabType>('channel-config');
 
@@ -284,6 +286,7 @@ const App: React.FC = () => {
     e.preventDefault();
     if (pinInput === '5350') {
       setIsAuthorized(true);
+      localStorage.setItem('tubemetric-auth', '1');
     } else {
       alert('PIN 번호가 일치하지 않습니다.');
       setPinInput('');
