@@ -2463,17 +2463,6 @@ const App: React.FC = () => {
                     )}
                   </div>
 
-                  {/* 플랫폼 선택 */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setLivePlatform('chzzk')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${livePlatform === 'chzzk' ? 'bg-blue-600 text-white' : 'bg-[#f0f0f8] text-[#5a5a7a] hover:bg-[#eaeaf4]'}`}
-                    >CHZZK</button>
-                    <button
-                      onClick={() => setLivePlatform('soop')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${livePlatform === 'soop' ? 'bg-purple-600 text-white' : 'bg-[#f0f0f8] text-[#5a5a7a] hover:bg-[#eaeaf4]'}`}
-                    >SOOP (아프리카TV)</button>
-                  </div>
 
                   <div className="flex gap-2">
                     <CreatorAutocomplete
