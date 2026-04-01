@@ -146,6 +146,29 @@ const App: React.FC = () => {
   const [sysLogFilter, setSysLogFilter] = useState<'all' | 'connection' | 'analysis' | 'error' | 'system'>('all');
   const sysLogUnsubRef = useRef<(() => void) | null>(null);
 
+  // ── 전역 에러 캐치 ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => {
+      addSystemLog('error', 'error', `[전역 오류] ${e.message}`, {
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+      });
+    };
+    const onUnhandled = (e: PromiseRejectionEvent) => {
+      const msg = e.reason?.message ?? String(e.reason);
+      addSystemLog('error', 'error', `[미처리 Promise 오류] ${msg}`, {
+        reason: String(e.reason),
+      });
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onUnhandled);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onUnhandled);
+    };
+  }, []);
+
   // 앱 시작 시 로컬 에이전트 감지
   useEffect(() => {
     const agents: string[] = [];
@@ -440,8 +463,10 @@ const App: React.FC = () => {
           return next;
         });
       } catch (err: any) {
+        const msg = err.message || '데이터를 가져오지 못했습니다.';
         console.error('Channel analysis error:', err);
-        setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: err.message || '데이터를 가져오지 못했습니다.' }; return next; });
+        addSystemLog('error', 'error', `채널 분석 오류: ${msg}`, { channelId: inputs[i] });
+        setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: msg }; return next; });
       }
     }
     setIsProcessing(false);
@@ -483,6 +508,7 @@ const App: React.FC = () => {
         return;
       } catch (e: any) {
         console.error('Backend API 오류, GitHub 큐로 폴백:', e.message);
+        addSystemLog('warn', 'error', `스크래퍼 Backend API 오류 (큐 폴백): ${e.message}`);
       }
     }
 
@@ -762,6 +788,7 @@ const App: React.FC = () => {
           return next;
         });
       } catch (err: any) {
+        addSystemLog('error', 'error', `광고 분석 오류: ${err.message}`, { channelId: inputs[i] });
         setAdResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: err.message }; return next; });
       }
     }
@@ -799,6 +826,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Video analysis error:', err);
+      addSystemLog('error', 'error', `영상 분석 오류: ${err.message}`);
       alert(`영상 분석 중 오류: ${err.message}`);
     }
     setIsProcessing(false);
