@@ -1373,7 +1373,6 @@ const App: React.FC = () => {
               {([
                 { id: 'channel-config',   label: '채널 통합 분석',   Icon: TrendingUp,  soon: false },
                 { id: 'video-config',     label: '단일 영상 분석',   Icon: Video,       soon: false },
-                { id: 'ad-config',        label: '광고 영상 분석',   Icon: Megaphone,   soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석', Icon: Tv2,         soon: false },
                 { id: 'instagram-config', label: 'Instagram 분석',  Icon: Instagram,   soon: false },
                 { id: 'tiktok-config',    label: 'TikTok 분석',     Icon: Music,       soon: false },
@@ -1441,22 +1440,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* ④ 설정 */}
-          <div>
-            <p className="px-2 mb-1 text-[9px] font-bold text-[#b0b0c8] tracking-[0.14em] uppercase">Settings</p>
-            <div className="space-y-0.5">
-              {[
-                { label: 'API 설정', Icon: Settings2 },
-                { label: '내보내기 설정', Icon: FileSpreadsheet },
-              ].map(({ label, Icon }) => (
-                <div key={label} className="w-full flex items-center gap-2.5 px-2.5 py-[9px] rounded-lg text-[13px] text-[#c0c0d4] cursor-default">
-                  <Icon size={15} className="text-[#d0d0e0]" />
-                  <span>{label}</span>
-                  <span className="ml-auto text-[9px] bg-[#f0f0f8] text-[#b0b0c8] px-1.5 py-0.5 rounded font-medium">Soon</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </nav>
 
         {/* ── 하단 상태 ────────────────────────────────────────────── */}
@@ -2003,8 +1986,8 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-          ) : activeTab === 'ad-config' ? (
-            /* ── 광고 분석 탭 ─────────────────────────────────────────────────── */
+          ) : false ? (
+            /* ── 광고 분석 탭 (제거됨) ─────────────────────────────────────────── */
             <div className="space-y-6 animate-in fade-in duration-300">
               {/* Header */}
               <div>
