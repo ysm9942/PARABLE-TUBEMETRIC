@@ -62,7 +62,7 @@ import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult,
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
-import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured } from './services/firebaseService';
+import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured, saveCreator as fbSaveCreator, deleteCreatorById as fbDeleteCreator, subscribeCreators } from './services/firebaseService';
 
 type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
 type ResultTab = 'table' | 'chart' | 'raw';
@@ -100,29 +100,37 @@ const App: React.FC = () => {
   const [creators, setCreators] = useState<Creator[]>(() => {
     try { return JSON.parse(localStorage.getItem('tubemetric-creators') ?? '[]'); } catch { return []; }
   });
-  const [creatorForm, setCreatorForm] = useState<Partial<Creator> | null>(null); // null=닫힘, {}=새로추가, {id=...}=편집
-  const saveCreators = (list: Creator[]) => {
-    setCreators(list);
-    localStorage.setItem('tubemetric-creators', JSON.stringify(list));
+  const [creatorForm, setCreatorForm] = useState<Partial<Creator> | null>(null);
+  // 폼 내 배열 필드용 draft
+  const [creatorYtDraft,   setCreatorYtDraft]   = useState('');
+  const [creatorLiveDraft, setCreatorLiveDraft] = useState('');
+
+  // Firebase 실시간 구독
+  useEffect(() => {
+    const unsub = subscribeCreators(setCreators);
+    return unsub;
+  }, []);
+
+  const openCreatorForm = (c?: Creator) => {
+    setCreatorForm(c ? { ...c } : { youtubeChannelIds: [], liveMetricsIds: [] });
+    setCreatorYtDraft('');
+    setCreatorLiveDraft('');
   };
-  const deleteCreator = (id: string) => saveCreators(creators.filter(c => c.id !== id));
+
+  const deleteCreator = (id: string) => { if (confirm('삭제할까요?')) fbDeleteCreator(id); };
+
   const upsertCreator = (c: Partial<Creator>) => {
     const trimmed: Creator = {
-      id: c.id ?? crypto.randomUUID(),
+      id:  c.id ?? crypto.randomUUID(),
       name: (c.name ?? '').trim(),
-      youtubeChannelId:   (c.youtubeChannelId ?? '').trim() || undefined,
-      liveMetricsId:      (c.liveMetricsId ?? '').trim() || undefined,
-      instagramUsername:  (c.instagramUsername ?? '').trim().replace(/^@/, '') || undefined,
-      tiktokUsername:     (c.tiktokUsername ?? '').trim().replace(/^@/, '') || undefined,
-      memo:               (c.memo ?? '').trim() || undefined,
+      youtubeChannelIds: (c.youtubeChannelIds ?? []).map(s => s.trim()).filter(Boolean),
+      liveMetricsIds:    (c.liveMetricsIds    ?? []).map(s => s.trim()).filter(Boolean),
+      instagramUsername: (c.instagramUsername ?? '').trim().replace(/^@/, '') || undefined,
+      tiktokUsername:    (c.tiktokUsername    ?? '').trim().replace(/^@/, '') || undefined,
+      memo:              (c.memo              ?? '').trim() || undefined,
     };
     if (!trimmed.name) return;
-    const exists = creators.findIndex(x => x.id === trimmed.id);
-    if (exists >= 0) {
-      const next = [...creators]; next[exists] = trimmed; saveCreators(next);
-    } else {
-      saveCreators([...creators, trimmed]);
-    }
+    fbSaveCreator(trimmed);
     setCreatorForm(null);
   };
 
@@ -1489,6 +1497,7 @@ const App: React.FC = () => {
                         value={channelDraft}
                         onChange={setChannelDraft}
                         onCommit={addChannelItem}
+                        onAddMultiple={vals => { vals.forEach(v => { setChannelInput(prev => prev ? prev + '\n' + v : v); }); setChannelDraft(''); }}
                         creators={creators}
                         field="youtube"
                         placeholder="UC코드 · 채널 URL · 크리에이터명 입력"
@@ -2448,6 +2457,7 @@ const App: React.FC = () => {
                       value={liveDraft}
                       onChange={setLiveDraft}
                       onCommit={addLiveItem}
+                      onAddMultiple={vals => { vals.forEach(v => { setLiveInput(prev => prev ? prev + '\n' + v : v); }); setLiveDraft(''); }}
                       creators={creators}
                       field="live"
                       placeholder="채널 ID · 크리에이터명 입력 (또는 chzzk:ID)"
@@ -3289,7 +3299,7 @@ const App: React.FC = () => {
                   <p className="text-[13px] text-[#5a5a7a] mt-1">크리에이터 정보를 저장하면 분석 탭에서 자동완성으로 불러올 수 있어요</p>
                 </div>
                 <button
-                  onClick={() => setCreatorForm({})}
+                  onClick={() => openCreatorForm()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all active:scale-95"
                 >
                   <Plus size={14} /> 크리에이터 추가
@@ -3298,33 +3308,96 @@ const App: React.FC = () => {
 
               {/* 추가/편집 폼 */}
               {creatorForm !== null && (
-                <div className="bg-white border border-violet-200 rounded-2xl p-6 shadow-sm">
-                  <h3 className="text-sm font-bold text-[#0f0f23] mb-4">
+                <div className="bg-white border border-violet-200 rounded-2xl p-6 shadow-sm space-y-5">
+                  <h3 className="text-sm font-bold text-[#0f0f23]">
                     {creatorForm.id ? '크리에이터 편집' : '새 크리에이터 추가'}
                   </h3>
+
+                  {/* 이름 */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Users size={11} /> 크리에이터명 *</label>
+                    <input
+                      value={creatorForm.name ?? ''}
+                      onChange={e => setCreatorForm(p => ({ ...p!, name: e.target.value }))}
+                      placeholder="예: 해봄"
+                      className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                    />
+                  </div>
+
+                  {/* YouTube 채널 (여러 개) */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Youtube size={11} /> YouTube 채널 <span className="text-[#b0b0c8] font-normal">(여러 개 가능)</span></label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(creatorForm.youtubeChannelIds ?? []).map((v, i) => (
+                        <span key={i} className="flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-[11px] px-2 py-0.5 rounded-full font-mono">
+                          {v}
+                          <button type="button" onClick={() => setCreatorForm(p => ({ ...p!, youtubeChannelIds: (p!.youtubeChannelIds ?? []).filter((_, j) => j !== i) }))} className="hover:text-red-500 transition-colors"><X size={10} /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={creatorYtDraft}
+                        onChange={e => setCreatorYtDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && creatorYtDraft.trim()) { setCreatorForm(p => ({ ...p!, youtubeChannelIds: [...(p!.youtubeChannelIds ?? []), creatorYtDraft.trim()] })); setCreatorYtDraft(''); e.preventDefault(); }}}
+                        placeholder="UC코드 또는 채널 URL 입력 후 Enter"
+                        className="flex-1 bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 transition-colors font-mono"
+                      />
+                      <button type="button" onClick={() => { if (creatorYtDraft.trim()) { setCreatorForm(p => ({ ...p!, youtubeChannelIds: [...(p!.youtubeChannelIds ?? []), creatorYtDraft.trim()] })); setCreatorYtDraft(''); }}} className="px-3 py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded-lg text-xs font-medium transition-all"><Plus size={13} /></button>
+                    </div>
+                  </div>
+
+                  {/* 라이브 지표 ID (여러 개) */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Tv2 size={11} /> 라이브 지표 ID <span className="text-[#b0b0c8] font-normal">(여러 개 가능)</span></label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(creatorForm.liveMetricsIds ?? []).map((v, i) => (
+                        <span key={i} className="flex items-center gap-1 bg-orange-50 border border-orange-200 text-orange-700 text-[11px] px-2 py-0.5 rounded-full font-mono">
+                          {v}
+                          <button type="button" onClick={() => setCreatorForm(p => ({ ...p!, liveMetricsIds: (p!.liveMetricsIds ?? []).filter((_, j) => j !== i) }))} className="hover:text-red-500 transition-colors"><X size={10} /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={creatorLiveDraft}
+                        onChange={e => setCreatorLiveDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); e.preventDefault(); }}}
+                        placeholder="chzzk:ID 또는 채널 ID 입력 후 Enter"
+                        className="flex-1 bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-orange-400 transition-colors font-mono"
+                      />
+                      <button type="button" onClick={() => { if (creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); }}} className="px-3 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-xs font-medium transition-all"><Plus size={13} /></button>
+                    </div>
+                  </div>
+
+                  {/* Instagram / TikTok / 메모 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {([
-                      { key: 'name',               label: '크리에이터명 *', placeholder: '예: 해봄',               icon: Users },
-                      { key: 'youtubeChannelId',   label: 'YouTube 채널',   placeholder: 'UC코드 또는 채널 URL',   icon: Youtube },
-                      { key: 'liveMetricsId',      label: '라이브 지표 ID', placeholder: 'chzzk:ID 또는 채널 ID', icon: Tv2 },
-                      { key: 'instagramUsername',  label: 'Instagram',      placeholder: '@username',              icon: Instagram },
-                      { key: 'tiktokUsername',     label: 'TikTok',         placeholder: '@username',              icon: Music },
-                      { key: 'memo',               label: '메모',           placeholder: '추가 메모 (선택)',        icon: MessageSquare },
+                      { key: 'instagramUsername', label: 'Instagram', placeholder: '@username', icon: Instagram },
+                      { key: 'tiktokUsername',    label: 'TikTok',    placeholder: '@username', icon: Music },
                     ] as { key: keyof Creator; label: string; placeholder: string; icon: React.ElementType }[]).map(({ key, label, placeholder, icon: Icon }) => (
-                      <div key={key} className={key === 'memo' ? 'md:col-span-2' : ''}>
-                        <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5">
-                          <Icon size={11} /> {label}
-                        </label>
+                      <div key={key}>
+                        <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Icon size={11} /> {label}</label>
                         <input
                           value={(creatorForm[key] as string) ?? ''}
-                          onChange={e => setCreatorForm(prev => ({ ...prev!, [key]: e.target.value }))}
+                          onChange={e => setCreatorForm(p => ({ ...p!, [key]: e.target.value }))}
                           placeholder={placeholder}
                           className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
                         />
                       </div>
                     ))}
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><MessageSquare size={11} /> 메모</label>
+                      <input
+                        value={creatorForm.memo ?? ''}
+                        onChange={e => setCreatorForm(p => ({ ...p!, memo: e.target.value }))}
+                        placeholder="추가 메모 (선택)"
+                        className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                      />
+                    </div>
                   </div>
-                  <div className="flex gap-2 mt-5">
+
+                  <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => upsertCreator(creatorForm)}
                       disabled={!(creatorForm.name ?? '').trim()}
@@ -3338,6 +3411,9 @@ const App: React.FC = () => {
                     >
                       취소
                     </button>
+                    <div className="ml-auto flex items-center gap-1.5 text-[11px] text-[#a0a0b8]">
+                      {isFirebaseConfigured() ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> Firebase에 저장됩니다</> : <><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block" /> 로컬에 저장됩니다</>}
+                    </div>
                   </div>
                 </div>
               )}
@@ -3348,7 +3424,7 @@ const App: React.FC = () => {
                   <BookUser size={36} className="text-[#c0c0d4]" strokeWidth={1.2} />
                   <p className="text-[14px] text-[#8888a8]">저장된 크리에이터가 없습니다</p>
                   <button
-                    onClick={() => setCreatorForm({})}
+                    onClick={() => openCreatorForm()}
                     className="mt-1 flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all active:scale-95"
                   >
                     <Plus size={14} /> 지금 추가하기
@@ -3369,15 +3445,27 @@ const App: React.FC = () => {
                         {creators.map(c => (
                           <tr key={c.id} className="hover:bg-[#f8f8fd] transition-colors group">
                             <td className="px-4 py-3 font-semibold text-[#0f0f23] whitespace-nowrap">{c.name}</td>
-                            <td className="px-4 py-3 text-[#5a5a7a] font-mono max-w-[140px] truncate" title={c.youtubeChannelId}>{c.youtubeChannelId ?? <span className="text-[#c0c0d4]">—</span>}</td>
-                            <td className="px-4 py-3 text-[#5a5a7a] font-mono max-w-[130px] truncate" title={c.liveMetricsId}>{c.liveMetricsId ?? <span className="text-[#c0c0d4]">—</span>}</td>
+                            <td className="px-4 py-3 max-w-[160px]">
+                              {c.youtubeChannelIds?.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {c.youtubeChannelIds.map((v, i) => <span key={i} className="text-[10px] bg-violet-50 border border-violet-200 text-violet-700 px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={v}>{v}</span>)}
+                                </div>
+                              ) : <span className="text-[#c0c0d4]">—</span>}
+                            </td>
+                            <td className="px-4 py-3 max-w-[160px]">
+                              {c.liveMetricsIds?.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {c.liveMetricsIds.map((v, i) => <span key={i} className="text-[10px] bg-orange-50 border border-orange-200 text-orange-700 px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={v}>{v}</span>)}
+                                </div>
+                              ) : <span className="text-[#c0c0d4]">—</span>}
+                            </td>
                             <td className="px-4 py-3 text-pink-600 font-mono">{c.instagramUsername ? `@${c.instagramUsername}` : <span className="text-[#c0c0d4]">—</span>}</td>
                             <td className="px-4 py-3 text-cyan-700 font-mono">{c.tiktokUsername ? `@${c.tiktokUsername}` : <span className="text-[#c0c0d4]">—</span>}</td>
                             <td className="px-4 py-3 text-[#8888a8] max-w-[120px] truncate">{c.memo ?? ''}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={() => setCreatorForm({ ...c })}
+                                  onClick={() => openCreatorForm(c)}
                                   className="p-1.5 rounded-lg bg-[#f0f0f8] hover:bg-violet-100 hover:text-violet-700 text-[#8888a8] transition-all"
                                   title="편집"
                                 >
@@ -4013,35 +4101,37 @@ interface CreatorAutocompleteProps {
   value: string;
   onChange: (v: string) => void;
   onCommit: () => void;
+  /** 여러 값을 한 번에 추가할 때 호출 (youtube/live의 경우) */
+  onAddMultiple?: (values: string[]) => void;
   creators: Creator[];
   field: ACField;
   placeholder?: string;
   className?: string;
 }
 
-function getFieldValue(c: Creator, field: ACField): string {
+function getFieldValues(c: Creator, field: ACField): string[] {
   switch (field) {
-    case 'youtube':   return c.youtubeChannelId ?? '';
-    case 'live':      return c.liveMetricsId ?? '';
-    case 'instagram': return c.instagramUsername ?? '';
-    case 'tiktok':    return c.tiktokUsername ?? '';
+    case 'youtube':   return c.youtubeChannelIds ?? [];
+    case 'live':      return c.liveMetricsIds ?? [];
+    case 'instagram': return c.instagramUsername ? [c.instagramUsername] : [];
+    case 'tiktok':    return c.tiktokUsername ? [c.tiktokUsername] : [];
   }
 }
 
 const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
-  value, onChange, onCommit, creators, field, placeholder, className,
+  value, onChange, onCommit, onAddMultiple, creators, field, placeholder, className,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const suggestions = value.trim().length > 0
-    ? creators.filter(c =>
-        c.name.toLowerCase().includes(value.toLowerCase()) ||
-        getFieldValue(c, field).toLowerCase().includes(value.toLowerCase()),
-      )
+    ? creators.filter(c => {
+        const q = value.toLowerCase();
+        return c.name.toLowerCase().includes(q) ||
+          getFieldValues(c, field).some(v => v.toLowerCase().includes(q));
+      })
     : [];
 
-  // 외부 클릭 닫기
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -4051,9 +4141,20 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
   }, []);
 
   const pick = (c: Creator) => {
-    const val = getFieldValue(c, field);
-    onChange(val || c.name);
-    setOpen(false);
+    const vals = getFieldValues(c, field);
+    if (vals.length === 0) { onChange(c.name); setOpen(false); return; }
+    if (vals.length === 1) {
+      onChange(vals[0]);
+      setOpen(false);
+    } else if (onAddMultiple) {
+      // 여러 개: draft 비우고 전부 추가
+      onAddMultiple(vals);
+      onChange('');
+      setOpen(false);
+    } else {
+      onChange(vals[0]);
+      setOpen(false);
+    }
   };
 
   return (
@@ -4070,9 +4171,9 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
         className={className}
       />
       {open && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#e0e1ef] rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#e0e1ef] rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
           {suggestions.map(c => {
-            const fv = getFieldValue(c, field);
+            const vals = getFieldValues(c, field);
             return (
               <button
                 key={c.id}
@@ -4084,10 +4185,17 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
                   <span className="text-white text-[10px] font-bold">{c.name[0]?.toUpperCase()}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-[#0f0f23] truncate">{c.name}</div>
-                  {fv && <div className="text-[11px] text-[#8888a8] font-mono truncate">{fv}</div>}
+                  <div className="text-[13px] font-semibold text-[#0f0f23]">{c.name}</div>
+                  {vals.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {vals.map((v, i) => <span key={i} className="text-[10px] text-[#8888a8] font-mono bg-[#f4f4f8] px-1 rounded truncate max-w-[160px]">{v}</span>)}
+                    </div>
+                  )}
                 </div>
-                {!fv && (
+                {vals.length > 1 && (
+                  <span className="text-[10px] text-violet-500 shrink-0 font-medium">{vals.length}개 추가</span>
+                )}
+                {vals.length === 0 && (
                   <span className="text-[10px] text-[#c0c0d4] shrink-0">ID 없음</span>
                 )}
               </button>

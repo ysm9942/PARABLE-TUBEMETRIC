@@ -3,6 +3,9 @@ import {
   getFirestore,
   collection,
   addDoc,
+  setDoc,
+  deleteDoc,
+  doc,
   query,
   orderBy,
   limit,
@@ -11,6 +14,7 @@ import {
   Unsubscribe,
   serverTimestamp,
 } from 'firebase/firestore';
+import type { Creator } from '../types';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 export type LogCategory = 'connection' | 'analysis' | 'error' | 'system';
@@ -37,11 +41,12 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const COLLECTION = 'system-logs';
-const LOG_LIMIT  = 200;
+const LOG_COLLECTION     = 'system-logs';
+const CREATOR_COLLECTION = 'creators';
+const LOG_LIMIT          = 200;
 
-let app: FirebaseApp | null  = null;
-let db:  Firestore  | null   = null;
+let app: FirebaseApp | null = null;
+let db:  Firestore  | null  = null;
 
 function isConfigured(): boolean {
   return !!(firebaseConfig.projectId && firebaseConfig.apiKey);
@@ -64,7 +69,10 @@ function clientMeta() {
   };
 }
 
-// ── 로그 추가 ────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// System Log
+// ════════════════════════════════════════════════════════════════════════════
+
 export async function addSystemLog(
   level: LogLevel,
   category: LogCategory,
@@ -83,7 +91,7 @@ export async function addSystemLog(
   const store = getDb();
   if (store) {
     try {
-      await addDoc(collection(store, COLLECTION), {
+      await addDoc(collection(store, LOG_COLLECTION), {
         ...entry,
         serverTs: serverTimestamp(),
       });
@@ -93,7 +101,6 @@ export async function addSystemLog(
     }
   }
 
-  // ── localStorage fallback ────────────────────────────────────────────────
   try {
     const key  = 'tubemetric-syslog';
     const raw  = localStorage.getItem(key);
@@ -101,12 +108,9 @@ export async function addSystemLog(
     list.unshift({ ...entry, id: crypto.randomUUID() });
     if (list.length > LOG_LIMIT) list.splice(LOG_LIMIT);
     localStorage.setItem(key, JSON.stringify(list));
-  } catch {
-    // 무시
-  }
+  } catch { /* 무시 */ }
 }
 
-// ── 로그 구독 (실시간) ────────────────────────────────────────────────────────
 export function subscribeSystemLogs(
   onData: (entries: SystemLogEntry[]) => void,
 ): Unsubscribe {
@@ -114,18 +118,16 @@ export function subscribeSystemLogs(
 
   if (store) {
     const q = query(
-      collection(store, COLLECTION),
+      collection(store, LOG_COLLECTION),
       orderBy('serverTs', 'desc'),
       limit(LOG_LIMIT),
     );
     return onSnapshot(q, snap => {
-      const entries: SystemLogEntry[] = snap.docs.map(d => ({
+      onData(snap.docs.map(d => ({
         id: d.id,
         ...d.data() as Omit<SystemLogEntry, 'id'>,
-        // serverTimestamp → ISO string for display
-        timestamp: d.data().timestamp ?? new Date().toISOString(),
-      }));
-      onData(entries);
+        timestamp: (d.data().timestamp as string) ?? new Date().toISOString(),
+      })));
     });
   }
 
@@ -137,10 +139,76 @@ export function subscribeSystemLogs(
     } catch { onData([]); }
   };
   load();
-
-  // 폴링 (로컬 fallback)
   const iv = setInterval(load, 5000);
   return () => clearInterval(iv);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Creator CRUD
+// ════════════════════════════════════════════════════════════════════════════
+
+const LS_CREATORS = 'tubemetric-creators';
+
+function lsLoadCreators(): Creator[] {
+  try { return JSON.parse(localStorage.getItem(LS_CREATORS) ?? '[]'); } catch { return []; }
+}
+function lsSaveCreators(list: Creator[]) {
+  localStorage.setItem(LS_CREATORS, JSON.stringify(list));
+}
+
+/** Creator를 저장(추가/수정)합니다. */
+export async function saveCreator(creator: Creator): Promise<void> {
+  const store = getDb();
+  if (store) {
+    try {
+      await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
+        ...creator,
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    } catch { /* fallback */ }
+  }
+  // localStorage fallback
+  const list = lsLoadCreators();
+  const idx  = list.findIndex(c => c.id === creator.id);
+  if (idx >= 0) list[idx] = creator; else list.push(creator);
+  lsSaveCreators(list);
+}
+
+/** Creator를 삭제합니다. */
+export async function deleteCreatorById(id: string): Promise<void> {
+  const store = getDb();
+  if (store) {
+    try {
+      await deleteDoc(doc(store, CREATOR_COLLECTION, id));
+      return;
+    } catch { /* fallback */ }
+  }
+  lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
+}
+
+/** Creator 목록을 실시간 구독합니다. */
+export function subscribeCreators(
+  onData: (creators: Creator[]) => void,
+): Unsubscribe {
+  const store = getDb();
+
+  if (store) {
+    const q = query(
+      collection(store, CREATOR_COLLECTION),
+      orderBy('name'),
+    );
+    return onSnapshot(q, snap => {
+      onData(snap.docs.map(d => ({ ...d.data() as Creator, id: d.id })));
+    }, () => {
+      // Firestore 권한 오류 등 → fallback
+      onData(lsLoadCreators());
+    });
+  }
+
+  // localStorage fallback
+  onData(lsLoadCreators());
+  return () => { /* no-op */ };
 }
 
 export { isConfigured };
