@@ -132,7 +132,26 @@ const App: React.FC = () => {
     setCreatorLiveDraft('');
   };
 
-  const deleteCreator = (id: string) => { if (confirm('삭제할까요?')) fbDeleteCreator(id); };
+  const deleteCreator = (id: string) => {
+    if (confirm('삭제할까요?')) {
+      fbDeleteCreator(id);
+      setCreators(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
+  // Instagram/TikTok URL or @handle → plain username
+  const parseIgUsername = (raw: string): string => {
+    const s = raw.trim();
+    const m = s.match(/instagram\.com\/([^/?#\s@]+)/);
+    if (m) return m[1].replace(/\/$/, '');
+    return s.replace(/^@/, '').split('/')[0].trim();
+  };
+  const parseTkUsername = (raw: string): string => {
+    const s = raw.trim();
+    const m = s.match(/tiktok\.com\/@([^/?#\s]+)/);
+    if (m) return m[1].replace(/\/$/, '');
+    return s.replace(/^@/, '').split('/')[0].trim();
+  };
 
   const upsertCreator = async (c: Partial<Creator>) => {
     const trimmed: Creator = {
@@ -140,9 +159,9 @@ const App: React.FC = () => {
       name: (c.name ?? '').trim(),
       youtubeChannelIds: (c.youtubeChannelIds ?? []).map(s => s.trim()).filter(Boolean),
       liveMetricsIds:    (c.liveMetricsIds    ?? []).map(s => parseLiveUrl(s)).filter(Boolean),
-      instagramUsername: (c.instagramUsername ?? '').trim().replace(/^@/, '') || undefined,
-      tiktokUsername:    (c.tiktokUsername    ?? '').trim().replace(/^@/, '') || undefined,
-      memo:              (c.memo              ?? '').trim() || undefined,
+      instagramUsername: c.instagramUsername ? parseIgUsername(c.instagramUsername) || undefined : undefined,
+      tiktokUsername:    c.tiktokUsername    ? parseTkUsername(c.tiktokUsername)    || undefined : undefined,
+      memo:              (c.memo ?? '').trim() || undefined,
       thumbnailUrl:      c.thumbnailUrl || undefined,
     };
     if (!trimmed.name) return;
@@ -153,6 +172,12 @@ const App: React.FC = () => {
         if (info?.thumbnail) trimmed.thumbnailUrl = info.thumbnail;
       } catch { /* API 키 없거나 실패 시 무시 */ }
     }
+    // Firebase write 성공 여부와 무관하게 로컬 state 즉시 갱신
+    setCreators(prev => {
+      const idx = prev.findIndex(x => x.id === trimmed.id);
+      if (idx >= 0) { const next = [...prev]; next[idx] = trimmed; return next; }
+      return [...prev, trimmed];
+    });
     fbSaveCreator(trimmed);
     setCreatorForm(null);
   };
@@ -1063,8 +1088,8 @@ const App: React.FC = () => {
               {/* Instagram / TikTok / 메모 */}
               <div className="grid grid-cols-2 gap-3">
                 {([
-                  { key: 'instagramUsername', label: 'Instagram', placeholder: '@username', icon: Instagram },
-                  { key: 'tiktokUsername',    label: 'TikTok',    placeholder: '@username', icon: Music },
+                  { key: 'instagramUsername', label: 'Instagram', placeholder: 'URL 또는 @username', icon: Instagram },
+                  { key: 'tiktokUsername',    label: 'TikTok',    placeholder: 'URL 또는 @username', icon: Music },
                 ] as { key: keyof Creator; label: string; placeholder: string; icon: React.ElementType }[]).map(({ key, label, placeholder, icon: Icon }) => (
                   <div key={key}>
                     <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Icon size={11} /> {label}</label>
