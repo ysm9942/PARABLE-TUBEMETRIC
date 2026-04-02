@@ -185,22 +185,22 @@ const App: React.FC = () => {
   // ── System Log 상태 ──────────────────────────────────────────────────────────
   const [sysLogAuthed] = useState<boolean>(true);
   const [sysLogs, setSysLogs] = useState<SystemLogEntry[]>([]);
-  const [sysLogFilter, setSysLogFilter] = useState<'all' | 'connection' | 'analysis' | 'error' | 'system'>('all');
+  const [sysLogFilter, setSysLogFilter] = useState<'all' | 'connection' | 'analysis' | 'error' | 'system'>('error');
   const sysLogUnsubRef = useRef<(() => void) | null>(null);
 
   // ── 전역 에러 캐치 ───────────────────────────────────────────────────────────
   useEffect(() => {
     const onError = (e: ErrorEvent) => {
       addSystemLog('error', 'error', `[전역 오류] ${e.message}`, {
-        filename: e.filename,
-        lineno: e.lineno,
-        colno: e.colno,
+        location: e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : '알 수 없음',
+        os: navigator.platform,
       });
     };
     const onUnhandled = (e: PromiseRejectionEvent) => {
       const msg = e.reason?.message ?? String(e.reason);
       addSystemLog('error', 'error', `[미처리 Promise 오류] ${msg}`, {
-        reason: String(e.reason),
+        location: '비동기 처리',
+        os: navigator.platform,
       });
     };
     window.addEventListener('error', onError);
@@ -219,15 +219,6 @@ const App: React.FC = () => {
       checkSoftcAgent().then(ok => { setSoftcLocalRunning(ok); if (ok) agents.push('softc-scraper:8002'); }),
       checkInstagramAgent().then(ok => { setIgLocalRunning(ok); if (ok) agents.push('instagram-scraper:8003'); }),
       checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok)),
-    ]).then(() => {
-      if (agents.length > 0) {
-        addSystemLog('info', 'connection', `로컬 에이전트 접속: ${agents.join(', ')}`, {
-          agents,
-          os: navigator.platform,
-        });
-      } else {
-        addSystemLog('info', 'connection', '로컬 에이전트 없음 (오프라인 모드)', { os: navigator.platform });
-      }
     });
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
@@ -507,7 +498,7 @@ const App: React.FC = () => {
       } catch (err: any) {
         const msg = err.message || '데이터를 가져오지 못했습니다.';
         console.error('Channel analysis error:', err);
-        addSystemLog('error', 'error', `채널 분석 오류: ${msg}`, { channelId: inputs[i] });
+        addSystemLog('error', 'error', `채널 분석 오류: ${msg}`, { location: 'YouTube 채널 분석', channelId: inputs[i] });
         setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: msg }; return next; });
       }
     }
@@ -550,7 +541,7 @@ const App: React.FC = () => {
         return;
       } catch (e: any) {
         console.error('Backend API 오류, GitHub 큐로 폴백:', e.message);
-        addSystemLog('warn', 'error', `스크래퍼 Backend API 오류 (큐 폴백): ${e.message}`);
+        addSystemLog('error', 'error', `스크래퍼 Backend API 오류: ${e.message}`, { location: 'YouTube 채널 분석 (Backend API)' });
       }
     }
 
@@ -629,10 +620,13 @@ const App: React.FC = () => {
         const results = await fetchInstagramReelsLocal(igList, igAmount, INSTAGRAM_AGENT_URL, igHeadless);
         setIgResults(results);
         setIgJobStatus('done');
-        addSystemLog('info', 'analysis', `Instagram 수집 완료: ${results.length}명`);
+        const zeroResults = results.filter(r => r.reelCount === 0 || r.avgViews === 0);
+        if (zeroResults.length > 0) {
+          addSystemLog('error', 'error', `Instagram 수집 결과 0건: ${zeroResults.map(r => r.username).join(', ')}`, { location: 'Instagram 릴스 분석', accounts: zeroResults.map(r => r.username) });
+        }
       } catch (e: any) {
         console.error('Instagram 로컬 에이전트 오류:', e);
-        addSystemLog('error', 'error', `Instagram 수집 오류: ${e?.message ?? String(e)}`);
+        addSystemLog('error', 'error', `Instagram 수집 오류: ${e?.message ?? String(e)}`, { location: 'Instagram 릴스 분석', os: navigator.platform });
         setIgJobStatus('error');
       }
       return;
@@ -706,10 +700,13 @@ const App: React.FC = () => {
       const results = await fetchTikTokVideosLocal(tkList, tkAmount, INSTAGRAM_AGENT_URL, tkHeadless);
       setTkResults(results);
       setTkJobStatus('done');
-      addSystemLog('info', 'analysis', `TikTok 수집 완료: ${results.length}명`);
+      const zeroResults = results.filter(r => r.videoCount === 0 || r.avgViews === 0);
+      if (zeroResults.length > 0) {
+        addSystemLog('error', 'error', `TikTok 수집 결과 0건: ${zeroResults.map(r => r.username).join(', ')}`, { location: 'TikTok 분석', accounts: zeroResults.map(r => r.username) });
+      }
     } catch (e: any) {
       console.error('TikTok 로컬 에이전트 오류:', e.message);
-      addSystemLog('error', 'error', `TikTok 수집 오류: ${e?.message ?? String(e)}`);
+      addSystemLog('error', 'error', `TikTok 수집 오류: ${e?.message ?? String(e)}`, { location: 'TikTok 분석', os: navigator.platform });
       setTkJobStatus('error');
     }
   };
@@ -762,24 +759,23 @@ const App: React.FC = () => {
       }
 
       setLiveResults(results);
-      addSystemLog('info', 'analysis', `라이브 지표 수집 완료: ${results.length}명`, {
-        total: results.length,
-        agent: softcLocalRunning ? 'softc:8002' : 'tubemetric-agent:8001',
-      });
-      setLiveResults(results);
       const errors = results.filter((r: any) => r.status === 'error');
-      if (errors.length > 0 && errors.length === results.length) {
+      if (errors.length > 0) {
         const msg = errors.map((r: any) => `${r.creatorId}: ${r.error}`).join('; ');
-        addSystemLog('error', 'error', `라이브 지표 전체 실패: ${msg}`);
-        setLiveErrorMsg(msg);
-        setLiveJobStatus('error');
+        addSystemLog('error', 'error', `라이브 지표 수집 실패: ${msg}`, { location: '라이브 지표 분석', failedCreators: errors.map((r: any) => r.creatorId), os: navigator.platform });
+        if (errors.length === results.length) {
+          setLiveErrorMsg(msg);
+          setLiveJobStatus('error');
+        } else {
+          setLiveJobStatus('done');
+        }
       } else {
         setLiveJobStatus('done');
       }
     } catch (e: any) {
       const msg = e?.response?.data?.detail || e?.message || String(e);
       console.error('라이브 지표 오류:', msg);
-      addSystemLog('error', 'error', `라이브 지표 수집 오류: ${msg}`);
+      addSystemLog('error', 'error', `라이브 지표 수집 오류: ${msg}`, { location: '라이브 지표 분석', os: navigator.platform });
       setLiveErrorMsg(msg);
       setLiveJobStatus('error');
     }
@@ -831,7 +827,7 @@ const App: React.FC = () => {
           return next;
         });
       } catch (err: any) {
-        addSystemLog('error', 'error', `광고 분석 오류: ${err.message}`, { channelId: inputs[i] });
+        addSystemLog('error', 'error', `광고 분석 오류: ${err.message}`, { location: '광고 영상 분석', channelId: inputs[i], os: navigator.platform });
         setAdResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'error', error: err.message }; return next; });
       }
     }
@@ -869,7 +865,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Video analysis error:', err);
-      addSystemLog('error', 'error', `영상 분석 오류: ${err.message}`);
+      addSystemLog('error', 'error', `영상 분석 오류: ${err.message}`, { location: 'YouTube 영상 분석', os: navigator.platform });
       alert(`영상 분석 중 오류: ${err.message}`);
     }
     setIsProcessing(false);
@@ -4213,14 +4209,11 @@ const SystemLogViewer: React.FC<SystemLogViewerProps> = ({
     return () => { unsub(); subscribeRef.current = null; };
   }, []);
 
-  const filtered = filter === 'all' ? logs : logs.filter(l => l.category === filter);
+  const filtered = filter === 'all' ? logs : filter === 'error' ? logs.filter(l => l.level === 'error' || l.level === 'warn') : logs.filter(l => l.category === filter);
 
   const FILTERS: Array<{ id: typeof filter; label: string }> = [
-    { id: 'all',        label: '전체' },
-    { id: 'connection', label: '연결' },
-    { id: 'analysis',   label: '분석' },
-    { id: 'error',      label: '오류' },
-    { id: 'system',     label: '시스템' },
+    { id: 'all',   label: '전체' },
+    { id: 'error', label: '오류' },
   ];
 
   return (
@@ -4232,7 +4225,7 @@ const SystemLogViewer: React.FC<SystemLogViewerProps> = ({
             <Terminal size={20} className="text-violet-600" /> System Log
           </h2>
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-[13px] text-[#5a5a7a]">에이전트 접속 기록 · 분석 이벤트 · 오류 추적</p>
+            <p className="text-[13px] text-[#5a5a7a]">수집 오류 및 예외 발생 시 자동 기록됩니다</p>
             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${isFirebaseConfigured() ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
               {isFirebaseConfigured() ? '● Firebase 연결됨' : '● 로컬 저장'}
             </span>
@@ -4299,22 +4292,34 @@ const SystemLogViewer: React.FC<SystemLogViewerProps> = ({
                   <ChevronDown size={13} className={`shrink-0 text-[#a0a0b8] transition-transform mt-0.5 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isOpen && (
-                  <div className="px-5 pb-4 pt-0 border-t border-[#f0f0f8] text-[12px] text-[#5a5a7a] space-y-1.5">
-                    <div className="font-mono text-[11px] text-[#a0a0b8]">
-                      {new Date(log.timestamp).toLocaleString('ko-KR')}
-                    </div>
-                    {log.clientOS && (
+                  <div className="px-5 pb-4 pt-3 border-t border-[#f0f0f8] text-[12px] text-[#5a5a7a] space-y-2">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                       <div>
-                        <span className="text-[#a0a0b8]">OS: </span>
-                        <span className="font-medium text-[#3a3a5a]">{log.clientOS}</span>
-                        {log.userAgent && (
-                          <span className="text-[#c0c0d4] ml-2 truncate max-w-xs inline-block align-middle">{log.userAgent.slice(0, 80)}</span>
-                        )}
+                        <span className="text-[10px] font-semibold text-[#a0a0b8] uppercase tracking-wide">발생 시각</span>
+                        <div className="font-mono text-[11px] text-[#3a3a5a] mt-0.5">{new Date(log.timestamp).toLocaleString('ko-KR')}</div>
                       </div>
-                    )}
-                    {log.details && Object.keys(log.details).length > 0 && (
+                      {(log.details as any)?.location && (
+                        <div>
+                          <span className="text-[10px] font-semibold text-[#a0a0b8] uppercase tracking-wide">발생 위치</span>
+                          <div className="text-[11px] text-[#3a3a5a] mt-0.5 font-medium">{(log.details as any).location}</div>
+                        </div>
+                      )}
+                      {(log.clientOS || (log.details as any)?.os) && (
+                        <div>
+                          <span className="text-[10px] font-semibold text-[#a0a0b8] uppercase tracking-wide">접속 컴퓨터</span>
+                          <div className="text-[11px] text-[#3a3a5a] mt-0.5">{(log.details as any)?.os || log.clientOS}</div>
+                        </div>
+                      )}
+                      {log.userAgent && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] font-semibold text-[#a0a0b8] uppercase tracking-wide">브라우저</span>
+                          <div className="text-[10px] text-[#a0a0b8] mt-0.5 font-mono truncate">{log.userAgent.slice(0, 120)}</div>
+                        </div>
+                      )}
+                    </div>
+                    {log.details && Object.keys(log.details).filter(k => !['location','os'].includes(k)).length > 0 && (
                       <pre className="bg-[#f4f5fb] rounded-lg px-3 py-2 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap break-all text-[#3a3a5a]">
-                        {JSON.stringify(log.details, null, 2)}
+                        {JSON.stringify(Object.fromEntries(Object.entries(log.details).filter(([k]) => !['location','os'].includes(k))), null, 2)}
                       </pre>
                     )}
                   </div>
