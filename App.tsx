@@ -132,10 +132,15 @@ const App: React.FC = () => {
     setCreatorLiveDraft('');
   };
 
-  const deleteCreator = (id: string) => {
+  const deleteCreator = async (id: string) => {
     if (confirm('삭제할까요?')) {
-      fbDeleteCreator(id);
-      setCreators(prev => prev.filter(c => c.id !== id));
+      try {
+        await fbDeleteCreator(id);
+        setCreators(prev => prev.filter(c => c.id !== id));
+      } catch (e: any) {
+        console.error('[Creator] 삭제 실패:', e);
+        alert('크리에이터 삭제에 실패했습니다.');
+      }
     }
   };
 
@@ -178,13 +183,20 @@ const App: React.FC = () => {
         if (info?.thumbnail) trimmed.thumbnailUrl = info.thumbnail;
       } catch { /* API 키 없거나 실패 시 무시 */ }
     }
-    // Firebase write 성공 여부와 무관하게 로컬 state 즉시 갱신
+    // Firebase에 저장 (완료될 때까지 대기)
+    try {
+      await fbSaveCreator(trimmed);
+    } catch (e: any) {
+      console.error('[Creator] 저장 실패:', e);
+      alert('크리에이터 저장에 실패했습니다. 다시 시도해주세요.');
+      return;
+    }
+    // 저장 성공 후 로컬 state 갱신
     setCreators(prev => {
       const idx = prev.findIndex(x => x.id === trimmed.id);
       if (idx >= 0) { const next = [...prev]; next[idx] = trimmed; return next; }
       return [...prev, trimmed];
     });
-    fbSaveCreator(trimmed);
     setCreatorForm(null);
   };
 
