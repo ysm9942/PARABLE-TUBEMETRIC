@@ -156,8 +156,15 @@ function lsSaveCreators(list: Creator[]) {
   localStorage.setItem(LS_CREATORS, JSON.stringify(list));
 }
 
-/** Creator를 저장(추가/수정)합니다. */
+/** Creator를 저장(추가/수정)합니다. Firestore + localStorage 양쪽 모두 저장. */
 export async function saveCreator(creator: Creator): Promise<void> {
+  // localStorage는 항상 저장 (오프라인/폴백 대비)
+  const list = lsLoadCreators();
+  const idx  = list.findIndex(c => c.id === creator.id);
+  if (idx >= 0) list[idx] = creator; else list.push(creator);
+  lsSaveCreators(list);
+
+  // Firestore 저장 (다른 기기 실시간 동기화)
   const store = getDb();
   if (store) {
     try {
@@ -165,26 +172,26 @@ export async function saveCreator(creator: Creator): Promise<void> {
         ...creator,
         updatedAt: serverTimestamp(),
       });
-      return;
-    } catch { /* fallback */ }
+    } catch (e) {
+      console.error('[Firebase] Creator 저장 실패:', e);
+    }
   }
-  // localStorage fallback
-  const list = lsLoadCreators();
-  const idx  = list.findIndex(c => c.id === creator.id);
-  if (idx >= 0) list[idx] = creator; else list.push(creator);
-  lsSaveCreators(list);
 }
 
-/** Creator를 삭제합니다. */
+/** Creator를 삭제합니다. Firestore + localStorage 양쪽 모두 삭제. */
 export async function deleteCreatorById(id: string): Promise<void> {
+  // localStorage는 항상 삭제
+  lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
+
+  // Firestore 삭제 (다른 기기 실시간 동기화)
   const store = getDb();
   if (store) {
     try {
       await deleteDoc(doc(store, CREATOR_COLLECTION, id));
-      return;
-    } catch { /* fallback */ }
+    } catch (e) {
+      console.error('[Firebase] Creator 삭제 실패:', e);
+    }
   }
-  lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
 }
 
 /** Creator 목록을 실시간 구독합니다. */
