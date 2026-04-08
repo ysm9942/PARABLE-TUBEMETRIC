@@ -183,15 +183,16 @@ const App: React.FC = () => {
         if (info?.thumbnail) trimmed.thumbnailUrl = info.thumbnail;
       } catch { /* API 키 없거나 실패 시 무시 */ }
     }
-    // Firebase에 저장 (완료될 때까지 대기)
+    // Firebase + localStorage 저장 (완료될 때까지 대기)
     try {
       await fbSaveCreator(trimmed);
     } catch (e: any) {
+      const msg = e?.code || e?.message || String(e);
       console.error('[Creator] 저장 실패:', e);
-      alert('크리에이터 저장에 실패했습니다. 다시 시도해주세요.');
-      return;
+      alert(`크리에이터 저장 실패:\n${msg}\n\nFirebase 설정 또는 Firestore 보안 규칙을 확인하세요.`);
+      // Firestore 실패해도 localStorage에는 저장됨 → UI 갱신은 진행
     }
-    // 저장 성공 후 로컬 state 갱신
+    // 로컬 state 갱신
     setCreators(prev => {
       const idx = prev.findIndex(x => x.id === trimmed.id);
       if (idx >= 0) { const next = [...prev]; next[idx] = trimmed; return next; }

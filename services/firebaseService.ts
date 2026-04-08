@@ -158,24 +158,22 @@ function lsSaveCreators(list: Creator[]) {
 
 /** Creator를 저장(추가/수정)합니다. Firestore + localStorage 양쪽 모두 저장. */
 export async function saveCreator(creator: Creator): Promise<void> {
-  // localStorage는 항상 저장 (오프라인/폴백 대비)
+  // localStorage는 항상 저장
   const list = lsLoadCreators();
   const idx  = list.findIndex(c => c.id === creator.id);
   if (idx >= 0) list[idx] = creator; else list.push(creator);
   lsSaveCreators(list);
 
-  // Firestore 저장 (다른 기기 실시간 동기화)
+  // Firestore 저장 — 실패 시 에러를 던져서 호출부에서 알 수 있도록
   const store = getDb();
-  if (store) {
-    try {
-      await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
-        ...creator,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (e) {
-      console.error('[Firebase] Creator 저장 실패:', e);
-    }
+  if (!store) {
+    console.warn('[Firebase] Firebase 미설정 — localStorage만 저장됨. projectId:', firebaseConfig.projectId, 'apiKey:', firebaseConfig.apiKey ? '있음' : '없음');
+    return;
   }
+  await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
+    ...creator,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /** Creator를 삭제합니다. Firestore + localStorage 양쪽 모두 삭제. */
@@ -183,15 +181,10 @@ export async function deleteCreatorById(id: string): Promise<void> {
   // localStorage는 항상 삭제
   lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
 
-  // Firestore 삭제 (다른 기기 실시간 동기화)
+  // Firestore 삭제 — 실패 시 에러를 던져서 호출부에서 알 수 있도록
   const store = getDb();
-  if (store) {
-    try {
-      await deleteDoc(doc(store, CREATOR_COLLECTION, id));
-    } catch (e) {
-      console.error('[Firebase] Creator 삭제 실패:', e);
-    }
-  }
+  if (!store) return;
+  await deleteDoc(doc(store, CREATOR_COLLECTION, id));
 }
 
 /** Creator 목록을 실시간 구독합니다.
