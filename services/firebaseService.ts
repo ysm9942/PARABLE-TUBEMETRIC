@@ -167,41 +167,45 @@ function mergeCreators(primary: Creator[], secondary: Creator[]): Creator[] {
   return Array.from(map.values());
 }
 
-/** Creator를 저장합니다. localStorage(즉시) + Firestore(비동기). */
+/** Creator를 저장합니다. localStorage(즉시) → 2초 후 Firestore 동기화. */
 export async function saveCreator(creator: Creator): Promise<void> {
-  // 1) localStorage — 즉시, 절대 실패 안 함
+  // 1) localStorage — 즉시
   const list = lsLoadCreators();
   const idx  = list.findIndex(c => c.id === creator.id);
   if (idx >= 0) list[idx] = creator; else list.push(creator);
   lsSaveCreators(list);
 
-  // 2) Firestore — 보조 (실패해도 localStorage에 이미 저장됨)
+  // 2) 2초 후 Firestore 동기화
   const store = getDb();
   if (store) {
-    try {
-      await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
+    setTimeout(() => {
+      setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
         ...creator,
         updatedAt: serverTimestamp(),
+      }).then(() => {
+        console.log('[Firebase] Creator Firestore 동기화 완료:', creator.name);
+      }).catch(e => {
+        console.error('[Firebase] Creator Firestore 동기화 실패:', e);
       });
-    } catch (e) {
-      console.error('[Firebase] Creator Firestore 저장 실패 (localStorage에는 저장됨):', e);
-    }
+    }, 2000);
   }
 }
 
-/** Creator를 삭제합니다. localStorage(즉시) + Firestore(비동기). */
+/** Creator를 삭제합니다. localStorage(즉시) → 2초 후 Firestore 동기화. */
 export async function deleteCreatorById(id: string): Promise<void> {
   // 1) localStorage — 즉시
   lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
 
-  // 2) Firestore — 보조
+  // 2) 2초 후 Firestore 동기화
   const store = getDb();
   if (store) {
-    try {
-      await deleteDoc(doc(store, CREATOR_COLLECTION, id));
-    } catch (e) {
-      console.error('[Firebase] Creator Firestore 삭제 실패 (localStorage에서는 삭제됨):', e);
-    }
+    setTimeout(() => {
+      deleteDoc(doc(store, CREATOR_COLLECTION, id)).then(() => {
+        console.log('[Firebase] Creator Firestore 삭제 동기화 완료:', id);
+      }).catch(e => {
+        console.error('[Firebase] Creator Firestore 삭제 동기화 실패:', e);
+      });
+    }, 2000);
   }
 }
 
