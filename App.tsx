@@ -165,6 +165,12 @@ const App: React.FC = () => {
       thumbnailUrl:      c.thumbnailUrl || undefined,
     };
     if (!trimmed.name) return;
+    // 중복 이름 방지 (본인 편집 시는 제외)
+    const duplicate = creators.find(x => x.name.toLowerCase() === trimmed.name.toLowerCase() && x.id !== trimmed.id);
+    if (duplicate) {
+      alert(`"${trimmed.name}" 이름의 크리에이터가 이미 존재합니다.`);
+      return;
+    }
     // YouTube 첫 번째 채널 썸네일 자동 수집 (API 키 없으면 스킵)
     if (trimmed.youtubeChannelIds.length > 0 && !trimmed.thumbnailUrl) {
       try {
@@ -3461,7 +3467,11 @@ const App: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
                   {creators.map(c => (
-                    <div key={c.id} className="group relative bg-white border border-[#e4e5f0] rounded-xl p-3 flex flex-col items-center gap-2 hover:border-violet-300 hover:shadow-sm transition-all">
+                    <div
+                      key={c.id}
+                      onClick={() => openCreatorForm(c)}
+                      className="group relative bg-white border border-[#e4e5f0] rounded-xl p-3 flex flex-col items-center gap-2 hover:border-violet-300 hover:shadow-sm transition-all cursor-pointer"
+                    >
                       {/* 썸네일 */}
                       {c.thumbnailUrl ? (
                         <img src={c.thumbnailUrl} className="w-12 h-12 rounded-full object-cover border border-[#e4e5f0]" />
@@ -3472,17 +3482,10 @@ const App: React.FC = () => {
                       )}
                       {/* 이름 */}
                       <span className="text-[11px] font-semibold text-[#1a1a2e] text-center line-clamp-2 leading-tight w-full">{c.name}</span>
-                      {/* 편집·삭제 버튼 (hover 시 노출) */}
+                      {/* 삭제 버튼 (hover 시 노출) */}
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                         <button
-                          onClick={() => openCreatorForm(c)}
-                          className="p-1 rounded bg-white/90 shadow-sm hover:bg-violet-100 text-[#8888a8] hover:text-violet-700 transition-colors"
-                          title="편집"
-                        >
-                          <Pencil size={10} />
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(`"${c.name}" 크리에이터를 삭제할까요?`)) deleteCreator(c.id); }}
+                          onClick={(e) => { e.stopPropagation(); if (confirm(`"${c.name}" 크리에이터를 삭제할까요?`)) deleteCreator(c.id); }}
                           className="p-1 rounded bg-white/90 shadow-sm hover:bg-red-50 text-[#8888a8] hover:text-red-500 transition-colors"
                           title="삭제"
                         >
