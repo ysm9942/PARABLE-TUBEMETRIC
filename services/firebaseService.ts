@@ -21,8 +21,8 @@ export type LogCategory = 'connection' | 'analysis' | 'error' | 'system';
 
 export interface SystemLogEntry {
   id?: string;
-  timestamp: string;        // ISO string (set locally)
-  serverTs?: unknown;       // Firestore serverTimestamp
+  timestamp: string;
+  serverTs?: unknown;
   level: LogLevel;
   category: LogCategory;
   message: string;
@@ -95,7 +95,6 @@ export async function addSystemLog(
         ...entry,
         serverTs: serverTimestamp(),
       });
-      return;
     } catch {
       // Firebase 실패 시 localStorage 폴백
     }
@@ -145,6 +144,10 @@ export function subscribeSystemLogs(
 
 // ════════════════════════════════════════════════════════════════════════════
 // Creator CRUD
+//
+// 설계 원칙:
+//   localStorage = 주 저장소 (절대 데이터 유실 없음)
+//   Firestore    = 보조 동기화 (다른 기기 동기화용, 실패해도 무방)
 // ════════════════════════════════════════════════════════════════════════════
 
 const LS_CREATORS = 'tubemetric-creators';
@@ -156,86 +159,91 @@ function lsSaveCreators(list: Creator[]) {
   localStorage.setItem(LS_CREATORS, JSON.stringify(list));
 }
 
-/** Creator를 저장(추가/수정)합니다. Firestore + localStorage 양쪽 모두 저장. */
+/** id 기준으로 두 배열을 병합 (합집합). 같은 id면 primary 우선. */
+function mergeCreators(primary: Creator[], secondary: Creator[]): Creator[] {
+  const map = new Map<string, Creator>();
+  for (const c of secondary) map.set(c.id, c);
+  for (const c of primary)   map.set(c.id, c);   // primary가 덮어씀
+  return Array.from(map.values());
+}
+
+/** Creator를 저장합니다. localStorage(즉시) + Firestore(비동기). */
 export async function saveCreator(creator: Creator): Promise<void> {
-  // localStorage는 항상 저장
+  // 1) localStorage — 즉시, 절대 실패 안 함
   const list = lsLoadCreators();
   const idx  = list.findIndex(c => c.id === creator.id);
   if (idx >= 0) list[idx] = creator; else list.push(creator);
   lsSaveCreators(list);
 
-  // Firestore 저장 — 실패 시 에러를 던져서 호출부에서 알 수 있도록
+  // 2) Firestore — 보조 (실패해도 localStorage에 이미 저장됨)
   const store = getDb();
-  if (!store) {
-    console.warn('[Firebase] Firebase 미설정 — localStorage만 저장됨. projectId:', firebaseConfig.projectId, 'apiKey:', firebaseConfig.apiKey ? '있음' : '없음');
-    return;
+  if (store) {
+    try {
+      await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
+        ...creator,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('[Firebase] Creator Firestore 저장 실패 (localStorage에는 저장됨):', e);
+    }
   }
-  await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
-    ...creator,
-    updatedAt: serverTimestamp(),
-  });
 }
 
-/** Creator를 삭제합니다. Firestore + localStorage 양쪽 모두 삭제. */
+/** Creator를 삭제합니다. localStorage(즉시) + Firestore(비동기). */
 export async function deleteCreatorById(id: string): Promise<void> {
-  // localStorage는 항상 삭제
+  // 1) localStorage — 즉시
   lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
 
-  // Firestore 삭제 — 실패 시 에러를 던져서 호출부에서 알 수 있도록
+  // 2) Firestore — 보조
   const store = getDb();
-  if (!store) return;
-  await deleteDoc(doc(store, CREATOR_COLLECTION, id));
+  if (store) {
+    try {
+      await deleteDoc(doc(store, CREATOR_COLLECTION, id));
+    } catch (e) {
+      console.error('[Firebase] Creator Firestore 삭제 실패 (localStorage에서는 삭제됨):', e);
+    }
+  }
 }
 
-/** Creator 목록을 실시간 구독합니다.
- *  Firestore 데이터가 비어있으면 localStorage 데이터를 Firestore로 마이그레이션합니다.
+/** Creator 목록을 구독합니다.
+ *
+ *  localStorage를 주 저장소로 사용하고,
+ *  Firestore 데이터가 오면 localStorage와 병합(합집합)합니다.
+ *  → Firestore가 비어있거나 에러가 나도 localStorage 데이터는 절대 사라지지 않습니다.
  */
 export function subscribeCreators(
   onData: (creators: Creator[]) => void,
 ): Unsubscribe {
+  // 항상 localStorage 데이터를 먼저 전달 (즉시 표시)
+  const localData = lsLoadCreators();
+  onData(localData);
+
   const store = getDb();
+  if (!store) return () => {};
 
-  if (store) {
-    const q = query(
-      collection(store, CREATOR_COLLECTION),
-      orderBy('name'),
-    );
-    let firstSnapshot = true;
-    return onSnapshot(q, snap => {
-      const firestoreData = snap.docs.map(d => ({ ...d.data() as Creator, id: d.id }));
+  const q = query(collection(store, CREATOR_COLLECTION), orderBy('name'));
 
-      if (firstSnapshot && firestoreData.length === 0) {
-        // Firestore가 비어있으면 localStorage 데이터를 유지하고, Firestore로 마이그레이션
-        firstSnapshot = false;
-        const localData = lsLoadCreators();
-        if (localData.length > 0) {
-          console.log('[Firebase] Firestore 비어있음 → localStorage 데이터 마이그레이션 시작:', localData.length, '건');
-          onData(localData);
-          localData.forEach(c => {
-            setDoc(doc(store, CREATOR_COLLECTION, c.id), { ...c, updatedAt: serverTimestamp() }).catch(e =>
-              console.error('[Firebase] 마이그레이션 실패:', c.name, e)
-            );
-          });
-          return;
-        }
-      }
-      firstSnapshot = false;
+  return onSnapshot(q, snap => {
+    const firestoreData = snap.docs.map(d => ({ ...d.data() as Creator, id: d.id }));
+    const currentLocal  = lsLoadCreators();
 
-      // Firestore 데이터가 있으면 그걸 사용하고 localStorage도 동기화
-      onData(firestoreData);
-      if (firestoreData.length > 0) {
-        lsSaveCreators(firestoreData);
-      }
-    }, (err) => {
-      console.error('[Firebase] Creator 구독 오류:', err);
-      onData(lsLoadCreators());
-    });
-  }
-
-  // localStorage fallback (Firebase 미설정)
-  console.warn('[Firebase] Firebase 미설정 — localStorage만 사용');
-  onData(lsLoadCreators());
-  return () => { /* no-op */ };
+    // Firestore에 데이터가 있으면 localStorage와 병합
+    if (firestoreData.length > 0) {
+      const merged = mergeCreators(firestoreData, currentLocal);
+      lsSaveCreators(merged);
+      onData(merged);
+    } else if (currentLocal.length > 0) {
+      // Firestore 비어있지만 localStorage에 있음 → localStorage 유지, Firestore에 푸시 시도
+      onData(currentLocal);
+      currentLocal.forEach(c => {
+        setDoc(doc(store, CREATOR_COLLECTION, c.id), { ...c, updatedAt: serverTimestamp() }).catch(() => {});
+      });
+    }
+    // 둘 다 비어있으면 아무것도 안 함 (이미 위에서 onData(localData) 호출함)
+  }, (err) => {
+    console.error('[Firebase] Creator 구독 오류 (localStorage 사용):', err);
+    // 에러 시에도 localStorage 데이터 유지 — onData 호출 안 함 (이미 위에서 했으므로)
+  });
 }
 
 export { isConfigured };
