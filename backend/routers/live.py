@@ -672,7 +672,7 @@ async def _fetch_one_creator(
     categories: list[str],
     use_playwright: bool,
 ) -> dict:
-    """단일 크리에이터의 방송 기록을 수집한다 (병렬 처리용)."""
+    """단일 크리에이터의 방송 기록을 수집한다."""
     platform = creator.get("platform", "chzzk").lower()
     creator_id = creator.get("creatorId", "").strip()
     if not creator_id:
@@ -742,7 +742,7 @@ async def _fetch_one_creator(
 
 @router.post("/streams")
 async def fetch_live_streams(req: LiveRequest):
-    """크리에이터들의 방송 기록을 병렬로 수집한다."""
+    """크리에이터들의 방송 기록을 입력 순서대로 직렬 수집한다."""
     start_year = int(req.startDate.split("-")[0])
 
     # Playwright 사용 가능 여부 확인
@@ -753,12 +753,11 @@ async def fetch_live_streams(req: LiveRequest):
         use_playwright = False
         logging.warning("playwright 미설치 — httpx 폴백 사용 (SPA 렌더링 불가, 빈 결과 가능)")
 
-    # 모든 크리에이터를 동시에 수집 (병렬)
-    tasks = [
-        _fetch_one_creator(c, req.startDate, req.endDate, start_year, req.categories, use_playwright)
-        for c in req.creators
-    ]
-    results = await asyncio.gather(*tasks)
+    # 크리에이터를 입력 순서대로 직렬 수집 (Playwright 브라우저 충돌 방지)
+    results = []
+    for c in req.creators:
+        result = await _fetch_one_creator(c, req.startDate, req.endDate, start_year, req.categories, use_playwright)
+        results.append(result)
 
     return [r for r in results if r is not None]
 
