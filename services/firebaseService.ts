@@ -194,7 +194,9 @@ export async function deleteCreatorById(id: string): Promise<void> {
   }
 }
 
-/** Creator 목록을 실시간 구독합니다. */
+/** Creator 목록을 실시간 구독합니다.
+ *  Firestore 데이터가 비어있으면 localStorage 데이터를 Firestore로 마이그레이션합니다.
+ */
 export function subscribeCreators(
   onData: (creators: Creator[]) => void,
 ): Unsubscribe {
@@ -205,15 +207,40 @@ export function subscribeCreators(
       collection(store, CREATOR_COLLECTION),
       orderBy('name'),
     );
+    let firstSnapshot = true;
     return onSnapshot(q, snap => {
-      onData(snap.docs.map(d => ({ ...d.data() as Creator, id: d.id })));
-    }, () => {
-      // Firestore 권한 오류 등 → fallback
+      const firestoreData = snap.docs.map(d => ({ ...d.data() as Creator, id: d.id }));
+
+      if (firstSnapshot && firestoreData.length === 0) {
+        // Firestore가 비어있으면 localStorage 데이터를 유지하고, Firestore로 마이그레이션
+        firstSnapshot = false;
+        const localData = lsLoadCreators();
+        if (localData.length > 0) {
+          console.log('[Firebase] Firestore 비어있음 → localStorage 데이터 마이그레이션 시작:', localData.length, '건');
+          onData(localData);
+          localData.forEach(c => {
+            setDoc(doc(store, CREATOR_COLLECTION, c.id), { ...c, updatedAt: serverTimestamp() }).catch(e =>
+              console.error('[Firebase] 마이그레이션 실패:', c.name, e)
+            );
+          });
+          return;
+        }
+      }
+      firstSnapshot = false;
+
+      // Firestore 데이터가 있으면 그걸 사용하고 localStorage도 동기화
+      onData(firestoreData);
+      if (firestoreData.length > 0) {
+        lsSaveCreators(firestoreData);
+      }
+    }, (err) => {
+      console.error('[Firebase] Creator 구독 오류:', err);
       onData(lsLoadCreators());
     });
   }
 
-  // localStorage fallback
+  // localStorage fallback (Firebase 미설정)
+  console.warn('[Firebase] Firebase 미설정 — localStorage만 사용');
   onData(lsLoadCreators());
   return () => { /* no-op */ };
 }
