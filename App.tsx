@@ -2258,17 +2258,15 @@ const App: React.FC = () => {
                       </label>
                       <button onClick={() => setRefCreatorInput('')} className="text-[11px] text-[#b0b0c8] hover:text-red-400 transition-colors">초기화</button>
                     </div>
-                    <CreatorAutocomplete
-                      value={refCreatorInput}
-                      onChange={setRefCreatorInput}
-                      onCommit={() => {}}
-                      onAddMultiple={(vals) => {
-                        const existing = refCreatorInput.split('\n').map(s => s.trim()).filter(Boolean);
-                        const newVals = vals.filter(v => !existing.includes(v));
-                        if (newVals.length > 0) setRefCreatorInput(prev => (prev.trim() ? prev.trim() + '\n' : '') + newVals.join('\n'));
-                      }}
+                    <RefCreatorPicker
                       creators={creators}
-                      field="youtube"
+                      selected={refCreatorList}
+                      onSelect={(name) => {
+                        const existing = refCreatorInput.split('\n').map(s => s.trim()).filter(Boolean);
+                        if (!existing.includes(name)) {
+                          setRefCreatorInput(prev => (prev.trim() ? prev.trim() + '\n' : '') + name);
+                        }
+                      }}
                       placeholder="크리에이터 이름 입력 (자동완성)"
                     />
                     <div className="flex flex-wrap gap-1.5">
@@ -4301,6 +4299,81 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+    </div>
+  );
+};
+
+// ── RefCreatorPicker 컴포넌트 (레퍼런스 분석 전용: 이름 기반 자동완성) ──────
+const RefCreatorPicker: React.FC<{
+  creators: Creator[];
+  selected: string[];
+  onSelect: (name: string) => void;
+  placeholder?: string;
+}> = ({ creators, selected, onSelect, placeholder }) => {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // YouTube 채널 ID가 있는 크리에이터만 + 이미 선택된 항목 제외
+  const suggestions = query.trim().length > 0
+    ? creators.filter(c =>
+        (c.youtubeChannelIds ?? []).length > 0 &&
+        !selected.includes(c.name) &&
+        c.name.toLowerCase().includes(query.toLowerCase())
+      )
+    : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const pick = (c: Creator) => {
+    onSelect(c.name);
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }}
+        placeholder={placeholder}
+        className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+      />
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#e0e1ef] rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+          {suggestions.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); pick(c); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-violet-50 text-left transition-colors"
+            >
+              {c.thumbnailUrl ? (
+                <img src={c.thumbnailUrl} className="w-7 h-7 rounded-full object-cover border border-[#e4e5f0]" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shrink-0">
+                  <span className="text-white text-[10px] font-bold">{c.name[0]?.toUpperCase()}</span>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-[#0f0f23]">{c.name}</div>
+                <div className="text-[10px] text-[#8888a8] font-mono truncate">{(c.youtubeChannelIds ?? []).join(', ')}</div>
+              </div>
+              {c.affiliation && (
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${c.affiliation === '패러블' ? 'bg-violet-100 text-violet-600' : 'bg-sky-100 text-sky-600'}`}>{c.affiliation}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
