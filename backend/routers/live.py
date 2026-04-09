@@ -313,14 +313,113 @@ def _find_chrome_executable() -> str | None:
     return None
 
 
-async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
-    """Playwright + PC 설치 Chrome으로 SPA 렌더링 후 HTML 반환.
-
-    Returns:
-        (html, api_responses): HTML 문자열과 가로챈 API JSON 응답 목록
-    """
+async def _navigate_and_parse(page, url: str) -> tuple[str, list[dict]]:
+    """이미 열려 있는 Playwright 페이지에서 URL을 방문하고 HTML + API 응답을 수집한다."""
     import asyncio
     import json
+
+    api_responses = []
+
+    # 이전 페이지의 리스너 제거 후 새 리스너 등록
+    page.remove_listener("response", page._live_response_handler) if hasattr(page, '_live_response_handler') else None
+
+    async def _on_response(response):
+        try:
+            ct = response.headers.get("content-type", "")
+            resp_url = response.url
+            is_json = "json" in ct
+            is_next_data = "/_next/data/" in resp_url and resp_url.endswith(".json")
+
+            if (is_json or is_next_data) and response.status == 200:
+                body = await response.text()
+                stream_keywords = ['"streams"', '"peakViewers"', '"maxViewer"', '"averageViewer"', '"avgViewers"', '"peakCcv"', '"avgCcv"']
+                if is_next_data or any(kw in body for kw in stream_keywords):
+                    data = json.loads(body)
+                    if isinstance(data, dict) and "pageProps" in data:
+                        data = data["pageProps"]
+                    api_responses.append({"url": resp_url, "data": data})
+                    logger.info("[Playwright] API 응답 가로채기 성공: %s (%d bytes)", resp_url, len(body))
+        except Exception:
+            pass
+
+    page._live_response_handler = _on_response
+    page.on("response", _on_response)
+
+    # 페이지 이동
+    logger.info("[Playwright] 페이지 로드 시작: %s", url)
+    resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    status = resp.status if resp else "no response"
+    logger.info("[Playwright] 초기 응답 상태: %s", status)
+
+    # Cloudflare / Vercel 보안 챌린지 처리
+    for attempt in range(5):
+        body = await page.content()
+        is_challenge = (
+            "cf-challenge" in body
+            or "Just a moment" in body
+            or "Checking your browser" in body
+            or ("ray id" in body.lower() and resp and resp.status in (403, 503))
+            or "vercel.link/security-checkpoint" in body
+            or "브라우저를 확인하고 있습니다" in body
+            or "Vercel 보안 검문소" in body
+        )
+        if not is_challenge:
+            if attempt > 0:
+                logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt)
+            break
+
+        challenge_type = "Vercel" if "vercel.link" in body or "브라우저를 확인" in body else "Cloudflare"
+        logger.warning("[Playwright] %s 챌린지 감지 (시도 %d/5), 15초 대기...", challenge_type, attempt + 1)
+        await asyncio.sleep(15)
+
+        try:
+            await page.wait_for_load_state("networkidle", timeout=20000)
+        except Exception:
+            pass
+
+        body = await page.content()
+        still_blocked = (
+            "cf-challenge" in body
+            or "Just a moment" in body
+            or "Checking your browser" in body
+            or "vercel.link/security-checkpoint" in body
+            or "브라우저를 확인하고 있습니다" in body
+        )
+        if not still_blocked:
+            logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt + 1)
+            break
+
+        if attempt < 4:
+            logger.info("[Playwright] 챌린지 미해결, 재탐색 시도...")
+            resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            status = resp.status if resp else "no response"
+            logger.info("[Playwright] 재탐색 응답: %s", status)
+    else:
+        logger.error("[Playwright] 보안 챌린지 5회 모두 실패. 본문 앞 500자: %s", (await page.content())[:500])
+
+    # 방송 기록 요소가 렌더링될 때까지 대기
+    try:
+        await page.wait_for_selector("a[href*='/streams/']", timeout=15000)
+        logger.info("[Playwright] 방송 기록 요소 발견")
+    except Exception:
+        page_title = await page.title()
+        snippet = (await page.content())[:2000]
+        logger.warning("[Playwright] 방송 기록 요소 미발견. 페이지 제목: '%s', 본문 앞 2000자: %s", page_title, snippet)
+
+    await asyncio.sleep(1)
+
+    html = await page.content()
+    logger.info("[Playwright] HTML 수집 완료 (%d bytes), 가로챈 API 응답: %d개", len(html), len(api_responses))
+    logger.info("[Playwright] HTML 내 '/streams/' 패턴 수: %d", html.count("/streams/"))
+
+    # 리스너 제거 (다음 크리에이터에서 새로 등록)
+    page.remove_listener("response", _on_response)
+
+    return html, api_responses
+
+
+async def _create_playwright_browser():
+    """Playwright 브라우저 + 컨텍스트 + 페이지를 하나 생성한다. 여러 크리에이터에 재사용."""
     from playwright.async_api import async_playwright
 
     try:
@@ -328,172 +427,89 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
     except ImportError:
         stealth_async = None
 
-    api_responses = []
     chrome_path = _find_chrome_executable()
 
-    async with async_playwright() as p:
-        launch_kwargs: dict = {
-            "headless": True,
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-            ],
-        }
-        if chrome_path:
-            launch_kwargs["executable_path"] = chrome_path
-            logger.info("[Playwright] Chrome 사용: %s", chrome_path)
-        else:
-            logger.warning("[Playwright] 설치된 Chrome을 찾지 못했습니다. Playwright 내장 브라우저를 시도합니다.")
+    pw = await async_playwright().start()
+    launch_kwargs: dict = {
+        "headless": True,
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+        ],
+    }
+    if chrome_path:
+        launch_kwargs["executable_path"] = chrome_path
+        logger.info("[Playwright] Chrome 사용: %s", chrome_path)
+    else:
+        logger.warning("[Playwright] 설치된 Chrome을 찾지 못했습니다. Playwright 내장 브라우저를 시도합니다.")
 
-        browser = await p.chromium.launch(**launch_kwargs)
-        context = await browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            locale="ko-KR",
-            timezone_id="Asia/Seoul",
-            java_script_enabled=True,
-        )
-        page = await context.new_page()
+    browser = await pw.chromium.launch(**launch_kwargs)
+    context = await browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        locale="ko-KR",
+        timezone_id="Asia/Seoul",
+        java_script_enabled=True,
+    )
+    page = await context.new_page()
 
-        # API 응답 가로채기 — JSON 응답 중 스트림 데이터 포함 여부 확인
-        async def _on_response(response):
-            try:
-                ct = response.headers.get("content-type", "")
-                resp_url = response.url
-                is_json = "json" in ct
-                is_next_data = "/_next/data/" in resp_url and resp_url.endswith(".json")
+    if stealth_async:
+        await stealth_async(page)
 
-                if (is_json or is_next_data) and response.status == 200:
-                    body = await response.text()
-                    # 스트림/뷰어 관련 키워드 또는 _next/data 응답
-                    stream_keywords = ['"streams"', '"peakViewers"', '"maxViewer"', '"averageViewer"', '"avgViewers"', '"peakCcv"', '"avgCcv"']
-                    if is_next_data or any(kw in body for kw in stream_keywords):
-                        data = json.loads(body)
-                        # Next.js _next/data 응답은 {pageProps: {...}} 구조
-                        if isinstance(data, dict) and "pageProps" in data:
-                            data = data["pageProps"]
-                        api_responses.append({"url": resp_url, "data": data})
-                        logger.info("[Playwright] API 응답 가로채기 성공: %s (%d bytes)", resp_url, len(body))
-            except Exception:
-                pass
+    await page.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
+        Object.defineProperty(navigator, 'plugins', {get: () => [
+            {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
+            {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
+            {name: 'Native Client', filename: 'internal-nacl-plugin'},
+        ]});
+        window.chrome = {
+            runtime: {},
+            loadTimes: function() {},
+            csi: function() {},
+            app: {}
+        };
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications'
+                ? Promise.resolve({state: Notification.permission})
+                : originalQuery(parameters)
+        );
+    """)
 
-        page.on("response", _on_response)
+    return pw, browser, context, page
 
-        # stealth 패치 적용 (navigator.webdriver 숨기기 등)
-        if stealth_async:
-            await stealth_async(page)
 
-        # stealth 여부와 관계없이 추가 패치 적용
-        await page.add_init_script("""
-            // navigator.webdriver 숨기기
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            // 언어/플러그인 스푸핑
-            Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
-            Object.defineProperty(navigator, 'plugins', {get: () => [
-                {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
-                {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
-                {name: 'Native Client', filename: 'internal-nacl-plugin'},
-            ]});
-            // Chrome 오브젝트 스푸핑
-            window.chrome = {
-                runtime: {},
-                loadTimes: function() {},
-                csi: function() {},
-                app: {}
-            };
-            // permissions 스푸핑
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications'
-                    ? Promise.resolve({state: Notification.permission})
-                    : originalQuery(parameters)
-            );
-        """)
-
-        # 초기 페이지 로드
-        logger.info("[Playwright] 페이지 로드 시작: %s", url)
-        resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        status = resp.status if resp else "no response"
-        logger.info("[Playwright] 초기 응답 상태: %s", status)
-
-        # Cloudflare / Vercel 보안 챌린지 처리
-        for attempt in range(5):
-            body = await page.content()
-            is_challenge = (
-                "cf-challenge" in body
-                or "Just a moment" in body
-                or "Checking your browser" in body
-                or ("ray id" in body.lower() and resp and resp.status in (403, 503))
-                or "vercel.link/security-checkpoint" in body
-                or "브라우저를 확인하고 있습니다" in body
-                or "Vercel 보안 검문소" in body
-            )
-            if not is_challenge:
-                if attempt > 0:
-                    logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt)
-                break
-
-            challenge_type = "Vercel" if "vercel.link" in body or "브라우저를 확인" in body else "Cloudflare"
-            logger.warning("[Playwright] %s 챌린지 감지 (시도 %d/5), 15초 대기...", challenge_type, attempt + 1)
-            await asyncio.sleep(15)
-
-            # CF JS가 챌린지 완료 후 networkidle 상태가 됨
-            try:
-                await page.wait_for_load_state("networkidle", timeout=20000)
-            except Exception:
-                pass
-
-            # 챌린지 해결됐는지 재확인
-            body = await page.content()
-            still_blocked = (
-                "cf-challenge" in body
-                or "Just a moment" in body
-                or "Checking your browser" in body
-                or "vercel.link/security-checkpoint" in body
-                or "브라우저를 확인하고 있습니다" in body
-            )
-            if not still_blocked:
-                logger.info("[Playwright] 보안 챌린지 통과! (시도 %d)", attempt + 1)
-                break
-
-            # 여전히 블록됨 → 재탐색
-            if attempt < 4:
-                logger.info("[Playwright] 챌린지 미해결, 재탐색 시도...")
-                resp = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                status = resp.status if resp else "no response"
-                logger.info("[Playwright] 재탐색 응답: %s", status)
-        else:
-            logger.error("[Playwright] 보안 챌린지 5회 모두 실패. 본문 앞 500자: %s", (await page.content())[:500])
-
-        # 방송 기록 요소가 렌더링될 때까지 대기
-        try:
-            await page.wait_for_selector("a[href*='/streams/']", timeout=15000)
-            logger.info("[Playwright] 방송 기록 요소 발견")
-        except Exception:
-            page_title = await page.title()
-            snippet = (await page.content())[:2000]
-            logger.warning("[Playwright] 방송 기록 요소 미발견. 페이지 제목: '%s', 본문 앞 2000자: %s", page_title, snippet)
-
-        # 추가 렌더링 대기 (SPA 데이터 로딩 여유)
-        await asyncio.sleep(1)
-
-        html = await page.content()
-        html_len = len(html)
-        logger.info("[Playwright] HTML 수집 완료 (%d bytes), 가로챈 API 응답: %d개", html_len, len(api_responses))
-
-        # 디버그: 스트림 링크 수 확인
-        stream_count = html.count("/streams/")
-        logger.info("[Playwright] HTML 내 '/streams/' 패턴 수: %d", stream_count)
-
+async def _close_playwright_browser(pw, browser, context):
+    """Playwright 브라우저를 정리한다."""
+    try:
         await context.close()
+    except Exception:
+        pass
+    try:
         await browser.close()
-        return html, api_responses
+    except Exception:
+        pass
+    try:
+        await pw.stop()
+    except Exception:
+        pass
+
+
+async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
+    """단일 URL용 래퍼 (debug 엔드포인트 등에서 사용). 브라우저를 열고 닫는다."""
+    pw, browser, context, page = await _create_playwright_browser()
+    try:
+        return await _navigate_and_parse(page, url)
+    finally:
+        await _close_playwright_browser(pw, browser, context)
 
 
 async def _fetch_with_httpx(url: str) -> str:
@@ -670,16 +686,15 @@ async def _fetch_one_creator(
     end_date: str,
     start_year: int,
     categories: list[str],
-    use_playwright: bool,
+    page=None,
 ) -> dict:
-    """단일 크리에이터의 방송 기록을 수집한다."""
+    """단일 크리에이터의 방송 기록을 수집한다. page가 있으면 재사용, 없으면 httpx."""
     platform = creator.get("platform", "chzzk").lower()
     creator_id = creator.get("creatorId", "").strip()
     if not creator_id:
         return None
 
     # softc.one URL이 통째로 입력된 경우 creatorId만 추출
-    # 예: https://viewership.softc.one/channel/naverchzzk/ec857bee6cded06df19dae85cf37f878
     if "viewership.softc.one" in creator_id or creator_id.startswith("http"):
         import re as _re
         m = _re.search(r"/channel/[^/]+/([^/?]+)", creator_id)
@@ -688,15 +703,15 @@ async def _fetch_one_creator(
             logger.info("[Live] URL에서 creatorId 추출: %s", creator_id)
 
     url = _build_url(platform, creator_id, start_date, end_date)
-    method = "playwright" if use_playwright else "httpx"
+    method = "playwright" if page else "httpx"
     logger.info("[Live] 수집 시작: %s/%s (방법: %s) → %s", platform, creator_id, method, url)
 
     try:
         rows = []
         api_responses = []
 
-        if use_playwright:
-            html, api_responses = await _fetch_with_playwright(url)
+        if page:
+            html, api_responses = await _navigate_and_parse(page, url)
         else:
             html = await _fetch_with_httpx(url)
 
@@ -742,7 +757,7 @@ async def _fetch_one_creator(
 
 @router.post("/streams")
 async def fetch_live_streams(req: LiveRequest):
-    """크리에이터들의 방송 기록을 입력 순서대로 직렬 수집한다."""
+    """크리에이터들의 방송 기록을 하나의 Chrome으로 직렬 수집한다."""
     start_year = int(req.startDate.split("-")[0])
 
     # Playwright 사용 가능 여부 확인
@@ -753,11 +768,22 @@ async def fetch_live_streams(req: LiveRequest):
         use_playwright = False
         logging.warning("playwright 미설치 — httpx 폴백 사용 (SPA 렌더링 불가, 빈 결과 가능)")
 
-    # 크리에이터를 입력 순서대로 직렬 수집 (Playwright 브라우저 충돌 방지)
     results = []
-    for c in req.creators:
-        result = await _fetch_one_creator(c, req.startDate, req.endDate, start_year, req.categories, use_playwright)
-        results.append(result)
+
+    if use_playwright:
+        # Chrome 한 번만 열고, 모든 크리에이터를 같은 브라우저에서 순차 방문
+        pw, browser, context, page = await _create_playwright_browser()
+        try:
+            for c in req.creators:
+                result = await _fetch_one_creator(c, req.startDate, req.endDate, start_year, req.categories, page=page)
+                results.append(result)
+        finally:
+            await _close_playwright_browser(pw, browser, context)
+    else:
+        # httpx 폴백: 브라우저 없이 직렬 수집
+        for c in req.creators:
+            result = await _fetch_one_creator(c, req.startDate, req.endDate, start_year, req.categories, page=None)
+            results.append(result)
 
     return [r for r in results if r is not None]
 
