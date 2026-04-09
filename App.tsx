@@ -1088,6 +1088,29 @@ const App: React.FC = () => {
                 </div>
               </div>
 
+              {/* 소속 */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Users size={11} /> 소속</label>
+                <div className="flex gap-2">
+                  {(['패러블', '외부'] as const).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setCreatorForm(p => ({ ...p!, affiliation: v }))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
+                        creatorForm.affiliation === v
+                          ? v === '패러블'
+                            ? 'bg-violet-100 border-violet-400 text-violet-700'
+                            : 'bg-sky-100 border-sky-400 text-sky-700'
+                          : 'bg-[#f8f8fd] border-[#e0e1ef] text-[#8888a8] hover:border-[#c0c0d8]'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Instagram / TikTok / 메모 */}
               <div className="grid grid-cols-2 gap-3">
                 {([
@@ -3483,6 +3506,16 @@ const App: React.FC = () => {
                       )}
                       {/* 이름 */}
                       <span className="text-[11px] font-semibold text-[#1a1a2e] text-center line-clamp-2 leading-tight w-full">{c.name}</span>
+                      {/* 소속 배지 */}
+                      {c.affiliation && (
+                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                          c.affiliation === '패러블'
+                            ? 'bg-violet-100 text-violet-600'
+                            : 'bg-sky-100 text-sky-600'
+                        }`}>
+                          {c.affiliation}
+                        </span>
+                      )}
                       {/* 삭제 버튼 (hover 시 노출) */}
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                         <button

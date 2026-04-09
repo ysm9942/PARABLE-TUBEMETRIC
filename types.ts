@@ -7,6 +7,7 @@ export interface Creator {
   instagramUsername?: string;   // @ 없는 username
   tiktokUsername?: string;      // @ 없는 username
   memo?: string;
+  affiliation?: '패러블' | '외부';  // 소속
   thumbnailUrl?: string;        // YouTube 첫 번째 채널 썸네일 (자동 수집)
 }
 
