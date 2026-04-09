@@ -1200,13 +1200,13 @@ const App: React.FC = () => {
           <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-2xl border border-[#e4e5f0] shadow-sm overflow-hidden flex flex-col shadow-md">
             <div className="p-5 border-b border-[#e0e1ef] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
-                  <Tv2 size={18} className={selectedLiveCreator.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-emerald-500/20' : 'bg-blue-500/20'}`}>
+                  <Tv2 size={18} className={selectedLiveCreator.platform === 'CHZZK' ? 'text-emerald-600' : 'text-blue-500'} />
                 </div>
                 <div>
                   <div className="text-base font-semibold text-[#0f0f23]">{selectedLiveCreator.creatorId}</div>
                   <div className="text-[13px] text-[#5a5a7a] mt-1 flex items-center gap-3">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{selectedLiveCreator.platform}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${selectedLiveCreator.platform === 'CHZZK' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-500'}`}>{selectedLiveCreator.platform}</span>
                     <span>방송 {selectedLiveCreator.streamCount}회</span>
                     <span>평균 <span className="text-orange-600 font-medium">{selectedLiveCreator.avgViewers.toLocaleString()}</span>명</span>
                     <span>최고 <span className="text-red-600 font-medium">{selectedLiveCreator.peakViewers.toLocaleString()}</span>명</span>
@@ -2623,7 +2623,7 @@ const App: React.FC = () => {
                       <div className="flex flex-col items-center justify-center py-10 text-[#5a5a7a] space-y-2"><Tv2 size={26} strokeWidth={1} /><p className="text-xs">크리에이터를 추가하세요</p></div>
                     ) : liveList.map((u, i) => (
                       <div key={i} className="flex items-center gap-2 bg-[#f2f2f8] hover:bg-[#eeeef8] border border-[#e0e1ef] rounded-lg px-3 py-2 group transition-colors">
-                        <span className={`text-xs shrink-0 px-1.5 py-0.5 rounded ${u.includes('soop') ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${u.includes('soop') ? 'bg-blue-500/20 text-blue-500' : 'bg-emerald-500/20 text-emerald-600'}`}>
                           {u.includes('soop:') ? 'SOOP' : u.includes('chzzk:') ? 'CHZZK' : livePlatform.toUpperCase()}
                         </span>
                         <span className="flex-1 text-xs font-mono text-[#1a1a2e] truncate">{u.includes(':') ? u.split(':')[1] : u}</span>
@@ -2729,8 +2729,8 @@ const App: React.FC = () => {
                           <tr key={`${r.platform}-${r.creatorId}`} className="hover:bg-[#f5f5fc] transition-colors group">
                             <td className="px-6 py-3.5">
                               <div className="flex items-center gap-2.5">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${r.platform === 'CHZZK' ? 'bg-blue-500/20' : 'bg-purple-500/20'}`}>
-                                  <Tv2 size={14} className={r.platform === 'CHZZK' ? 'text-blue-400' : 'text-purple-400'} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${r.platform === 'CHZZK' ? 'bg-emerald-500/20' : 'bg-blue-500/20'}`}>
+                                  <Tv2 size={14} className={r.platform === 'CHZZK' ? 'text-emerald-600' : 'text-blue-500'} />
                                 </div>
                                 <div>
                                   <div className="text-xs font-medium text-[#1a1a2e] group-hover:text-orange-600 transition-colors">{r.creatorId}</div>
@@ -2739,7 +2739,7 @@ const App: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-6 py-3.5 text-center">
-                              <span className={`text-[10px] px-2 py-0.5 rounded ${r.platform === 'CHZZK' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${r.platform === 'CHZZK' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-500'}`}>
                                 {r.platform}
                               </span>
                             </td>
