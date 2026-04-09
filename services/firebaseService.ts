@@ -231,9 +231,9 @@ export function subscribeCreators(
     const firestoreData = snap.docs.map(d => ({ ...d.data() as Creator, id: d.id }));
     const currentLocal  = lsLoadCreators();
 
-    // Firestore에 데이터가 있으면 localStorage와 병합
+    // Firestore에 데이터가 있으면 localStorage와 병합 (localStorage가 primary)
     if (firestoreData.length > 0) {
-      const merged = mergeCreators(firestoreData, currentLocal);
+      const merged = mergeCreators(currentLocal, firestoreData);
       lsSaveCreators(merged);
       onData(merged);
     } else if (currentLocal.length > 0) {
