@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
-import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult } from '../types';
+import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult, ReferenceVideo } from '../types';
 
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
@@ -381,4 +381,90 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
     if (!nextPageToken) break;
   }
   return adVideos;
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// 유튜브 레퍼런스 검색 — 채널 영상 중 키워드가 제목/설명에 포함된 영상 찾기
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface RefSearchProgress {
+  channelTitle: string;
+  scannedVideos: number;
+  foundVideos: number;
+  phase: 'scanning' | 'done';
+}
+
+export const searchChannelForKeyword = async (
+  uploadsPlaylistId: string,
+  channelId: string,
+  channelTitle: string,
+  keywords: string[],
+  onProgress?: (p: RefSearchProgress) => void,
+): Promise<ReferenceVideo[]> => {
+  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
+  const results: ReferenceVideo[] = [];
+  let nextPageToken: string | undefined;
+  let safetyCounter = 0;
+  let scannedVideos = 0;
+
+  // 키워드를 소문자로 정규화
+  const lowerKeywords = keywords.map(k => k.toLowerCase().trim()).filter(Boolean);
+  if (!lowerKeywords.length) return [];
+
+  while (safetyCounter < 200) {
+    safetyCounter++;
+    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, {
+      params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY },
+    });
+    if (!playlistResponse.data.items?.length) break;
+    nextPageToken = playlistResponse.data.nextPageToken;
+
+    const videoIds = playlistResponse.data.items.map((i: any) => i.contentDetails.videoId).join(',');
+    const videoResponse = await axios.get(`${BASE_URL}/videos`, {
+      params: { part: 'snippet,contentDetails,statistics', id: videoIds, key: API_KEY },
+    });
+
+    for (const video of videoResponse.data.items) {
+      scannedVideos++;
+      const title = (video.snippet.title ?? '').toLowerCase();
+      const description = (video.snippet.description ?? '').toLowerCase();
+
+      const matchedIn: ('title' | 'description')[] = [];
+      for (const kw of lowerKeywords) {
+        if (title.includes(kw) && !matchedIn.includes('title')) matchedIn.push('title');
+        if (description.includes(kw) && !matchedIn.includes('description')) matchedIn.push('description');
+      }
+
+      if (matchedIn.length > 0) {
+        const durationSec = parseYtDurationSeconds(video.contentDetails.duration);
+        results.push({
+          videoId: video.id,
+          title: video.snippet.title,
+          description: video.snippet.description ?? '',
+          channelId,
+          channelTitle,
+          thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
+          publishedAt: video.snippet.publishedAt,
+          viewCount: parseInt(video.statistics.viewCount || '0', 10),
+          likeCount: parseInt(video.statistics.likeCount || '0', 10),
+          commentCount: parseInt(video.statistics.commentCount || '0', 10),
+          duration: video.contentDetails.duration,
+          isShort: await isYouTubeShort(video.id, durationSec),
+          matchedIn,
+        });
+      }
+    }
+
+    onProgress?.({
+      channelTitle,
+      scannedVideos,
+      foundVideos: results.length,
+      phase: nextPageToken ? 'scanning' : 'done',
+    });
+
+    if (!nextPageToken) break;
+  }
+
+  onProgress?.({ channelTitle, scannedVideos, foundVideos: results.length, phase: 'done' });
+  return results;
 };

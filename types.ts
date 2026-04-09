@@ -121,6 +121,22 @@ export interface InstagramUserResult {
   error?: string;
 }
 
+export interface ReferenceVideo {
+  videoId: string;
+  title: string;
+  description: string;
+  channelId: string;
+  channelTitle: string;
+  thumbnail: string;
+  publishedAt: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  duration: string;
+  isShort: boolean;
+  matchedIn: ('title' | 'description')[];  // 키워드가 매칭된 위치
+}
+
 export interface VideoDetail {
   id: string;
   title: string;

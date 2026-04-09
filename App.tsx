@@ -56,16 +56,17 @@ import {
   Pencil,
   Save,
   Clipboard,
+  Search,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
-import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult, Creator } from './types';
+import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos, searchChannelForKeyword, RefSearchProgress } from './services/youtubeService';
+import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult, Creator, ReferenceVideo } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
 import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured, saveCreator as fbSaveCreator, deleteCreatorById as fbDeleteCreator, subscribeCreators } from './services/firebaseService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
+type TabType = 'channel-config' | 'video-config' | 'ref-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 const App: React.FC = () => {
@@ -326,11 +327,21 @@ const App: React.FC = () => {
   const [showAdResults, setShowAdResults] = useState<boolean>(false);
   const [adResultTab, setAdResultTab] = useState<ResultTab>('table');
 
+  // ── 유튜브 레퍼런스 검색 상태 ─────────────────────────────────────────────
+  const [refKeywordInput, setRefKeywordInput] = useState<string>('');
+  const [refCreatorInput, setRefCreatorInput] = useState<string>('');
+  const [refResults, setRefResults] = useState<ReferenceVideo[]>([]);
+  const [refCollecting, setRefCollecting] = useState<boolean>(false);
+  const [refProgress, setRefProgress] = useState<RefSearchProgress[]>([]);
+  const [refResultTab, setRefResultTab] = useState<ResultTab>('table');
+
   // ── Derived ──────────────────────────────────────────────────────────────
   const channelList = channelInput.split('\n').map(s => s.trim()).filter(Boolean);
   const videoList = videoInput.split('\n').map(s => s.trim()).filter(Boolean);
   const adList = adChannelInput.split('\n').map(s => s.trim()).filter(Boolean);
   const igList = igInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const refCreatorList = refCreatorInput.split('\n').map(s => s.trim()).filter(Boolean);
+  const refKeywords = refKeywordInput.split('\n').map(s => s.trim()).filter(Boolean);
 
   const channelTotal = channelResults.length;
   const channelDone = channelResults.filter(r => r.status === 'completed' || r.status === 'error').length;
@@ -877,6 +888,53 @@ const App: React.FC = () => {
       alert(`영상 분석 중 오류: ${err.message}`);
     }
     setIsProcessing(false);
+  };
+
+  // ── 유튜브 레퍼런스 검색 ──────────────────────────────────────────────────
+  const handleRefStart = async () => {
+    if (refKeywords.length === 0) { alert('검색할 키워드를 입력해주세요.'); return; }
+    if (refCreatorList.length === 0) { alert('대상 크리에이터를 입력해주세요.'); return; }
+
+    setRefCollecting(true);
+    setRefResults([]);
+    setRefProgress([]);
+    setRefResultTab('table');
+
+    const allResults: ReferenceVideo[] = [];
+    try {
+      for (const creatorName of refCreatorList) {
+        // Creator에서 YouTube 채널 ID 찾기
+        const creator = creators.find(c => c.name === creatorName);
+        const channelIds = creator?.youtubeChannelIds ?? [creatorName];
+
+        for (const chInput of channelIds) {
+          try {
+            const info = await getChannelInfo(chInput);
+            if (!info?.uploadsPlaylistId) continue;
+
+            const videos = await searchChannelForKeyword(
+              info.uploadsPlaylistId,
+              info.id,
+              info.title,
+              refKeywords,
+              (p) => setRefProgress(prev => {
+                const idx = prev.findIndex(x => x.channelTitle === p.channelTitle);
+                if (idx >= 0) { const next = [...prev]; next[idx] = p; return next; }
+                return [...prev, p];
+              }),
+            );
+            allResults.push(...videos);
+            setRefResults([...allResults]);
+          } catch (err: any) {
+            console.error(`[Ref] ${chInput} 오류:`, err.message);
+          }
+        }
+      }
+    } catch (err: any) {
+      alert(`레퍼런스 검색 중 오류: ${err.message}`);
+    }
+    setRefResults(allResults);
+    setRefCollecting(false);
   };
 
   const handleDownloadExcel = () => {
@@ -1546,6 +1604,7 @@ const App: React.FC = () => {
               {([
                 { id: 'channel-config',   label: '채널 통합 분석',   Icon: TrendingUp,  soon: false },
                 { id: 'video-config',     label: '단일 영상 분석',   Icon: Video,       soon: false },
+                { id: 'ref-config',       label: '유튜브 레퍼런스 분석', Icon: Search,  soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석', Icon: Tv2,         soon: false },
                 { id: 'instagram-config', label: 'Instagram 분석',  Icon: Instagram,   soon: false },
                 { id: 'tiktok-config',    label: 'TikTok 분석',     Icon: Music,       soon: false },
@@ -2160,6 +2219,168 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+          ) : activeTab === 'ref-config' ? (
+            /* ── 유튜브 레퍼런스 분석 탭 ──────────────────────────────────────── */
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Header */}
+              <div>
+                <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">유튜브 레퍼런스 분석</h2>
+                <p className="text-[13px] text-[#5a5a7a] mt-1">크리에이터 채널 영상 중 특정 키워드가 제목·설명에 포함된 영상을 검색합니다</p>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+                {/* Left: 키워드 + 크리에이터 입력 */}
+                <div className="xl:col-span-3 space-y-4">
+                  {/* 레퍼런스 검색 */}
+                  <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[12px] font-semibold text-[#3a3a5a] flex items-center gap-1.5">
+                        <Search size={13} className="text-violet-600" /> 레퍼런스 검색
+                        {refKeywords.length > 0 && <span className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-[10px]">{refKeywords.length}</span>}
+                      </label>
+                      <button onClick={() => setRefKeywordInput('')} className="text-[11px] text-[#b0b0c8] hover:text-red-400 transition-colors">초기화</button>
+                    </div>
+                    <textarea
+                      value={refKeywordInput}
+                      onChange={e => setRefKeywordInput(e.target.value)}
+                      placeholder={'검색할 키워드를 한 줄에 하나씩 입력\n예:\n올리브영\n무신사'}
+                      rows={4}
+                      className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-4 py-3 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors resize-none font-mono leading-relaxed"
+                    />
+                  </div>
+
+                  {/* 대상 크리에이터 */}
+                  <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[12px] font-semibold text-[#3a3a5a] flex items-center gap-1.5">
+                        <Users size={13} className="text-violet-600" /> 대상 크리에이터
+                        {refCreatorList.length > 0 && <span className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-[10px]">{refCreatorList.length}</span>}
+                      </label>
+                      <button onClick={() => setRefCreatorInput('')} className="text-[11px] text-[#b0b0c8] hover:text-red-400 transition-colors">초기화</button>
+                    </div>
+                    <CreatorAutocomplete
+                      value={refCreatorInput}
+                      onChange={setRefCreatorInput}
+                      onCommit={() => {}}
+                      onAddMultiple={(vals) => {
+                        const existing = refCreatorInput.split('\n').map(s => s.trim()).filter(Boolean);
+                        const newVals = vals.filter(v => !existing.includes(v));
+                        if (newVals.length > 0) setRefCreatorInput(prev => (prev.trim() ? prev.trim() + '\n' : '') + newVals.join('\n'));
+                      }}
+                      creators={creators}
+                      field="youtube"
+                      placeholder="크리에이터 이름 입력 (자동완성)"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {refCreatorList.map((name, i) => (
+                        <span key={i} className="flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-[11px] px-2 py-0.5 rounded-full">
+                          {name}
+                          <button onClick={() => setRefCreatorInput(prev => prev.split('\n').filter((_, j) => j !== i).join('\n'))} className="hover:text-red-500 transition-colors"><X size={10} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: 실행 패널 */}
+                <div className="xl:col-span-2 bg-white rounded-xl border border-[#e4e5f0] shadow-sm p-5 space-y-5">
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#3a3a5a] mb-2">분석 요약</p>
+                    <div className="space-y-2 text-[12px] text-[#5a5a7a]">
+                      <div className="flex justify-between"><span>검색 키워드</span><span className="font-mono font-semibold text-[#1a1a2e]">{refKeywords.length}개</span></div>
+                      <div className="flex justify-between"><span>대상 크리에이터</span><span className="font-mono font-semibold text-[#1a1a2e]">{refCreatorList.length}명</span></div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRefStart}
+                    disabled={refCollecting || refKeywords.length === 0 || refCreatorList.length === 0}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg font-medium transition-all text-[13px] active:scale-[.98]"
+                  >
+                    {refCollecting ? <><Loader2 size={14} className="animate-spin" /> 검색 중...</> : <><Search size={14} /> 레퍼런스 검색 시작</>}
+                  </button>
+
+                  {/* 진행 상황 */}
+                  {refProgress.length > 0 && (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {refProgress.map((p, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px]">
+                          {p.phase === 'scanning' ? <Loader2 size={10} className="animate-spin text-violet-500" /> : <CheckCircle2 size={10} className="text-emerald-500" />}
+                          <span className="text-[#3a3a5a] truncate flex-1">{p.channelTitle}</span>
+                          <span className="text-[#8888a8] font-mono">{p.scannedVideos}개 스캔 · {p.foundVideos}개 발견</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 결과 */}
+              {refResults.length > 0 && (
+                <div className="bg-white rounded-xl border border-[#e4e5f0] shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-[#e0e1ef] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-[13px] font-bold text-[#0f0f23]">검색 결과</h3>
+                      <span className="bg-violet-50 text-violet-700 px-2 py-0.5 rounded text-[11px] font-medium">{refResults.length}건</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {(['table', 'raw'] as ResultTab[]).map(t => (
+                        <button key={t} onClick={() => setRefResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${refResultTab === t ? 'bg-violet-600 text-white' : 'text-[#5a5a7a] hover:bg-[#f0f0fa]'}`}>
+                          {t === 'table' ? 'TABLE' : 'RAW DATA'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="max-h-[60vh] overflow-auto">
+                    {refResultTab === 'table' && (
+                      <table className="w-full text-left">
+                        <thead className="bg-[#f8f8fd] sticky top-0 z-10">
+                          <tr className="text-[10px] font-semibold text-[#8888a8] uppercase tracking-wider">
+                            <th className="px-4 py-3">썸네일</th>
+                            <th className="px-4 py-3">영상 제목</th>
+                            <th className="px-4 py-3">채널</th>
+                            <th className="px-4 py-3 text-right">조회수</th>
+                            <th className="px-4 py-3 text-right">좋아요</th>
+                            <th className="px-4 py-3 text-right">댓글</th>
+                            <th className="px-4 py-3">매칭 위치</th>
+                            <th className="px-4 py-3">게시일</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#f0f0f8]">
+                          {refResults.sort((a, b) => b.viewCount - a.viewCount).map(v => (
+                            <tr key={v.videoId} className="hover:bg-violet-50/30 transition-colors text-[12px] text-[#3a3a5a]">
+                              <td className="px-4 py-3">
+                                <a href={`https://youtu.be/${v.videoId}`} target="_blank" rel="noreferrer">
+                                  <img src={v.thumbnail} alt="" className="w-24 h-14 rounded object-cover border border-[#e4e5f0]" />
+                                </a>
+                              </td>
+                              <td className="px-4 py-3 max-w-xs">
+                                <a href={`https://youtu.be/${v.videoId}`} target="_blank" rel="noreferrer" className="hover:text-violet-600 transition-colors font-medium line-clamp-2">{v.title}</a>
+                                {v.isShort && <span className="ml-1.5 text-[9px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-full font-semibold">Shorts</span>}
+                              </td>
+                              <td className="px-4 py-3 text-[11px]">{v.channelTitle}</td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums">{v.viewCount.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums">{v.likeCount.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums">{v.commentCount.toLocaleString()}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-1">
+                                  {v.matchedIn.includes('title') && <span className="text-[9px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-semibold">제목</span>}
+                                  {v.matchedIn.includes('description') && <span className="text-[9px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full font-semibold">설명</span>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-[11px] text-[#8888a8] whitespace-nowrap">{new Date(v.publishedAt).toLocaleDateString('ko-KR')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {refResultTab === 'raw' && (
+                      <pre className="p-6 text-[11px] text-[#5a5a7a] overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(refResults.map(v => ({ videoId: v.videoId, title: v.title, channelTitle: v.channelTitle, viewCount: v.viewCount, likeCount: v.likeCount, commentCount: v.commentCount, matchedIn: v.matchedIn, publishedAt: v.publishedAt })), null, 2)}</pre>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
           ) : false ? (
             /* ── 광고 분석 탭 (제거됨) ─────────────────────────────────────────── */
             <div className="space-y-6 animate-in fade-in duration-300">
