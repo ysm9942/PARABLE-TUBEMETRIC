@@ -4082,9 +4082,11 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
 
   const suggestions = value.trim().length > 0
     ? creators.filter(c => {
+        const vals = getFieldValues(c, field);
+        if (vals.length === 0) return false;  // 해당 필드에 ID가 없으면 표시 안 함
         const q = value.toLowerCase();
         return c.name.toLowerCase().includes(q) ||
-          getFieldValues(c, field).some(v => v.toLowerCase().includes(q));
+          vals.some(v => v.toLowerCase().includes(q));
       })
     : [];
 
