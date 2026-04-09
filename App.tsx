@@ -162,6 +162,7 @@ const App: React.FC = () => {
       instagramUsername: c.instagramUsername ? parseIgUsername(c.instagramUsername) || undefined : undefined,
       tiktokUsername:    c.tiktokUsername    ? parseTkUsername(c.tiktokUsername)    || undefined : undefined,
       memo:              (c.memo ?? '').trim() || undefined,
+      affiliation:       c.affiliation || undefined,
       thumbnailUrl:      c.thumbnailUrl || undefined,
     };
     if (!trimmed.name) return;
