@@ -3467,7 +3467,7 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
-                  {creators.map(c => (
+                  {[...creators].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map(c => (
                     <div
                       key={c.id}
                       onClick={() => openCreatorForm(c)}
