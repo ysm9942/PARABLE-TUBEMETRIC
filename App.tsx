@@ -69,12 +69,42 @@ import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFi
 type TabType = 'channel-config' | 'video-config' | 'ref-config' | 'ad-config' | 'dashboard' | 'live-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
 type ResultTab = 'table' | 'chart' | 'raw';
 
+/**
+ * 새로고침에 state가 유지되도록 localStorage와 동기화하는 useState 대체.
+ * - 초기값: localStorage에 저장된 값이 있으면 그것을, 없으면 initial
+ * - setState 호출 시 자동으로 localStorage에 저장
+ * 실패(용량 초과 등) 시 조용히 무시 → UX 연속성 우선.
+ */
+function usePersistedState<T>(
+  key: string,
+  initial: T,
+): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return initial;
+      return JSON.parse(raw) as T;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      /* quota exceeded 등 — 무시 */
+    }
+  }, [key, state]);
+  return [state, setState];
+}
+
 const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean>(
     () => localStorage.getItem('tubemetric-auth') === '1',
   );
   const [pinInput, setPinInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabType>('channel-config');
+  // ★ 현재 탭 — localStorage에 유지 (새로고침 시 이전 탭 복원)
+  const [activeTab, setActiveTab] = usePersistedState<TabType>('tm-active-tab', 'channel-config');
 
   // 로컬 에이전트 상태 (port 8001)
   const [localAgentRunning, setLocalAgentRunning] = useState<boolean>(false);
@@ -268,51 +298,51 @@ const App: React.FC = () => {
   // Consolidated Count Filter
   const [useGlobalCountFilter, setUseGlobalCountFilter] = useState<boolean>(true);
   
-  // Channel Analysis States
+  // Channel Analysis States — 분석 결과는 새로고침에 유지
   const [channelInput, setChannelInput] = useState<string>('');
-  const [channelResults, setChannelResults] = useState<ChannelResult[]>([]);
+  const [channelResults, setChannelResults] = usePersistedState<ChannelResult[]>('tm-channel-results', []);
   const [selectedChannel, setSelectedChannel] = useState<ChannelResult | null>(null);
-  
-  // Ad Analysis States
+
+  // Ad Analysis States — 분석 결과는 새로고침에 유지
   const [adChannelInput, setAdChannelInput] = useState<string>('');
   const [adStartDate, setAdStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [adEndDate, setAdEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [adResults, setAdResults] = useState<AdAnalysisResult[]>([]);
+  const [adResults, setAdResults] = usePersistedState<AdAnalysisResult[]>('tm-ad-results', []);
   const [selectedAdResult, setSelectedAdResult] = useState<AdAnalysisResult | null>(null);
 
-  // Individual Video States
+  // Individual Video States — 분석 결과는 새로고침에 유지
   const [videoInput, setVideoInput] = useState<string>('');
-  const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
+  const [videoResults, setVideoResults] = usePersistedState<VideoResult[]>('tm-video-results', []);
   const [selectedVideo, setSelectedVideo] = useState<VideoResult | null>(null);
 
-  // 로컬 스크래퍼 Queue 상태
+  // 로컬 스크래퍼 Queue 상태 — 결과는 새로고침에 유지
   const [scraperHandles, setScraperHandles] = useState<string>('');
   const [scraperJobId, setScraperJobId]     = useState<string | null>(null);
   const [scraperJobStatus, setScraperJobStatus] = useState<'idle' | 'submitting' | 'pending' | 'done' | 'error'>('idle');
-  const [scraperResults, setScraperResults] = useState<ChannelResult[]>([]);
+  const [scraperResults, setScraperResults] = usePersistedState<ChannelResult[]>('tm-scraper-results', []);
   const [scraperResultsLoading, setScraperResultsLoading] = useState(false);
 
-  // Instagram Queue 상태
+  // Instagram Queue 상태 — 결과는 새로고침에 유지
   const [igDraft, setIgDraft] = useState<string>('');
   const [igInput, setIgInput] = useState<string>('');
   const [igAmount, setIgAmount] = useState<number>(10);
   const [igHeadless, setIgHeadless] = useState<boolean>(true);
   const [igJobId, setIgJobId] = useState<string | null>(null);
   const [igJobStatus, setIgJobStatus] = useState<'idle' | 'submitting' | 'pending' | 'done' | 'error'>('idle');
-  const [igResults, setIgResults] = useState<InstagramUserResult[]>([]);
+  const [igResults, setIgResults] = usePersistedState<InstagramUserResult[]>('tm-ig-results', []);
   const [igResultsLoading, setIgResultsLoading] = useState(false);
   const [selectedIgUser, setSelectedIgUser] = useState<InstagramUserResult | null>(null);
 
-  // TikTok 상태
+  // TikTok 상태 — 결과는 새로고침에 유지
   const [tkDraft, setTkDraft] = useState<string>('');
   const [tkInput, setTkInput] = useState<string>('');
   const [tkAmount, setTkAmount] = useState<number>(10);
   const [tkJobStatus, setTkJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
-  const [tkResults, setTkResults] = useState<TikTokUserResult[]>([]);
+  const [tkResults, setTkResults] = usePersistedState<TikTokUserResult[]>('tm-tk-results', []);
   const [tkResultsLoading, setTkResultsLoading] = useState(false);
   const [selectedTkUser, setSelectedTkUser] = useState<TikTokUserResult | null>(null);
 
-  // 라이브 지표 상태
+  // 라이브 지표 상태 — 결과는 새로고침에 유지
   const [liveMode] = useState<'local'>('local');
   const [liveDraft, setLiveDraft] = useState<string>('');
   const [liveInput, setLiveInput] = useState<string>('');
@@ -321,7 +351,7 @@ const App: React.FC = () => {
   const [liveEndDate, setLiveEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [liveJobStatus, setLiveJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
   const [liveErrorMsg, setLiveErrorMsg] = useState<string>('');
-  const [liveResults, setLiveResults] = useState<LiveCreatorResult[]>([]);
+  const [liveResults, setLiveResults] = usePersistedState<LiveCreatorResult[]>('tm-live-results', []);
   const [selectedLiveCreator, setSelectedLiveCreator] = useState<LiveCreatorResult | null>(null);
 
   // 스크래퍼 날짜 필터
@@ -346,10 +376,10 @@ const App: React.FC = () => {
   const [showAdResults, setShowAdResults] = useState<boolean>(false);
   const [adResultTab, setAdResultTab] = useState<ResultTab>('table');
 
-  // ── 유튜브 레퍼런스 검색 상태 ─────────────────────────────────────────────
+  // ── 유튜브 레퍼런스 검색 상태 — 결과는 새로고침에 유지 ─────────────────────
   const [refKeywordInput, setRefKeywordInput] = useState<string>('');
   const [refCreatorInput, setRefCreatorInput] = useState<string>('');
-  const [refResults, setRefResults] = useState<ReferenceVideo[]>([]);
+  const [refResults, setRefResults] = usePersistedState<ReferenceVideo[]>('tm-ref-results', []);
   const [refCollecting, setRefCollecting] = useState<boolean>(false);
   const [refProgress, setRefProgress] = useState<RefSearchProgress[]>([]);
   const [refResultTab, setRefResultTab] = useState<ResultTab>('table');
