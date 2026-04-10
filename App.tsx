@@ -203,6 +203,13 @@ const App: React.FC = () => {
     }
   };
 
+  // ── 분석 중단 플래그 ─────────────────────────────────────────────────────────
+  const analysisCancelRef = useRef<boolean>(false);
+  const cancelAnalysis = () => {
+    analysisCancelRef.current = true;
+    console.log('[Analysis] 중단 요청');
+  };
+
   // ── System Log 상태 ──────────────────────────────────────────────────────────
   const [sysLogAuthed] = useState<boolean>(true);
   const [sysLogs, setSysLogs] = useState<SystemLogEntry[]>([]);
@@ -457,6 +464,7 @@ const App: React.FC = () => {
     const shortsVal = parseNumberInput(targetShorts);
     const longsVal = parseNumberInput(targetLong);
 
+    analysisCancelRef.current = false;
     setIsProcessing(true);
     setShowChannelResults(true);
     setChannelResultTab('table');
@@ -482,6 +490,10 @@ const App: React.FC = () => {
     setChannelResults(initialResults);
 
     for (let i = 0; i < inputs.length; i++) {
+      if (analysisCancelRef.current) {
+        setChannelResults(prev => prev.map((r, idx) => idx >= i && r.status === 'pending' ? { ...r, status: 'error', error: '사용자 중단' } : r));
+        break;
+      }
       const input = inputs[i];
       setChannelResults(prev => { const next = [...prev]; next[i] = { ...next[i], status: 'processing' }; return next; });
       try {
@@ -646,9 +658,11 @@ const App: React.FC = () => {
 
     // ── 로컬 에이전트(port 8003) 직접 호출 — softc_server.py와 동일한 패턴 ──
     if (igLocalRunning) {
+      analysisCancelRef.current = false;
       setIgJobStatus('submitting');
       try {
         const results = await fetchInstagramReelsLocal(igList, igAmount, INSTAGRAM_AGENT_URL, igHeadless);
+        if (analysisCancelRef.current) { setIgJobStatus('error'); return; }
         setIgResults(results);
         setIgJobStatus('done');
         const zeroResults = results.filter(r => r.reelCount === 0 || r.avgViews === 0);
@@ -726,9 +740,11 @@ const App: React.FC = () => {
       return;
     }
 
+    analysisCancelRef.current = false;
     setTkJobStatus('submitting');
     try {
       const results = await fetchTikTokVideosLocal(tkList, tkAmount, INSTAGRAM_AGENT_URL, tkHeadless);
+      if (analysisCancelRef.current) { setTkJobStatus('error'); return; }
       setTkResults(results);
       setTkJobStatus('done');
       const zeroResults = results.filter(r => r.videoCount === 0 || r.avgViews === 0);
@@ -763,6 +779,7 @@ const App: React.FC = () => {
       alert('라이브 지표 수집은 클라우드 백엔드가 필요합니다.');
       return;
     }
+    analysisCancelRef.current = false;
     setLiveJobStatus('submitting');
     setLiveErrorMsg('');
     try {
@@ -789,6 +806,7 @@ const App: React.FC = () => {
         return;
       }
 
+      if (analysisCancelRef.current) { setLiveJobStatus('error'); setLiveErrorMsg('사용자 중단'); return; }
       setLiveResults(results);
       const errors = results.filter((r: any) => r.status === 'error');
       if (errors.length > 0) {
@@ -874,6 +892,7 @@ const App: React.FC = () => {
       return;
     }
 
+    analysisCancelRef.current = false;
     setIsProcessing(true);
     setShowVideoResults(true);
     setVideoResultTab('table');
@@ -885,9 +904,13 @@ const App: React.FC = () => {
     try {
       const chunkSize = 10;
       for (let i = 0; i < videoIds.length; i += chunkSize) {
+        if (analysisCancelRef.current) {
+          setVideoResults(prev => prev.map(p => p.status === 'processing' ? { ...p, status: 'error', error: '사용자 중단' } : p));
+          break;
+        }
         const chunk = videoIds.slice(i, i + chunkSize);
         const fetched = await fetchVideosByIds(chunk);
-        
+
         const fetchedMap = new Map(fetched.map(f => [f.videoId, f]));
         setVideoResults(prev => prev.map(p => {
           const match = fetchedMap.get(p.videoId);
@@ -907,6 +930,7 @@ const App: React.FC = () => {
     if (refKeywords.length === 0) { alert('검색할 키워드를 입력해주세요.'); return; }
     if (refCreatorList.length === 0) { alert('대상 크리에이터를 입력해주세요.'); return; }
 
+    analysisCancelRef.current = false;
     setRefCollecting(true);
     setRefResults([]);
     setRefProgress([]);
@@ -914,12 +938,14 @@ const App: React.FC = () => {
 
     const allResults: ReferenceVideo[] = [];
     try {
-      for (const creatorName of refCreatorList) {
+      outer: for (const creatorName of refCreatorList) {
+        if (analysisCancelRef.current) break;
         // Creator에서 YouTube 채널 ID 찾기
         const creator = creators.find(c => c.name === creatorName);
         const channelIds = creator?.youtubeChannelIds ?? [creatorName];
 
         for (const chInput of channelIds) {
+          if (analysisCancelRef.current) break outer;
           try {
             const info = await getChannelInfo(chInput);
             if (!info?.uploadsPlaylistId) continue;
@@ -1909,14 +1935,21 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="mt-auto">
-                      <button
-                        onClick={handleChannelStart}
-                        disabled={isProcessing}
-                        className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <Play fill="currentColor" size={14} />}
-                        {isProcessing ? '분석 중...' : '분석 시작'}
-                      </button>
+                      {isProcessing ? (
+                        <button
+                          onClick={cancelAnalysis}
+                          className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                        >
+                          <X size={16} /> 분석 중단
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleChannelStart}
+                          className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                        >
+                          <Play fill="currentColor" size={14} /> 분석 시작
+                        </button>
+                      )}
                     </div>
                   </div>
                </div>
@@ -2114,10 +2147,15 @@ const App: React.FC = () => {
                       <p className="text-[10px] text-[#1a1a2e] font-mono">youtube.com/shorts/xxx</p>
                     </div>
                   </div>
-                  <button onClick={handleVideoStart} disabled={isProcessing} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50">
-                    {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <MonitorPlay size={16} />}
-                    {isProcessing ? '수집 중...' : '수집 시작'}
-                  </button>
+                  {isProcessing ? (
+                    <button onClick={cancelAnalysis} className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95">
+                      <X size={16} /> 분석 중단
+                    </button>
+                  ) : (
+                    <button onClick={handleVideoStart} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95">
+                      <MonitorPlay size={16} /> 수집 시작
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2310,13 +2348,22 @@ const App: React.FC = () => {
                       <div className="flex justify-between"><span>대상 크리에이터</span><span className="font-mono font-semibold text-[#1a1a2e]">{refCreatorList.length}명</span></div>
                     </div>
                   </div>
-                  <button
-                    onClick={handleRefStart}
-                    disabled={refCollecting || refKeywords.length === 0 || refCreatorList.length === 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg font-medium transition-all text-[13px] active:scale-[.98]"
-                  >
-                    {refCollecting ? <><Loader2 size={14} className="animate-spin" /> 검색 중...</> : <><Search size={14} /> 레퍼런스 검색 시작</>}
-                  </button>
+                  {refCollecting ? (
+                    <button
+                      onClick={cancelAnalysis}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all text-[13px] active:scale-[.98]"
+                    >
+                      <X size={14} /> 분석 중단
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleRefStart}
+                      disabled={refKeywords.length === 0 || refCreatorList.length === 0}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg font-medium transition-all text-[13px] active:scale-[.98]"
+                    >
+                      <Search size={14} /> 레퍼런스 검색 시작
+                    </button>
+                  )}
 
                   {/* 진행 상황 */}
                   {refProgress.length > 0 && (
@@ -2950,16 +2997,22 @@ const App: React.FC = () => {
                   )}
 
                   <div className="mt-auto">
-                    <button
-                      onClick={handleLiveRequest}
-                      disabled={liveJobStatus === 'submitting' || (!softcLocalRunning && !localAgentRunning)}
-                      className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
-                    >
-                      {liveJobStatus === 'submitting'
-                        ? <Loader2 className="animate-spin" size={16} />
-                        : <Tv2 size={16} />}
-                      {liveJobStatus === 'submitting' ? '수집 중...' : '방송 지표 수집'}
-                    </button>
+                    {liveJobStatus === 'submitting' ? (
+                      <button
+                        onClick={cancelAnalysis}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <X size={16} /> 분석 중단
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleLiveRequest}
+                        disabled={!softcLocalRunning && !localAgentRunning}
+                        className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <Tv2 size={16} /> 방송 지표 수집
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3274,16 +3327,21 @@ const App: React.FC = () => {
                   )}
 
                   <div className="mt-auto">
-                    <button
-                      onClick={handleIgRequest}
-                      disabled={igJobStatus === 'submitting' || igJobStatus === 'pending'}
-                      className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
-                    >
-                      {(igJobStatus === 'submitting' || igJobStatus === 'pending')
-                        ? <Loader2 className="animate-spin" size={16} />
-                        : <Instagram size={16} />}
-                      {igJobStatus === 'pending' ? '로컬 서버 처리 대기 중...' : igLocalRunning ? '릴스 수집' : '수집 요청 전송'}
-                    </button>
+                    {(igJobStatus === 'submitting' || igJobStatus === 'pending') ? (
+                      <button
+                        onClick={cancelAnalysis}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <X size={16} /> 분석 중단
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleIgRequest}
+                        className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <Instagram size={16} /> {igLocalRunning ? '릴스 수집' : '수집 요청 전송'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3613,16 +3671,22 @@ const App: React.FC = () => {
                   )}
 
                   <div className="mt-auto">
-                    <button
-                      onClick={handleTkRequest}
-                      disabled={tkJobStatus === 'submitting' || !tkAgentReady}
-                      className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
-                    >
-                      {tkJobStatus === 'submitting'
-                        ? <Loader2 className="animate-spin" size={16} />
-                        : <Music size={16} />}
-                      {tkJobStatus === 'submitting' ? '수집 중...' : tkAgentReady ? '수집 시작' : igLocalRunning ? '업데이트 필요' : '에이전트 필요'}
-                    </button>
+                    {tkJobStatus === 'submitting' ? (
+                      <button
+                        onClick={cancelAnalysis}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <X size={16} /> 분석 중단
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleTkRequest}
+                        disabled={!tkAgentReady}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white py-3.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2.5 transition-all active:scale-95"
+                      >
+                        <Music size={16} /> {tkAgentReady ? '수집 시작' : igLocalRunning ? '업데이트 필요' : '에이전트 필요'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
