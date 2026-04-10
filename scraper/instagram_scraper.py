@@ -110,17 +110,9 @@ def _get_chrome_ver() -> Optional[int]:
 
 # ── 드라이버 빌드 ──────────────────────────────────────────────────────────────
 
-def _build_driver(headless: bool = True):
+def _make_options(tmp_dir: str, headless: bool):
+    """새 ChromeOptions 인스턴스 생성 (uc.Chrome 호출 실패 후 재시도 시에도 신규 옵션이 필요함)."""
     import undetected_chromedriver as uc
-
-    chrome_major = _get_chrome_ver()
-    log(f"[Chrome] 버전: {chrome_major or '자동감지'}  headless={headless}")
-
-    # 각 드라이버 인스턴스마다 독립적인 Chrome 프로파일 사용
-    # → SoftC(8002) 등 다른 Chrome 프로세스와 충돌 방지 (invalid session id 오류 해소)
-    tmp_dir = tempfile.mkdtemp(prefix="ig_chrome_")
-    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
-
     opts = uc.ChromeOptions()
     opts.add_argument(f"--user-data-dir={tmp_dir}")
     opts.add_argument("--no-sandbox")
@@ -129,12 +121,66 @@ def _build_driver(headless: bool = True):
     opts.add_argument("--disable-blink-features=AutomationControlled")
     if headless:
         opts.add_argument("--headless=new")
+    return opts
 
-    driver = (
-        uc.Chrome(options=opts, version_main=chrome_major)
-        if chrome_major
-        else uc.Chrome(options=opts)
-    )
+
+def _build_driver(headless: bool = True):
+    """
+    Chrome 드라이버 생성 — 버전 불문 호환 전략.
+
+    전략 순서 (각 단계 실패 시 자동으로 다음 전략으로 폴백):
+      1) 감지된 Chrome major 버전으로 uc.Chrome(version_main=N)
+      2) version_main 없이 uc.Chrome() — undetected_chromedriver가 자동 감지
+      3) use_subprocess=True 모드로 재시도 (일부 환경에서 더 안정적)
+
+    → Chrome이 자동 업데이트되어 버전이 바뀌어도 재설치 없이 동작.
+    """
+    import undetected_chromedriver as uc
+
+    chrome_major = _get_chrome_ver()
+    log(f"[Chrome] 감지 버전: {chrome_major or '자동감지'}  headless={headless}")
+
+    # 각 드라이버 인스턴스마다 독립적인 Chrome 프로파일 사용
+    # → SoftC(8002) 등 다른 Chrome 프로세스와 충돌 방지 (invalid session id 오류 해소)
+    tmp_dir = tempfile.mkdtemp(prefix="ig_chrome_")
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
+
+    last_err: Optional[Exception] = None
+    driver = None
+
+    attempts = []
+    if chrome_major:
+        attempts.append(("version_main", {"version_main": chrome_major}))
+    attempts.append(("auto_detect", {}))
+    attempts.append(("use_subprocess", {"use_subprocess": True}))
+    if chrome_major:
+        attempts.append(("version_main+subprocess", {"version_main": chrome_major, "use_subprocess": True}))
+
+    for label, kwargs in attempts:
+        try:
+            log(f"[Chrome] 드라이버 시도: {label} {kwargs or ''}")
+            # 매 시도마다 새 options 객체 필요 (uc가 내부적으로 상태 변경함)
+            opts = _make_options(tmp_dir, headless)
+            driver = uc.Chrome(options=opts, **kwargs)
+            log(f"[Chrome] ✅ 드라이버 생성 성공 ({label})")
+            break
+        except Exception as e:
+            last_err = e
+            log(f"[Chrome] ❌ {label} 실패: {type(e).__name__}: {str(e)[:200]}")
+            # 실패한 드라이버 세션 정리
+            try:
+                if driver:
+                    driver.quit()
+            except Exception:
+                pass
+            driver = None
+
+    if driver is None:
+        raise RuntimeError(
+            f"Chrome 드라이버 생성 실패 (모든 폴백 시도 소진). "
+            f"Chrome이 설치되어 있는지 확인하세요. 마지막 오류: {last_err}"
+        )
+
     driver.implicitly_wait(5)
 
     # 드라이버 quit 시 임시 디렉토리 정리
@@ -385,8 +431,52 @@ def _fetch_reel_meta(driver, code: str) -> tuple[str, str]:
         return "", ""
 
 
-def fetch_user_reels(driver, username: str, amount: int) -> dict:
+def _collect_reel_codes(driver) -> list[str]:
+    """
+    현재 페이지에서 모든 릴스 code 문자열을 추출.
+    (요소 참조가 아닌 code 문자열만 반환 → stale element reference 원천 차단)
+    DOM 순서 유지.
+    """
+    try:
+        hrefs = driver.execute_script("""
+            var as = document.querySelectorAll("a[href*='/reel/']");
+            var out = [];
+            for (var i = 0; i < as.length; i++) {
+                var h = as[i].getAttribute('href') || '';
+                out.push(h);
+            }
+            return out;
+        """) or []
+    except Exception:
+        hrefs = []
+
+    codes: list[str] = []
+    seen_local: set[str] = set()
+    for h in hrefs:
+        m = re.search(r"/reel/([A-Za-z0-9_-]+)", h or "")
+        if not m:
+            continue
+        c = m.group(1)
+        if c in seen_local:
+            continue
+        seen_local.add(c)
+        codes.append(c)
+    return codes
+
+
+def _find_reel_link(driver, code: str):
+    """code에 해당하는 <a href='.../reel/{code}/...'> 요소를 새로 조회.
+    페이지 재렌더링 이후 stale element를 피하기 위해 필요할 때마다 재조회한다."""
     from selenium.webdriver.common.by import By
+    try:
+        els = driver.find_elements(By.CSS_SELECTOR, f"a[href*='/reel/{code}']")
+        return els[0] if els else None
+    except Exception:
+        return None
+
+
+def fetch_user_reels(driver, username: str, amount: int) -> dict:
+    from selenium.common.exceptions import StaleElementReferenceException
 
     log(f"[수집] @{username} 시작 (최대 {amount}개)")
 
@@ -400,36 +490,49 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
     no_new_rounds = 0
 
     while len(raw_reels) < amount and no_new_rounds < 5:
-        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+        # ★ 요소 참조 대신 code 문자열만 추출 → stale element 원천 차단
+        codes = _collect_reel_codes(driver)
         new_this_round = 0
 
-        for link in links:
+        for code in codes:
             if len(raw_reels) >= amount:
                 break
-
-            href = link.get_attribute("href") or ""
-            m = re.search(r"/reel/([A-Za-z0-9_-]+)", href)
-            if not m:
-                continue
-            code = m.group(1)
             if code in seen_codes:
                 continue
             seen_codes.add(code)
 
-            try:
-                view_count, like_count, comment_count, thumbnail_url = _scrape_reel(driver, link)
-                raw_reels.append({
-                    "code":          code,
-                    "like_count":    like_count,
-                    "comment_count": comment_count,
-                    "view_count":    view_count,
-                    "thumbnail_url": thumbnail_url,
-                })
-                new_this_round += 1
-                log(f"  [{len(raw_reels):02d}] {code}: 조회수={view_count:,}  좋아요={like_count:,}  댓글={comment_count:,}")
+            # ★ 매 이터레이션마다 요소 재조회 (React 재렌더링으로부터 보호)
+            #   StaleElementReferenceException 발생 시 1회 재시도.
+            success = False
+            last_err = None
+            for attempt in range(2):
+                link_el = _find_reel_link(driver, code)
+                if link_el is None:
+                    last_err = "link not found"
+                    break
+                try:
+                    view_count, like_count, comment_count, thumbnail_url = _scrape_reel(driver, link_el)
+                    raw_reels.append({
+                        "code":          code,
+                        "like_count":    like_count,
+                        "comment_count": comment_count,
+                        "view_count":    view_count,
+                        "thumbnail_url": thumbnail_url,
+                    })
+                    new_this_round += 1
+                    log(f"  [{len(raw_reels):02d}] {code}: 조회수={view_count:,}  좋아요={like_count:,}  댓글={comment_count:,}")
+                    success = True
+                    break
+                except StaleElementReferenceException as e:
+                    last_err = f"stale(재시도 {attempt+1}/2)"
+                    time.sleep(0.3)
+                    continue
+                except Exception as e:
+                    last_err = e
+                    break
 
-            except Exception as e:
-                log(f"  ⚠ {code} 파싱 오류: {e}")
+            if not success:
+                log(f"  ⚠ {code} 파싱 실패: {last_err}")
 
         if new_this_round == 0:
             no_new_rounds += 1
