@@ -120,6 +120,9 @@ const App: React.FC = () => {
   // 폼 내 배열 필드용 draft
   const [creatorYtDraft,   setCreatorYtDraft]   = useState('');
   const [creatorLiveDraft, setCreatorLiveDraft] = useState('');
+  // 검색/필터
+  const [creatorSearch, setCreatorSearch] = useState<string>('');
+  const [creatorFilterAff, setCreatorFilterAff] = useState<'all' | '패러블' | '외부' | 'none'>('all');
 
   // Firebase 실시간 구독
   useEffect(() => {
@@ -3705,6 +3708,55 @@ const App: React.FC = () => {
                 </button>
               </div>
 
+              {/* 검색 + 필터 */}
+              {creators.length > 0 && (
+                <div className="bg-white border border-[#e4e5f0] rounded-xl p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                  <div className="relative flex-1">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b0b0c8]" />
+                    <input
+                      value={creatorSearch}
+                      onChange={e => setCreatorSearch(e.target.value)}
+                      placeholder="크리에이터 이름, 유튜브 채널, 인스타, 틱톡, 메모 검색..."
+                      className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg pl-8 pr-8 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                    />
+                    {creatorSearch && (
+                      <button
+                        onClick={() => setCreatorSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[#e8e8f4] text-[#8888a8] hover:text-red-500 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {([
+                      { key: 'all',    label: '전체' },
+                      { key: '패러블', label: '패러블' },
+                      { key: '외부',   label: '외부' },
+                      { key: 'none',   label: '미지정' },
+                    ] as const).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => setCreatorFilterAff(key)}
+                        className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-all ${
+                          creatorFilterAff === key
+                            ? key === '패러블'
+                              ? 'bg-violet-600 text-white'
+                              : key === '외부'
+                                ? 'bg-sky-600 text-white'
+                                : key === 'none'
+                                  ? 'bg-[#8888a8] text-white'
+                                  : 'bg-[#1a1a2e] text-white'
+                            : 'bg-[#f0f0f8] text-[#5a5a7a] hover:bg-[#e8e8f4]'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 크리에이터 카드 그리드 */}
               {creators.length === 0 ? (
                 <div className="bg-white border border-[#e4e5f0] rounded-2xl py-20 flex flex-col items-center gap-3">
@@ -3717,9 +3769,47 @@ const App: React.FC = () => {
                     <Plus size={14} /> 지금 추가하기
                   </button>
                 </div>
-              ) : (
+              ) : (() => {
+                const q = creatorSearch.trim().toLowerCase();
+                const filtered = creators
+                  .filter(c => {
+                    // 소속 필터
+                    if (creatorFilterAff === '패러블' && c.affiliation !== '패러블') return false;
+                    if (creatorFilterAff === '외부'   && c.affiliation !== '외부')   return false;
+                    if (creatorFilterAff === 'none'   && c.affiliation)                return false;
+                    // 검색어 필터
+                    if (!q) return true;
+                    if (c.name.toLowerCase().includes(q)) return true;
+                    if ((c.youtubeChannelIds ?? []).some(id => id.toLowerCase().includes(q))) return true;
+                    if ((c.liveMetricsIds ?? []).some(id => id.toLowerCase().includes(q))) return true;
+                    if (c.instagramUsername?.toLowerCase().includes(q)) return true;
+                    if (c.tiktokUsername?.toLowerCase().includes(q)) return true;
+                    if (c.memo?.toLowerCase().includes(q)) return true;
+                    return false;
+                  })
+                  .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white border border-[#e4e5f0] rounded-2xl py-16 flex flex-col items-center gap-2">
+                      <Search size={32} className="text-[#c0c0d4]" strokeWidth={1.2} />
+                      <p className="text-[13px] text-[#8888a8]">검색 결과가 없습니다</p>
+                      <button
+                        onClick={() => { setCreatorSearch(''); setCreatorFilterAff('all'); }}
+                        className="mt-1 text-[11px] text-violet-600 hover:text-violet-700 font-medium"
+                      >
+                        필터 초기화
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (<>
+                <div className="flex items-center justify-between text-[11px] text-[#8888a8] px-1">
+                  <span>총 <strong className="text-[#1a1a2e]">{filtered.length}</strong>명 / 전체 {creators.length}명</span>
+                </div>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
-                  {[...creators].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map(c => (
+                  {filtered.map(c => (
                     <div
                       key={c.id}
                       onClick={() => openCreatorForm(c)}
@@ -3758,7 +3848,8 @@ const App: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              )}
+                </>);
+              })()}
 
               {/* 안내 배너 */}
               {creators.length > 0 && (
