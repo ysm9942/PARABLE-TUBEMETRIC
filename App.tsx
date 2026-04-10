@@ -176,22 +176,31 @@ const App: React.FC = () => {
       alert(`"${trimmed.name}" 이름의 크리에이터가 이미 존재합니다.`);
       return;
     }
-    // YouTube 첫 번째 채널 썸네일 자동 수집 (API 키 없으면 스킵)
-    if (trimmed.youtubeChannelIds.length > 0 && !trimmed.thumbnailUrl) {
-      try {
-        const info = await getChannelInfo(trimmed.youtubeChannelIds[0]);
-        if (info?.thumbnail) trimmed.thumbnailUrl = info.thumbnail;
-      } catch { /* API 키 없거나 실패 시 무시 */ }
-    }
-    // localStorage(즉시) + Firestore(비동기) 저장
-    await fbSaveCreator(trimmed);
-    // 로컬 state 즉시 갱신 (localStorage에 이미 저장됨)
+    // ★ 유효성 통과 즉시 모달 닫고 로컬 state 갱신 (UX)
     setCreators(prev => {
       const idx = prev.findIndex(x => x.id === trimmed.id);
       if (idx >= 0) { const next = [...prev]; next[idx] = trimmed; return next; }
       return [...prev, trimmed];
     });
     setCreatorForm(null);
+
+    // 백그라운드: 썸네일 수집 + 저장
+    try {
+      if (trimmed.youtubeChannelIds.length > 0 && !trimmed.thumbnailUrl) {
+        try {
+          const info = await getChannelInfo(trimmed.youtubeChannelIds[0]);
+          if (info?.thumbnail) {
+            trimmed.thumbnailUrl = info.thumbnail;
+            // 썸네일 수집 후 state 재반영
+            setCreators(prev => prev.map(x => x.id === trimmed.id ? trimmed : x));
+          }
+        } catch { /* API 키 없거나 실패 시 무시 */ }
+      }
+      await fbSaveCreator(trimmed);
+    } catch (err: any) {
+      console.error('[Creator] 저장 실패:', err);
+      alert(`저장 중 오류: ${err?.message ?? err}`);
+    }
   };
 
   // ── System Log 상태 ──────────────────────────────────────────────────────────
