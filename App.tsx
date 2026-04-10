@@ -3734,7 +3734,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                       {/* 이름 */}
-                      <span className="text-[11px] font-semibold text-[#1a1a2e] text-center line-clamp-2 leading-tight w-full">{c.name}</span>
+                      <span className="font-semibold text-[#1a1a2e] text-center leading-tight w-full truncate" style={{ fontSize: c.name.length > 6 ? `${Math.max(8, 11 - (c.name.length - 6) * 0.4)}px` : '11px' }}>{c.name}</span>
                       {/* 소속 배지 */}
                       {c.affiliation && (
                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
