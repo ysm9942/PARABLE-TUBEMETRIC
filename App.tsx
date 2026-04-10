@@ -2267,12 +2267,21 @@ const App: React.FC = () => {
                           setRefCreatorInput(prev => (prev.trim() ? prev.trim() + '\n' : '') + name);
                         }
                       }}
-                      placeholder="크리에이터 이름 입력 (자동완성)"
+                      placeholder="크리에이터 이름 검색 (자동완성)"
+                    />
+                    <textarea
+                      value={refCreatorInput}
+                      onChange={e => setRefCreatorInput(e.target.value)}
+                      placeholder={'크리에이터 이름 또는 채널 URL을 한 줄에 하나씩 입력\n예:\n해봄\nhttps://www.youtube.com/@channelname\nUCxxxxxxxxxxxxxxxxxxxxxxxx'}
+                      rows={4}
+                      className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-4 py-3 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors resize-none font-mono leading-relaxed"
                     />
                     <div className="flex flex-wrap gap-1.5">
                       {refCreatorList.map((name, i) => (
-                        <span key={i} className="flex items-center gap-1 bg-violet-50 border border-violet-200 text-violet-700 text-[11px] px-2 py-0.5 rounded-full">
-                          {name}
+                        <span key={i} className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${
+                          creators.some(c => c.name === name) ? 'bg-violet-50 border border-violet-200 text-violet-700' : 'bg-orange-50 border border-orange-200 text-orange-700'
+                        }`}>
+                          {creators.some(c => c.name === name) ? name : (name.length > 30 ? name.slice(0, 30) + '...' : name)}
                           <button onClick={() => setRefCreatorInput(prev => prev.split('\n').filter((_, j) => j !== i).join('\n'))} className="hover:text-red-500 transition-colors"><X size={10} /></button>
                         </span>
                       ))}
