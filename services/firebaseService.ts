@@ -143,14 +143,21 @@ export function subscribeSystemLogs(
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Creator CRUD
+// Creator CRUD — 실시간 양방향 동기화
 //
 // 설계 원칙:
-//   localStorage = 주 저장소 (절대 데이터 유실 없음)
-//   Firestore    = 보조 동기화 (다른 기기 동기화용, 실패해도 무방)
+//   Firestore    = 유일한 진실 원천 (Single Source of Truth)
+//   localStorage = 오프라인 캐시 + 초기 로드 시 즉시 표시용
+//
+// 흐름:
+//   1) 저장/삭제 → Firestore에 즉시 쓰기 (낙관적으로 localStorage도 업데이트)
+//   2) onSnapshot 리스너가 Firestore 변경을 실시간 감지
+//   3) 스냅샷 수신 시 localStorage와 state를 Firestore 데이터로 완전히 교체
+//   → 어느 기기에서 변경하든 모든 기기에 즉시 반영 (추가·수정·삭제 포함)
 // ════════════════════════════════════════════════════════════════════════════
 
 const LS_CREATORS = 'tubemetric-creators';
+const LS_SYNC_FLAG = 'tubemetric-creators-synced';  // 초기 마이그레이션 플래그
 
 function lsLoadCreators(): Creator[] {
   try { return JSON.parse(localStorage.getItem(LS_CREATORS) ?? '[]'); } catch { return []; }
@@ -159,117 +166,98 @@ function lsSaveCreators(list: Creator[]) {
   localStorage.setItem(LS_CREATORS, JSON.stringify(list));
 }
 
-/** id 기준으로 두 배열을 병합 (합집합). 같은 id면 _updatedAt이 큰 쪽이 우선. */
-function mergeCreators(localList: Creator[], firestoreList: Creator[]): Creator[] {
-  const map = new Map<string, Creator>();
-  for (const c of localList) map.set(c.id, c);
-  for (const c of firestoreList) {
-    const existing = map.get(c.id);
-    if (!existing) {
-      // Firestore에만 있음 (다른 기기에서 추가) → 추가
-      map.set(c.id, c);
-    } else {
-      // 양쪽 다 있음 → _updatedAt 비교해서 최신 것 사용
-      const localTs = (existing as any)._updatedAt ?? 0;
-      const remoteTs = (c as any)._updatedAt ?? 0;
-      if (remoteTs > localTs) map.set(c.id, c);
-    }
-  }
-  return Array.from(map.values());
-}
-
-/** Creator를 저장합니다. localStorage(즉시) + Firestore(즉시, 비동기). */
+/** Creator를 저장합니다. Firestore에 즉시 쓰고 localStorage도 낙관적 업데이트. */
 export async function saveCreator(creator: Creator): Promise<void> {
-  const now = Date.now();
-  const creatorWithTs = { ...creator, _updatedAt: now };
-
-  // 1) localStorage — 즉시
+  // 1) localStorage — 즉시 낙관적 업데이트 (UI 즉시 반응)
   const list = lsLoadCreators();
   const idx  = list.findIndex(c => c.id === creator.id);
-  if (idx >= 0) list[idx] = creatorWithTs as any; else list.push(creatorWithTs as any);
+  if (idx >= 0) list[idx] = creator; else list.push(creator);
   lsSaveCreators(list);
 
-  // 2) Firestore — 즉시 (비동기, 실패해도 UI 차단 안 함)
+  // 2) Firestore — 즉시 쓰기 (onSnapshot이 모든 기기에 전파)
   const store = getDb();
-  if (store) {
-    setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
+  if (!store) {
+    console.warn('[Firebase] 연결 없음 — localStorage만 저장됨');
+    return;
+  }
+  try {
+    await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
       ...creator,
-      _updatedAt: now,
       updatedAt: serverTimestamp(),
-    }).then(() => {
-      console.log('[Firebase] Creator Firestore 동기화 완료:', creator.name);
-    }).catch(e => {
-      console.error('[Firebase] Creator Firestore 동기화 실패:', e);
     });
+    console.log('[Firebase] Creator 저장 완료:', creator.name);
+  } catch (e) {
+    console.error('[Firebase] Creator 저장 실패:', e);
+    throw e;
   }
 }
 
-/** Creator를 삭제합니다. localStorage(즉시) + Firestore(즉시, 비동기). */
+/** Creator를 삭제합니다. Firestore에 즉시 삭제 요청하고 localStorage도 업데이트. */
 export async function deleteCreatorById(id: string): Promise<void> {
-  // 1) localStorage — 즉시
+  // 1) localStorage — 즉시 낙관적 업데이트
   lsSaveCreators(lsLoadCreators().filter(c => c.id !== id));
 
-  // 2) Firestore — 즉시 (비동기)
+  // 2) Firestore — 즉시 삭제
   const store = getDb();
-  if (store) {
-    deleteDoc(doc(store, CREATOR_COLLECTION, id)).then(() => {
-      console.log('[Firebase] Creator Firestore 삭제 동기화 완료:', id);
-    }).catch(e => {
-      console.error('[Firebase] Creator Firestore 삭제 동기화 실패:', e);
-    });
+  if (!store) return;
+  try {
+    await deleteDoc(doc(store, CREATOR_COLLECTION, id));
+    console.log('[Firebase] Creator 삭제 완료:', id);
+  } catch (e) {
+    console.error('[Firebase] Creator 삭제 실패:', e);
+    throw e;
   }
 }
 
-/** Creator 목록을 구독합니다.
- *
- *  양방향 동기화:
- *  1) 페이지 로드 시 localStorage → Firestore 푸시 (로컬 데이터 보존)
- *  2) Firestore 변경 감지 시 → localStorage와 _updatedAt 기반 병합
- *  → 어느 기기에서든 최신 변경이 양쪽에 반영됩니다.
- */
+/** Creator 목록을 실시간 구독합니다. Firestore = 진실 원천. */
 export function subscribeCreators(
   onData: (creators: Creator[]) => void,
 ): Unsubscribe {
-  // 항상 localStorage 데이터를 먼저 전달 (즉시 표시)
+  // 1) localStorage 데이터를 먼저 표시 (즉각적인 UI 응답)
   const localData = lsLoadCreators();
-  onData(localData);
+  if (localData.length > 0) onData(localData);
 
   const store = getDb();
-  if (!store) return () => {};
-
-  // ★ 페이지 로드 시 localStorage → Firestore 즉시 푸시
-  if (localData.length > 0) {
-    console.log(`[Firebase] 로컬 Creator ${localData.length}개 → Firestore 푸시 시작`);
-    localData.forEach(c => {
-      setDoc(doc(store, CREATOR_COLLECTION, c.id), {
-        ...c,
-        _updatedAt: (c as any)._updatedAt ?? Date.now(),
-        updatedAt: serverTimestamp(),
-      }).catch(e => console.error('[Firebase] 초기 푸시 실패:', c.name, e));
-    });
+  if (!store) {
+    console.warn('[Firebase] Firestore 연결 없음 — localStorage만 사용');
+    return () => {};
   }
 
   const q = query(collection(store, CREATOR_COLLECTION), orderBy('name'));
 
   return onSnapshot(q, snap => {
-    const firestoreData = snap.docs.map(d => ({ ...d.data() as Creator, id: d.id }));
-    const currentLocal  = lsLoadCreators();
+    const firestoreData: Creator[] = snap.docs.map(d => {
+      const data = d.data() as any;
+      // Firestore 전용 필드(updatedAt serverTimestamp 등) 제외
+      const { updatedAt, _updatedAt, ...rest } = data;
+      return { ...rest, id: d.id } as Creator;
+    });
 
-    if (firestoreData.length > 0 || currentLocal.length > 0) {
-      const merged = mergeCreators(currentLocal, firestoreData);
-      lsSaveCreators(merged);
-      onData(merged);
+    const hasSyncedBefore = localStorage.getItem(LS_SYNC_FLAG) === '1';
+    const currentLocal = lsLoadCreators();
 
-      // Firestore에 없는 로컬 전용 항목 푸시
-      const firestoreIds = new Set(firestoreData.map(c => c.id));
-      merged.filter(c => !firestoreIds.has(c.id)).forEach(c => {
+    // ★ 초기 마이그레이션: 이전에 한 번도 동기화된 적 없고 Firestore가 비어있고 로컬에 데이터가 있으면
+    //    로컬 데이터를 Firestore에 업로드 (기존 localStorage 데이터 보존)
+    if (!hasSyncedBefore && firestoreData.length === 0 && currentLocal.length > 0) {
+      console.log(`[Firebase] 초기 마이그레이션: localStorage ${currentLocal.length}개 → Firestore`);
+      currentLocal.forEach(c => {
         setDoc(doc(store, CREATOR_COLLECTION, c.id), {
           ...c,
-          _updatedAt: (c as any)._updatedAt ?? Date.now(),
           updatedAt: serverTimestamp(),
-        }).catch(() => {});
+        }).catch(e => console.error('[Firebase] 마이그레이션 실패:', c.name, e));
       });
+      localStorage.setItem(LS_SYNC_FLAG, '1');
+      onData(currentLocal);
+      // 다음 onSnapshot에서 Firestore 데이터가 반영됨
+      return;
     }
+
+    // ★ Firestore = 진실 원천. localStorage와 state를 완전히 교체.
+    //    (추가·수정은 물론 삭제도 자동으로 전파됨)
+    localStorage.setItem(LS_SYNC_FLAG, '1');
+    lsSaveCreators(firestoreData);
+    onData(firestoreData);
+    console.log(`[Firebase] 실시간 동기화: ${firestoreData.length}명`);
   }, (err) => {
     console.error('[Firebase] Creator 구독 오류 (localStorage 사용):', err);
   });
