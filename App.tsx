@@ -318,7 +318,7 @@ const App: React.FC = () => {
 
   // Consolidated Analysis Period
   const [useDateFilter, setUseDateFilter] = useState<boolean>(false);
-  const [period, setPeriod] = useState<AnalysisPeriod>('all');
+  const [period, setPeriod] = useState<AnalysisPeriod>('90d');
 
   // Individual Collection Targets
   const [useShorts, setUseShorts] = useState<boolean>(true);
@@ -1918,8 +1918,8 @@ const App: React.FC = () => {
                                 {useDateFilter ? 'Enabled' : 'Disabled'}
                               </button>
                            </div>
-                           <div className={`grid grid-cols-4 gap-1.5 transition-opacity ${!useDateFilter ? 'opacity-30' : ''}`}>
-                             {(['all', '90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
+                           <div className={`grid grid-cols-3 gap-1.5 transition-opacity ${!useDateFilter ? 'opacity-30' : ''}`}>
+                             {(['90d', '30d', '7d'] as AnalysisPeriod[]).map(p => (
                                <button
                                  key={p}
                                  disabled={!useDateFilter}
