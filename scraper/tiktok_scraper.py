@@ -168,7 +168,8 @@ def _detect_chrome_major() -> int | None:
     return None
 
 
-def _make_tk_options(tmp_dir: str, headless: bool = False):
+def _make_tk_options(tmp_dir: str, headless: bool):
+    """매 시도마다 새 ChromeOptions 인스턴스 필요 (uc 내부 상태 변경 이슈 회피)."""
     import undetected_chromedriver as uc
     options = uc.ChromeOptions()
     options.add_argument(f"--user-data-dir={tmp_dir}")
@@ -184,7 +185,16 @@ def _make_tk_options(tmp_dir: str, headless: bool = False):
 
 
 def _build_driver(headless: bool = False):
-    import atexit, shutil, tempfile
+    """
+    TikTok 전용 Chrome 드라이버 — 버전 불문 호환 + 독립 프로파일.
+
+    - 각 드라이버마다 tempfile.mkdtemp 로 독립 user-data-dir 생성
+      → Instagram(8003 내 다른 스레드)·SoftC(8002)와 동시 실행해도 프로파일 충돌 없음
+    - 전략 폴백: version_main → auto → use_subprocess → 조합
+    """
+    import atexit
+    import shutil
+    import tempfile
     import undetected_chromedriver as uc
 
     version_main = _detect_chrome_major()
@@ -193,31 +203,37 @@ def _build_driver(headless: bool = False):
     tmp_dir = tempfile.mkdtemp(prefix="tk_chrome_")
     atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
 
-    attempts = []
-    if version_main:
-        attempts.append(("version_main", {"version_main": version_main}))
-    attempts.append(("auto_detect", {}))
-    attempts.append(("use_subprocess", {"use_subprocess": True}))
+    attempts: list[tuple[str, dict]] = []
     if version_main:
         attempts.append(("version_main+subprocess", {"version_main": version_main, "use_subprocess": True}))
+        attempts.append(("version_main",            {"version_main": version_main}))
+    attempts.append(("auto+subprocess", {"use_subprocess": True}))
+    attempts.append(("auto",            {}))
 
+    last_err: Exception | None = None
     driver = None
-    last_err = None
     for label, kwargs in attempts:
         try:
+            print(f"  [browser] 드라이버 시도: {label} {kwargs or ''}")
             opts = _make_tk_options(tmp_dir, headless)
             driver = uc.Chrome(options=opts, **kwargs)
-            print(f"  [browser] 드라이버 생성 성공 ({label})")
+            print(f"  [browser] ✅ 드라이버 생성 성공 ({label})")
             break
         except Exception as e:
             last_err = e
-            print(f"  [browser] {label} 실패: {e}")
+            print(f"  [browser] ❌ {label} 실패: {type(e).__name__}: {str(e)[:180]}")
+            try:
+                if driver:
+                    driver.quit()
+            except Exception:
+                pass
+            driver = None
 
     if driver is None:
-        raise RuntimeError(f"Chrome 드라이버 생성 실패: {last_err}")
-
-    driver.implicitly_wait(5)
-
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"TikTok Chrome 드라이버 생성 실패 (모든 폴백 시도 소진). 마지막 오류: {last_err}"
+        )
     _original_quit = driver.quit
     def _patched_quit():
         try:

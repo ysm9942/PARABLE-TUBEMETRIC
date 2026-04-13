@@ -13,6 +13,29 @@ import type { ChannelResult, VideoResult, AdAnalysisResult, InstagramUserResult 
 
 const BACKEND_URL = (process.env.BACKEND_URL || '').replace(/\/$/, '');
 
+// ── 공통 폴링 설정 ──────────────────────────────────────────────────────────
+/** 폴링 중 단일 HTTP 호출 타임아웃 (네트워크 행 방지) */
+const POLL_HTTP_TIMEOUT_MS = 15_000;
+/** 폴링 전체 최대 대기 시간 (좀비 잡 방지) */
+const POLL_MAX_DURATION_MS = 30 * 60 * 1000;  // 30분
+/** 폴링 주기 */
+const POLL_INTERVAL_MS = 3_000;
+
+/**
+ * 취소/타임아웃을 지원하는 지연 함수.
+ * isCancelled()가 true를 반환하면 즉시 reject.
+ */
+async function cancellableSleep(ms: number, isCancelled?: () => boolean): Promise<void> {
+  const step = 200;
+  let waited = 0;
+  while (waited < ms) {
+    if (isCancelled?.()) throw new Error('cancelled');
+    const chunk = Math.min(step, ms - waited);
+    await new Promise(r => setTimeout(r, chunk));
+    waited += chunk;
+  }
+}
+
 /**
  * 백엔드 사용 가능 여부 확인
  */
@@ -108,19 +131,38 @@ export const fetchInstagramReelsLocal = async (
   usernames: string[],
   amount: number = 10,
   localBaseUrl: string = 'http://localhost:8003',
-  headless: boolean = true
+  headless: boolean = true,
+  isCancelled?: () => boolean,
 ): Promise<InstagramUserResult[]> => {
   const base = localBaseUrl.replace(/\/$/, '');
 
-  await axios.post(`${base}/api/crawl/start`, { usernames, amount, headless });
+  await axios.post(`${base}/api/crawl/start`, { usernames, amount, headless }, { timeout: POLL_HTTP_TIMEOUT_MS });
 
+  const startedAt = Date.now();
   while (true) {
-    await new Promise(r => setTimeout(r, 3000));
-    const res = await axios.get(`${base}/api/crawl/status`);
-    const data = res.data;
-    if (data.status === 'done' || data.status === 'error') {
-      if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
-      return data.results as InstagramUserResult[];
+    // 취소 요청 체크 → 서버에도 stop 전파 후 예외
+    if (isCancelled?.()) {
+      try { await axios.post(`${base}/api/crawl/stop`, {}, { timeout: 5000 }); } catch { /* noop */ }
+      throw new Error('cancelled');
+    }
+    // 전체 타임아웃
+    if (Date.now() - startedAt > POLL_MAX_DURATION_MS) {
+      throw new Error('polling timeout (30분 초과)');
+    }
+
+    await cancellableSleep(POLL_INTERVAL_MS, isCancelled);
+
+    try {
+      const res = await axios.get(`${base}/api/crawl/status`, { timeout: POLL_HTTP_TIMEOUT_MS });
+      const data = res.data;
+      if (data.status === 'done' || data.status === 'error') {
+        if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
+        return data.results as InstagramUserResult[];
+      }
+    } catch (e: any) {
+      if (e?.message === 'cancelled') throw e;
+      // 네트워크 일시 오류는 다음 폴링에서 재시도
+      console.warn('[Instagram] status 조회 실패(재시도):', e?.message ?? e);
     }
   }
 };
@@ -163,19 +205,35 @@ export const fetchTikTokVideosLocal = async (
   usernames: string[],
   amount: number = 20,
   localBaseUrl: string = 'http://localhost:8003',
-  headless: boolean = true
+  headless: boolean = true,
+  isCancelled?: () => boolean,
 ): Promise<TikTokUserResult[]> => {
   const base = localBaseUrl.replace(/\/$/, '');
 
-  await axios.post(`${base}/api/tiktok/start`, { usernames, amount, headless });
+  await axios.post(`${base}/api/tiktok/start`, { usernames, amount, headless }, { timeout: POLL_HTTP_TIMEOUT_MS });
 
+  const startedAt = Date.now();
   while (true) {
-    await new Promise(r => setTimeout(r, 3000));
-    const res = await axios.get(`${base}/api/tiktok/status`);
-    const data = res.data;
-    if (data.status === 'done' || data.status === 'error') {
-      if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
-      return data.results as TikTokUserResult[];
+    if (isCancelled?.()) {
+      try { await axios.post(`${base}/api/tiktok/stop`, {}, { timeout: 5000 }); } catch { /* noop */ }
+      throw new Error('cancelled');
+    }
+    if (Date.now() - startedAt > POLL_MAX_DURATION_MS) {
+      throw new Error('polling timeout (30분 초과)');
+    }
+
+    await cancellableSleep(POLL_INTERVAL_MS, isCancelled);
+
+    try {
+      const res = await axios.get(`${base}/api/tiktok/status`, { timeout: POLL_HTTP_TIMEOUT_MS });
+      const data = res.data;
+      if (data.status === 'done' || data.status === 'error') {
+        if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
+        return data.results as TikTokUserResult[];
+      }
+    } catch (e: any) {
+      if (e?.message === 'cancelled') throw e;
+      console.warn('[TikTok] status 조회 실패(재시도):', e?.message ?? e);
     }
   }
 };
@@ -233,7 +291,8 @@ export const fetchSoftcStreams = async (
   startDate: string,
   endDate: string,
   categories: string[] = [],
-  localBaseUrl?: string   // SOFTC_AGENT_URL (http://localhost:8002) 또는 undefined
+  localBaseUrl?: string,   // SOFTC_AGENT_URL (http://localhost:8002) 또는 undefined
+  isCancelled?: () => boolean,
 ): Promise<LiveCreatorResult[]> => {
   const isLocal = !!localBaseUrl;
   const base    = (localBaseUrl || BACKEND_URL).replace(/\/$/, '');
@@ -241,6 +300,7 @@ export const fetchSoftcStreams = async (
 
   const startPath  = isLocal ? '/api/crawl/start'  : '/api/softc/crawl/start';
   const statusPath = isLocal ? '/api/crawl/status' : '/api/softc/crawl/status';
+  const stopPath   = isLocal ? '/api/crawl/stop'   : '/api/softc/crawl/stop';
 
   // 잡 시작
   await axios.post(`${base}${startPath}`, {
@@ -248,13 +308,31 @@ export const fetchSoftcStreams = async (
     start_date: startDate,
     end_date: endDate,
     categories,
-  });
+  }, { timeout: POLL_HTTP_TIMEOUT_MS });
 
-  // 완료될 때까지 3초 간격으로 폴링
+  // 완료될 때까지 폴링
+  const startedAt = Date.now();
   while (true) {
-    await new Promise(r => setTimeout(r, 3000));
-    const res = await axios.get(`${base}${statusPath}`);
-    const data = res.data;
+    if (isCancelled?.()) {
+      try { await axios.post(`${base}${stopPath}`, {}, { timeout: 5000 }); } catch { /* noop */ }
+      throw new Error('cancelled');
+    }
+    if (Date.now() - startedAt > POLL_MAX_DURATION_MS) {
+      throw new Error('polling timeout (30분 초과)');
+    }
+
+    await cancellableSleep(POLL_INTERVAL_MS, isCancelled);
+
+    let data: any;
+    try {
+      const res = await axios.get(`${base}${statusPath}`, { timeout: POLL_HTTP_TIMEOUT_MS });
+      data = res.data;
+    } catch (e: any) {
+      if (e?.message === 'cancelled') throw e;
+      console.warn('[SoftC] status 조회 실패(재시도):', e?.message ?? e);
+      continue;
+    }
+
     if (data.status === 'done' || data.status === 'error') {
       if (data.status === 'error') throw new Error(data.error || '스크래핑 오류');
 
