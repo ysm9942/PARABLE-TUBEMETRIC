@@ -219,7 +219,7 @@ const App: React.FC = () => {
       checkSoftcAgent().then(ok => { setSoftcLocalRunning(ok); if (ok) agents.push('softc-scraper:8002'); }),
       checkInstagramAgent().then(ok => { setIgLocalRunning(ok); if (ok) agents.push('instagram-scraper:8003'); }),
       checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok)),
-    });
+    ]);
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   

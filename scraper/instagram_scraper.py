@@ -110,6 +110,19 @@ def _get_chrome_ver() -> Optional[int]:
 
 # ── 드라이버 빌드 ──────────────────────────────────────────────────────────────
 
+def _make_ig_options(tmp_dir: str, headless: bool = True):
+    import undetected_chromedriver as uc
+    opts = uc.ChromeOptions()
+    opts.add_argument(f"--user-data-dir={tmp_dir}")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    if headless:
+        opts.add_argument("--headless=new")
+    return opts
+
+
 def _build_driver(headless: bool = True):
     import undetected_chromedriver as uc
 
@@ -121,20 +134,29 @@ def _build_driver(headless: bool = True):
     tmp_dir = tempfile.mkdtemp(prefix="ig_chrome_")
     atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
 
-    opts = uc.ChromeOptions()
-    opts.add_argument(f"--user-data-dir={tmp_dir}")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--window-size=1920,1080")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    if headless:
-        opts.add_argument("--headless=new")
+    attempts = []
+    if chrome_major:
+        attempts.append(("version_main", {"version_main": chrome_major}))
+    attempts.append(("auto_detect", {}))
+    attempts.append(("use_subprocess", {"use_subprocess": True}))
+    if chrome_major:
+        attempts.append(("version_main+subprocess", {"version_main": chrome_major, "use_subprocess": True}))
 
-    driver = (
-        uc.Chrome(options=opts, version_main=chrome_major)
-        if chrome_major
-        else uc.Chrome(options=opts)
-    )
+    driver = None
+    last_err = None
+    for label, kwargs in attempts:
+        try:
+            opts = _make_ig_options(tmp_dir, headless)
+            driver = uc.Chrome(options=opts, **kwargs)
+            log(f"[Chrome] 드라이버 생성 성공 ({label})")
+            break
+        except Exception as e:
+            last_err = e
+            log(f"[Chrome] {label} 실패: {e}")
+
+    if driver is None:
+        raise RuntimeError(f"Chrome 드라이버 생성 실패: {last_err}")
+
     driver.implicitly_wait(5)
 
     # 드라이버 quit 시 임시 디렉토리 정리
@@ -385,7 +407,7 @@ def _fetch_reel_meta(driver, code: str) -> tuple[str, str]:
         return "", ""
 
 
-def fetch_user_reels(driver, username: str, amount: int) -> dict:
+def fetch_user_reels(driver, username: str, amount: int, stop_evt=None) -> dict:
     from selenium.webdriver.common.by import By
 
     log(f"[수집] @{username} 시작 (최대 {amount}개)")
@@ -400,11 +422,17 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
     no_new_rounds = 0
 
     while len(raw_reels) < amount and no_new_rounds < 5:
+        if stop_evt and stop_evt.is_set():
+            log("[중지] stop 신호 수신 — Phase 1 중단")
+            break
+
         links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
         new_this_round = 0
 
         for link in links:
             if len(raw_reels) >= amount:
+                break
+            if stop_evt and stop_evt.is_set():
                 break
 
             href = link.get_attribute("href") or ""
@@ -443,6 +471,9 @@ def fetch_user_reels(driver, username: str, amount: int) -> dict:
     # ── Phase 2: 개별 릴스 페이지 방문 → 제목·날짜 수집 ────────────────────
     reels: list[dict] = []
     for idx, r in enumerate(raw_reels):
+        if stop_evt and stop_evt.is_set():
+            log("[중지] stop 신호 수신 — Phase 2 중단")
+            break
         code = r["code"]
         log(f"  [메타 {idx+1}/{len(raw_reels)}] {code} 제목·날짜 수집 중...")
         title, taken_at = _fetch_reel_meta(driver, code)

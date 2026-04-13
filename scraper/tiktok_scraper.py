@@ -168,9 +168,10 @@ def _detect_chrome_major() -> int | None:
     return None
 
 
-def _build_driver(headless: bool = False):
+def _make_tk_options(tmp_dir: str, headless: bool = False):
     import undetected_chromedriver as uc
     options = uc.ChromeOptions()
+    options.add_argument(f"--user-data-dir={tmp_dir}")
     if headless:
         options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -178,11 +179,54 @@ def _build_driver(headless: bool = False):
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=ko-KR,ko")
     options.add_argument("--start-maximized")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    return options
+
+
+def _build_driver(headless: bool = False):
+    import atexit, shutil, tempfile
+    import undetected_chromedriver as uc
 
     version_main = _detect_chrome_major()
     print(f"  [browser] Chrome 메이저 버전: {version_main}")
-    return uc.Chrome(options=options, use_subprocess=True,
-                     version_main=version_main)
+
+    tmp_dir = tempfile.mkdtemp(prefix="tk_chrome_")
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
+
+    attempts = []
+    if version_main:
+        attempts.append(("version_main", {"version_main": version_main}))
+    attempts.append(("auto_detect", {}))
+    attempts.append(("use_subprocess", {"use_subprocess": True}))
+    if version_main:
+        attempts.append(("version_main+subprocess", {"version_main": version_main, "use_subprocess": True}))
+
+    driver = None
+    last_err = None
+    for label, kwargs in attempts:
+        try:
+            opts = _make_tk_options(tmp_dir, headless)
+            driver = uc.Chrome(options=opts, **kwargs)
+            print(f"  [browser] 드라이버 생성 성공 ({label})")
+            break
+        except Exception as e:
+            last_err = e
+            print(f"  [browser] {label} 실패: {e}")
+
+    if driver is None:
+        raise RuntimeError(f"Chrome 드라이버 생성 실패: {last_err}")
+
+    driver.implicitly_wait(5)
+
+    _original_quit = driver.quit
+    def _patched_quit():
+        try:
+            _original_quit()
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+    driver.quit = _patched_quit  # type: ignore
+
+    return driver
 
 
 def _js_items(driver) -> list:
@@ -237,7 +281,8 @@ def _extract_item(driver, item) -> dict | None:
         return None
 
 
-def _fetch_via_browser(username: str, amount: int, headless: bool = False) -> dict:
+def _fetch_via_browser(username: str, amount: int, headless: bool = False,
+                       stop_evt=None) -> dict:
     """undetected_chromedriver DOM 스크래핑 (fallback)"""
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
@@ -249,6 +294,9 @@ def _fetch_via_browser(username: str, amount: int, headless: bool = False) -> di
         # TikTok 메인 먼저 → 쿠키 확보
         driver.get("https://www.tiktok.com/")
         time.sleep(3)
+
+        if stop_evt and stop_evt.is_set():
+            return _empty_result(username)
 
         driver.get(f"https://www.tiktok.com/@{username}")
         try:
@@ -265,6 +313,8 @@ def _fetch_via_browser(username: str, amount: int, headless: bool = False) -> di
         max_scrolls = max(10, (amount // 8) + 5)
 
         for _ in range(max_scrolls):
+            if stop_evt and stop_evt.is_set():
+                break
             for item in _js_items(driver):
                 if _is_pinned(driver, item):
                     continue
@@ -308,14 +358,25 @@ def _fetch_via_browser(username: str, amount: int, headless: bool = False) -> di
 # 공개 인터페이스 (instagram_server.py에서 호출)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _empty_result(username: str) -> dict:
+    return {
+        "username": username, "videoCount": 0, "videos": [],
+        "avgViews": 0, "status": "stopped",
+        "scrapedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def fetch_user_videos(driver_unused, username: str, amount: int,
-                      headless: bool = False) -> dict:
+                      headless: bool = False, stop_evt=None) -> dict:
     """
     driver_unused: 하위 호환성 유지용 (무시됨, 내부에서 직접 생성)
     순서: yt-dlp(쿠키) → yt-dlp(무쿠키) → 브라우저 DOM 파싱
     """
     username = username.lstrip("@").strip()
     print(f"  [TikTok] @{username} 수집 시작 (amount={amount})")
+
+    if stop_evt and stop_evt.is_set():
+        return _empty_result(username)
 
     # 1. yt-dlp + 브라우저 쿠키
     try:
@@ -326,9 +387,12 @@ def fetch_user_videos(driver_unused, username: str, amount: int,
     except Exception as e:
         print(f"  [yt-dlp] 실패: {e} → 브라우저 fallback")
 
+    if stop_evt and stop_evt.is_set():
+        return _empty_result(username)
+
     # 2. 브라우저 DOM 파싱 (undetected_chromedriver)
     print(f"  [browser] @{username} 브라우저로 재시도...")
-    return _fetch_via_browser(username, amount, headless=headless)
+    return _fetch_via_browser(username, amount, headless=headless, stop_evt=stop_evt)
 
 
 def run(usernames: list[str], amount: int = 20, headless: bool = False) -> list[dict]:
