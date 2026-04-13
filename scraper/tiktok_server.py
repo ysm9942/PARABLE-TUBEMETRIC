@@ -90,7 +90,7 @@ def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
 
                 print(f"\n[{idx}/{total}] @{username} 수집 시작")
                 try:
-                    data = fetch_user_videos(driver, username, amount)
+                    data = fetch_user_videos(driver, username, amount, stop_evt=_stop_evt)
                     all_results.append(data)
                     print(f"  ✅ @{username} → {data['videoCount']}개, 평균 {data['avgViews']:,} 조회")
                 except Exception as e:

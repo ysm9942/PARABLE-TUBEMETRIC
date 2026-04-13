@@ -116,7 +116,7 @@ def _run_crawl_job(usernames: list[str], amount: int, headless: bool):
 
                 print(f"\n[{idx}/{total}] @{username} 수집 시작")
                 try:
-                    data = fetch_user_reels(driver, username, amount)
+                    data = fetch_user_reels(driver, username, amount, stop_evt=_stop_evt)
                     all_results.append(data)
                     print(f"  ✅ @{username} → {data['reelCount']}개")
                 except Exception as e:
@@ -195,7 +195,7 @@ def _run_tiktok_job(usernames: list[str], amount: int, headless: bool):
 
             print(f"\n[TikTok {idx}/{total}] @{username} 수집 시작")
             try:
-                data = fetch_user_videos(None, username, amount, headless=headless)
+                data = fetch_user_videos(None, username, amount, headless=headless, stop_evt=_tk_stop_evt)
                 all_results.append(data)
                 print(f"  ✅ @{username} → {data['videoCount']}개, 평균 {data['avgViews']:,} 조회")
             except Exception as e:
