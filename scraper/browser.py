@@ -1,11 +1,36 @@
 """
 Undetected ChromeDriver 브라우저 설정
 """
+import os
+import platform
 import re
 import subprocess
 import undetected_chromedriver as uc
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+
+def _clear_macos_quarantine():
+    """macOS Gatekeeper quarantine 속성 자동 제거.
+    undetected_chromedriver가 다운로드한 chromedriver 바이너리에
+    com.apple.quarantine 확장 속성이 붙어 실행이 차단되는 문제를 해결한다.
+    Windows/Linux에서는 아무 동작도 하지 않는다.
+    """
+    if platform.system() != "Darwin":
+        return
+    # undetected_chromedriver 기본 저장 경로
+    uc_dir = os.path.join(os.path.expanduser("~"), "appdata", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        uc_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        return
+    try:
+        subprocess.run(
+            ["xattr", "-cr", uc_dir],
+            capture_output=True, timeout=10,
+        )
+    except Exception:
+        pass
 
 
 def _get_chrome_major_version() -> int | None:
@@ -68,6 +93,7 @@ def create_driver(headless: bool = False) -> uc.Chrome:
       2) version_main 없이 자동 감지
       3) use_subprocess=True 재시도
     """
+    _clear_macos_quarantine()
     version = _get_chrome_major_version()
     print(f"🔎 감지된 Chrome major version: {version if version else '자동감지'}")
 

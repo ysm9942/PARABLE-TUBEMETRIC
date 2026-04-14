@@ -10,7 +10,10 @@ TikTok 봇 감지 핵심: msToken·ttwid 등 쿠키 유효성.
 실제 Chrome 쿠키를 그대로 전달하면 정상 사용자로 인식.
 """
 
+import os
+import platform
 import re
+import subprocess
 import time
 from datetime import datetime, timezone
 
@@ -136,9 +139,23 @@ def _run_ytdlp(username: str, ydl_opts: dict, amount: int) -> dict:
 # 방법 2: undetected_chromedriver (DOM 파싱 fallback)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _clear_macos_quarantine():
+    """macOS에서 undetected_chromedriver 바이너리의 quarantine 속성을 자동 제거."""
+    if platform.system() != "Darwin":
+        return
+    uc_dir = os.path.join(os.path.expanduser("~"), "appdata", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        uc_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        return
+    try:
+        subprocess.run(["xattr", "-cr", uc_dir], capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
 def _detect_chrome_major() -> int | None:
     """설치된 Chrome 메이저 버전 감지 (browser.py와 동일한 방식)"""
-    import subprocess, platform
     if platform.system() == "Windows":
         # reg query 방식 — winreg보다 PyInstaller 환경에서 안정적
         for cmd in [
@@ -197,6 +214,7 @@ def _build_driver(headless: bool = False):
     import tempfile
     import undetected_chromedriver as uc
 
+    _clear_macos_quarantine()
     version_main = _detect_chrome_major()
     print(f"  [browser] Chrome 메이저 버전: {version_main}")
 

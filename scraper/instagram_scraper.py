@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import platform
 import random
 import re
 import shutil
@@ -108,6 +109,23 @@ def _get_chrome_ver() -> Optional[int]:
     return None
 
 
+# ── macOS Gatekeeper quarantine 해제 ─────────────────────────────────────────
+
+def _clear_macos_quarantine():
+    """macOS에서 undetected_chromedriver 바이너리의 quarantine 속성을 자동 제거."""
+    if platform.system() != "Darwin":
+        return
+    uc_dir = os.path.join(os.path.expanduser("~"), "appdata", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        uc_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "undetected_chromedriver")
+    if not os.path.isdir(uc_dir):
+        return
+    try:
+        subprocess.run(["xattr", "-cr", uc_dir], capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
 # ── 드라이버 빌드 ──────────────────────────────────────────────────────────────
 
 def _make_options(tmp_dir: str, headless: bool):
@@ -137,6 +155,7 @@ def _build_driver(headless: bool = True):
     """
     import undetected_chromedriver as uc
 
+    _clear_macos_quarantine()
     chrome_major = _get_chrome_ver()
     log(f"[Chrome] 감지 버전: {chrome_major or '자동감지'}  headless={headless}")
 
