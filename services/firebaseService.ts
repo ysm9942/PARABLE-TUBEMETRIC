@@ -166,6 +166,15 @@ function lsSaveCreators(list: Creator[]) {
   localStorage.setItem(LS_CREATORS, JSON.stringify(list));
 }
 
+/** Firestore는 undefined 값을 허용하지 않으므로 제거 (빈 배열/빈 문자열은 유지) */
+function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as Partial<T>;
+}
+
 /** Creator를 저장합니다. Firestore에 즉시 쓰고 localStorage도 낙관적 업데이트. */
 export async function saveCreator(creator: Creator): Promise<void> {
   // 1) localStorage — 즉시 낙관적 업데이트 (UI 즉시 반응)
@@ -182,7 +191,7 @@ export async function saveCreator(creator: Creator): Promise<void> {
   }
   try {
     await setDoc(doc(store, CREATOR_COLLECTION, creator.id), {
-      ...creator,
+      ...stripUndefined(creator),
       updatedAt: serverTimestamp(),
     });
     console.log('[Firebase] Creator 저장 완료:', creator.name);
@@ -242,7 +251,7 @@ export function subscribeCreators(
       console.log(`[Firebase] 초기 마이그레이션: localStorage ${currentLocal.length}개 → Firestore`);
       currentLocal.forEach(c => {
         setDoc(doc(store, CREATOR_COLLECTION, c.id), {
-          ...c,
+          ...stripUndefined(c),
           updatedAt: serverTimestamp(),
         }).catch(e => console.error('[Firebase] 마이그레이션 실패:', c.name, e));
       });
