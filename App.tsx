@@ -2218,7 +2218,10 @@ const App: React.FC = () => {
                                   <td className="px-6 py-3.5 text-center"><span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
                                   <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
                                   <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
+                                  <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1">
+                                    <button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button>
+                                    <button onClick={() => setChannelResults(prev => prev.filter(x => x.channelId !== r.channelId))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2413,6 +2416,7 @@ const App: React.FC = () => {
                                   <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1.5">
                                     <button disabled={v.status !== 'completed'} onClick={() => setSelectedVideo(v)} className="p-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={13} /></button>
                                     <a href={v.isShort ? `https://youtube.com/shorts/${v.videoId}` : `https://youtube.com/watch?v=${v.videoId}`} target="_blank" className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 text-[#1a1a2e] hover:text-white rounded-lg transition-all"><ExternalLink size={13} /></a>
+                                    <button onClick={() => setVideoResults(prev => prev.filter(x => x.videoId !== v.videoId))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
                                   </td>
                                 </tr>
                               ))}
@@ -2594,6 +2598,7 @@ const App: React.FC = () => {
                             <th className="px-4 py-3 text-right">댓글</th>
                             <th className="px-4 py-3">매칭 위치</th>
                             <th className="px-4 py-3">게시일</th>
+                            <th className="px-4 py-3"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#f0f0f8]">
@@ -2619,6 +2624,7 @@ const App: React.FC = () => {
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-[11px] text-[#8888a8] whitespace-nowrap">{new Date(v.publishedAt).toLocaleDateString('ko-KR')}</td>
+                              <td className="px-4 py-3 text-center"><button onClick={() => setRefResults(prev => prev.filter(x => x.videoId !== v.videoId))} className="p-1 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={11} /></button></td>
                             </tr>
                           ))}
                         </tbody>
@@ -2765,6 +2771,7 @@ const App: React.FC = () => {
                                 <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Ad Videos</th>
                                 <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Ad Ratio</th>
                                 <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Avg Ad Views</th>
+                                <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#ececf5]">
@@ -2787,6 +2794,7 @@ const App: React.FC = () => {
                                     ) : '—'}
                                   </td>
                                   <td className="px-6 py-4 text-right text-[13px] text-[#5a5a7a] tabular-nums">{r.status === 'completed' && r.avgAdViews > 0 ? r.avgAdViews.toLocaleString() : '—'}</td>
+                                  <td className="px-6 py-3.5 text-center"><button onClick={() => setAdResults(prev => prev.filter(x => x.channelId !== r.channelId))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button></td>
                                 </tr>
                               ))}
                             </tbody>
@@ -3264,13 +3272,16 @@ const App: React.FC = () => {
                             <td className="px-6 py-4 text-right text-[13px] text-red-600 tabular-nums font-medium">{r.peakViewers.toLocaleString()}</td>
                             <td className="px-6 py-4 text-right text-[13px] text-[#1a1a2e] tabular-nums">{Math.round(r.totalDurationMin / 60)}시간 {r.totalDurationMin % 60}분</td>
                             <td className="px-6 py-3.5 text-center">
-                              <button
-                                onClick={() => setSelectedLiveCreator(r)}
-                                disabled={!r.streamCount}
-                                className="p-1.5 bg-[#f0f0f8] hover:bg-orange-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
-                              >
-                                <Eye size={14} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => setSelectedLiveCreator(r)}
+                                  disabled={!r.streamCount}
+                                  className="p-1.5 bg-[#f0f0f8] hover:bg-orange-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button onClick={() => setLiveResults(prev => prev.filter(x => !(x.platform === r.platform && x.creatorId === r.creatorId)))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3600,13 +3611,16 @@ const App: React.FC = () => {
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
                             <td className="px-6 py-3.5 text-center">
-                              <button
-                                onClick={() => setSelectedIgUser(r)}
-                                disabled={!r.reelCount}
-                                className="p-1.5 bg-[#f0f0f8] hover:bg-pink-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
-                              >
-                                <Eye size={14} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => setSelectedIgUser(r)}
+                                  disabled={!r.reelCount}
+                                  className="p-1.5 bg-[#f0f0f8] hover:bg-pink-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button onClick={() => setIgResults(prev => prev.filter(x => x.username !== r.username))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3946,13 +3960,16 @@ const App: React.FC = () => {
                               {new Date(r.scrapedAt).toLocaleDateString('ko-KR')}
                             </td>
                             <td className="px-6 py-3.5 text-center">
-                              <button
-                                onClick={() => setSelectedTkUser(r)}
-                                disabled={!r.videoCount}
-                                className="p-1.5 bg-[#f0f0f8] hover:bg-cyan-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
-                              >
-                                <Eye size={14} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => setSelectedTkUser(r)}
+                                  disabled={!r.videoCount}
+                                  className="p-1.5 bg-[#f0f0f8] hover:bg-cyan-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button onClick={() => setTkResults(prev => prev.filter(x => x.username !== r.username))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
+                              </div>
                             </td>
                           </tr>
                         ))}
