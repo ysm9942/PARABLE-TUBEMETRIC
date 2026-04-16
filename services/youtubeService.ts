@@ -3,7 +3,50 @@ import axios from 'axios';
 import { parseYtDurationSeconds, isYouTubeShort } from '../utils/shortsDetector';
 import { VideoDetail, VideoResult, CommentInfo, AdVideoDetail, AdDetectionResult, ReferenceVideo } from '../types';
 
-const API_KEY = process.env.API_KEY;
+// ── YouTube API 키 로테이션 ──────────────────────────────────────────────────
+// 쿼터 초과(403) 시 자동으로 다음 키로 전환
+const API_KEYS = [
+  process.env.API_KEY,
+  process.env.API_KEY_2,
+  process.env.API_KEY_3,
+].filter(Boolean) as string[];
+
+let currentKeyIndex = 0;
+
+function getApiKey(): string {
+  if (API_KEYS.length === 0) throw new Error('YouTube API Key가 설정되지 않았습니다.');
+  return API_KEYS[currentKeyIndex];
+}
+
+function rotateKey(): boolean {
+  if (currentKeyIndex + 1 < API_KEYS.length) {
+    currentKeyIndex++;
+    console.log(`[YouTube] API 키 전환 → ${currentKeyIndex + 1}/${API_KEYS.length}번째 키`);
+    return true;
+  }
+  console.warn('[YouTube] 모든 API 키 쿼터 소진');
+  return false;
+}
+
+function isQuotaError(error: any): boolean {
+  const status = error?.response?.status;
+  const reason = error?.response?.data?.error?.errors?.[0]?.reason;
+  return status === 403 && (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded');
+}
+
+/** 쿼터 초과 시 자동 키 전환 후 재시도하는 GET 래퍼 */
+async function ytGet(url: string, params: Record<string, any>): Promise<any> {
+  while (true) {
+    try {
+      const res = await axios.get(url, { params: { ...params, key: getApiKey() } });
+      return res;
+    } catch (err) {
+      if (isQuotaError(err) && rotateKey()) continue;
+      throw err;
+    }
+  }
+}
+
 const BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 export type AnalysisPeriod = '7d' | '30d' | '90d' | 'all';
@@ -16,10 +59,10 @@ const getErrorMessage = (error: any): string => {
 };
 
 const fetchTopComments = async (videoId: string): Promise<CommentInfo[]> => {
-  if (!API_KEY || !videoId) return [];
+  if (API_KEYS.length === 0 || !videoId) return [];
   try {
-    const response = await axios.get(`${BASE_URL}/commentThreads`, {
-      params: { part: 'snippet', videoId, maxResults: 6, order: 'relevance', key: API_KEY },
+    const response = await ytGet(`${BASE_URL}/commentThreads`, {
+      part: 'snippet', videoId, maxResults: 6, order: 'relevance',
     });
     return response.data.items.map((item: any) => ({
       author: item.snippet.topLevelComment.snippet.authorDisplayName,
@@ -183,7 +226,7 @@ export const combineAdResults = (paidFlag: any, nlp: any): AdDetectionResult => 
 };
 
 export const getChannelInfo = async (input: string) => {
-  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
+  if (API_KEYS.length === 0) throw new Error('YouTube API Key가 설정되지 않았습니다.');
   let cleanInput = input.trim();
   if (cleanInput.includes('youtube.com/') || cleanInput.includes('youtu.be/')) {
     try {
@@ -191,20 +234,20 @@ export const getChannelInfo = async (input: string) => {
       cleanInput = url.pathname + url.search;
     } catch (e) {}
   }
-  let params: any = { part: 'snippet,contentDetails,statistics', key: API_KEY };
+  let params: any = { part: 'snippet,contentDetails,statistics' };
   const idMatch = cleanInput.match(/UC[a-zA-Z0-9_-]{22}/);
   const handleMatch = cleanInput.match(/@([^/?\s]+)/);
   if (idMatch) params.id = idMatch[0];
   else if (handleMatch) params.forHandle = `@${handleMatch[1]}`;
   else {
     try {
-      const searchResponse = await axios.get(`${BASE_URL}/search`, { params: { part: 'snippet', q: input.trim(), type: 'channel', maxResults: 1, key: API_KEY } });
+      const searchResponse = await ytGet(`${BASE_URL}/search`, { part: 'snippet', q: input.trim(), type: 'channel', maxResults: 1 });
       if (!searchResponse.data.items?.length) throw new Error(`채널을 찾을 수 없습니다: ${input}`);
       params.id = searchResponse.data.items[0].id.channelId;
     } catch (err) { throw new Error(`검색 중 오류 발생: ${getErrorMessage(err)}`); }
   }
   try {
-    const response = await axios.get(`${BASE_URL}/channels`, { params });
+    const response = await ytGet(`${BASE_URL}/channels`, params);
     if (!response.data.items?.length) throw new Error('채널 정보를 찾을 수 없습니다.');
     const channel = response.data.items[0];
     return {
@@ -222,7 +265,7 @@ export const fetchVideosByIds = async (videoIds: string[]): Promise<VideoResult[
   const validIds = videoIds.filter(id => id?.length === 11);
   if (!validIds.length) return [];
   try {
-    const response = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: validIds.join(','), key: API_KEY } });
+    const response = await ytGet(`${BASE_URL}/videos`, { part: 'snippet,contentDetails,statistics', id: validIds.join(',') });
     const results: VideoResult[] = [];
     for (const item of response.data.items) {
       const durationSec = parseYtDurationSeconds(item.contentDetails.duration);
@@ -278,11 +321,11 @@ export const fetchChannelStats = async (
     const longsDone = !longsCfg.enabled || (longsCfg.useCountFilter && longs.length >= longsCfg.target);
     if (shortsDone && longsDone) break;
 
-    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
+    const playlistResponse = await ytGet(`${BASE_URL}/playlistItems`, { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken });
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
 
-    const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics,liveStreamingDetails', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    const videoResponse = await ytGet(`${BASE_URL}/videos`, { part: 'snippet,contentDetails,statistics,liveStreamingDetails', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(',') });
     
     for (const video of videoResponse.data.items) {
       const publishedAt = new Date(video.snippet.publishedAt);
@@ -355,10 +398,10 @@ export const analyzeAdVideos = async (uploadsPlaylistId: string, startDate: Date
   let adVideos: AdVideoDetail[] = [], nextPageToken: string | undefined, safetyCounter = 0;
   while (safetyCounter < 100) {
     safetyCounter++;
-    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, { params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY } });
+    const playlistResponse = await ytGet(`${BASE_URL}/playlistItems`, { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken });
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
-    const videoResponse = await axios.get(`${BASE_URL}/videos`, { params: { part: 'snippet,contentDetails,statistics', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(','), key: API_KEY } });
+    const videoResponse = await ytGet(`${BASE_URL}/videos`, { part: 'snippet,contentDetails,statistics', id: playlistResponse.data.items.map((i:any)=>i.contentDetails.videoId).join(',') });
     for (const video of videoResponse.data.items) {
       const pub = new Date(video.snippet.publishedAt);
       if (pub < startDate) { nextPageToken = undefined; break; }
@@ -401,7 +444,7 @@ export const searchChannelForKeyword = async (
   keywords: string[],
   onProgress?: (p: RefSearchProgress) => void,
 ): Promise<ReferenceVideo[]> => {
-  if (!API_KEY) throw new Error('YouTube API Key가 설정되지 않았습니다.');
+  if (API_KEYS.length === 0) throw new Error('YouTube API Key가 설정되지 않았습니다.');
   const results: ReferenceVideo[] = [];
   let nextPageToken: string | undefined;
   let safetyCounter = 0;
@@ -413,15 +456,15 @@ export const searchChannelForKeyword = async (
 
   while (safetyCounter < 200) {
     safetyCounter++;
-    const playlistResponse = await axios.get(`${BASE_URL}/playlistItems`, {
-      params: { part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken, key: API_KEY },
+    const playlistResponse = await ytGet(`${BASE_URL}/playlistItems`, {
+      part: 'contentDetails', playlistId: uploadsPlaylistId, maxResults: 50, pageToken: nextPageToken,
     });
     if (!playlistResponse.data.items?.length) break;
     nextPageToken = playlistResponse.data.nextPageToken;
 
     const videoIds = playlistResponse.data.items.map((i: any) => i.contentDetails.videoId).join(',');
-    const videoResponse = await axios.get(`${BASE_URL}/videos`, {
-      params: { part: 'snippet,contentDetails,statistics', id: videoIds, key: API_KEY },
+    const videoResponse = await ytGet(`${BASE_URL}/videos`, {
+      part: 'snippet,contentDetails,statistics', id: videoIds,
     });
 
     for (const video of videoResponse.data.items) {
