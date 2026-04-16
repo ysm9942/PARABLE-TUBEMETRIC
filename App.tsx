@@ -1311,15 +1311,6 @@ const App: React.FC = () => {
                     />
                   </div>
                 ))}
-                <div className="col-span-2">
-                  <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><MessageSquare size={11} /> 메모</label>
-                  <input
-                    value={creatorForm.memo ?? ''}
-                    onChange={e => setCreatorForm(p => ({ ...p!, memo: e.target.value }))}
-                    placeholder="추가 메모 (선택)"
-                    className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
-                  />
-                </div>
                 {/* 해시태그 */}
                 <div className="col-span-2">
                   <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Hash size={11} /> 해시태그</label>
@@ -1364,6 +1355,15 @@ const App: React.FC = () => {
                       }
                     }}
                     placeholder="#버추얼, #게임 등 입력 후 Enter"
+                    className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><MessageSquare size={11} /> 메모</label>
+                  <input
+                    value={creatorForm.memo ?? ''}
+                    onChange={e => setCreatorForm(p => ({ ...p!, memo: e.target.value }))}
+                    placeholder="추가 메모 (선택)"
                     className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
                   />
                 </div>
