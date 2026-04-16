@@ -1580,7 +1580,7 @@ class LiveMetricsTab(tk.Frame):
                 plat, cid = line.split(":", 1)
                 plat = plat.strip().lower()
                 cid  = cid.strip().lstrip("@")
-                if plat not in ("chzzk", "soop"):
+                if plat not in ("chzzk", "soop", "youtube", "cime"):
                     plat = default_plat
             else:
                 plat = default_plat
@@ -1660,7 +1660,7 @@ class LiveMetricsTab(tk.Frame):
                     date_str  = (f"{dates[0]} ~ {dates[-1]}" if len(dates) > 1
                                  else dates[0] if dates else "")
                     total_dur = sum(r.get("duration_min", 0) for r in rows)
-                    plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP"}.get(
+                    plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP", "youtube": "YouTube", "cime": "CIME"}.get(
                         platform, platform.upper())
 
                     def _insert_group(
@@ -2345,7 +2345,7 @@ class DashboardTab(tk.Frame):
             date_str  = (f"{dates[0]} ~ {dates[-1]}" if len(dates) > 1
                          else dates[0] if dates else "")
             total_dur = sum(r.get("duration_min", 0) for r in rows)
-            plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP"}.get(
+            plat_lbl  = {"chzzk": "CHZZK", "soop": "SOOP", "youtube": "YouTube", "cime": "CIME"}.get(
                 rows[0].get("platform", ""), rows[0].get("platform", "?").upper())
             pid = f"dash_c_{i}"
             tree.insert("", "end", iid=pid,

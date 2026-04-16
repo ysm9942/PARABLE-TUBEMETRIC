@@ -508,7 +508,7 @@ def _parse_creator_line(line: str, default_platform: str = "chzzk"):
         plat, cid = line.split(":", 1)
         plat = plat.strip().lower()
         cid  = cid.strip().lstrip("@")
-        if plat not in ("chzzk", "soop"):
+        if plat not in ("chzzk", "soop", "youtube", "cime"):
             plat = default_platform
     else:
         plat = default_platform

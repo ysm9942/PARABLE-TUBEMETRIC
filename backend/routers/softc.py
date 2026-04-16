@@ -104,7 +104,7 @@ def _crawl_creator(
 
     # ── URL 구성 ──────────────────────────────────────────────────────────
     BASE      = "https://viewership.softc.one"
-    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca"}.get(platform, platform)
+    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca", "youtube": "youtube", "cime": "cime"}.get(platform, platform)
     start_utc = (
         start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
         - timedelta(hours=9)
@@ -329,7 +329,7 @@ def _parse_creator_line(line: str, default_platform: str = "chzzk"):
         plat, cid = line.split(":", 1)
         plat = plat.strip().lower()
         cid  = cid.strip().lstrip("@")
-        if plat not in ("chzzk", "soop"):
+        if plat not in ("chzzk", "soop", "youtube", "cime"):
             plat = default_platform
     else:
         plat = default_platform
