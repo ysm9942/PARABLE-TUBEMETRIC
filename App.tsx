@@ -4093,6 +4093,10 @@ const App: React.FC = () => {
                   );
                 }
 
+                // 전체 해시태그 사용 횟수 집계 (카드에서 가장 인기 있는 태그 1개 표시용)
+                const globalTagCount = new Map<string, number>();
+                creators.forEach(cr => (cr.hashtags ?? []).forEach(t => globalTagCount.set(t, (globalTagCount.get(t) ?? 0) + 1)));
+
                 return (<>
                 <div className="flex items-center justify-between text-[11px] text-[#8888a8] px-1">
                   <span>총 <strong className="text-[#1a1a2e]">{filtered.length}</strong>명 / 전체 {creators.length}명</span>
@@ -4120,17 +4124,17 @@ const App: React.FC = () => {
                       )}
                       {/* 이름 */}
                       <span className="font-semibold text-[#1a1a2e] text-center leading-tight w-full truncate" style={{ fontSize: c.name.length > 6 ? `${Math.max(8, 11 - (c.name.length - 6) * 0.4)}px` : '11px' }}>{c.name}</span>
-                      {/* 해시태그 */}
-                      {(c.hashtags ?? []).length > 0 && (
-                        <div className="flex flex-wrap gap-0.5 justify-center w-full">
-                          {(c.hashtags ?? []).slice(0, 2).map(tag => (
-                            <span key={tag} className="text-[8px] text-violet-500 bg-violet-50 px-1 py-0.5 rounded leading-none">{tag}</span>
-                          ))}
-                          {(c.hashtags ?? []).length > 2 && (
-                            <span className="text-[8px] text-[#a0a0b8]">+{(c.hashtags!).length - 2}</span>
-                          )}
-                        </div>
-                      )}
+                      {/* 해시태그 — 가장 많이 중복되는 태그 1개만 표시 */}
+                      {(() => {
+                        const tags = c.hashtags ?? [];
+                        if (tags.length === 0) return null;
+                        const top = tags.reduce((best, t) =>
+                          (globalTagCount.get(t) ?? 0) > (globalTagCount.get(best) ?? 0) ? t : best
+                        , tags[0]);
+                        return (
+                          <span className="text-[8px] text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded leading-none">{top}</span>
+                        );
+                      })()}
                       {/* 삭제 버튼 (hover 시 노출) */}
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                         <button
