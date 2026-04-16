@@ -134,12 +134,24 @@ const App: React.FC = () => {
   // ── 플랫폼 URL → softc 형식 변환 ────────────────────────────────────────────
   const parseLiveUrl = (raw: string): string => {
     const v = raw.trim().replace(/^@/, '');
+    // CHZZK
     const chzzk = v.match(/chzzk\.naver\.com\/([a-zA-Z0-9]+)/);
     if (chzzk) return `chzzk:${chzzk[1]}`;
+    // SOOP (sooplive / afreecatv)
     const soop = v.match(/sooplive\.com\/station\/([^/?#\s]+)/);
     if (soop) return `soop:${soop[1]}`;
     const afreeca = v.match(/afreecatv\.com\/([^/?#\s]+)/);
     if (afreeca) return `soop:${afreeca[1]}`;
+    // YouTube (softc.one 또는 youtube.com)
+    const softcYt = v.match(/softc\.one\/channel\/youtube\/(UC[a-zA-Z0-9_-]+)/);
+    if (softcYt) return `youtube:${softcYt[1]}`;
+    const ytChannel = v.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]+)/);
+    if (ytChannel) return `youtube:${ytChannel[1]}`;
+    // CIME (softc.one 또는 ci.me)
+    const softcCime = v.match(/softc\.one\/channel\/cime\/(\d+)/);
+    if (softcCime) return `cime:${softcCime[1]}`;
+    const cimeUrl = v.match(/ci\.me\/@?([^/?#\s]+)/);
+    if (cimeUrl) return `cime:${cimeUrl[1]}`;
     return v;
   };
 
@@ -384,7 +396,7 @@ const App: React.FC = () => {
   const [liveMode] = useState<'local'>('local');
   const [liveDraft, setLiveDraft] = useState<string>('');
   const [liveInput, setLiveInput] = useState<string>('');
-  const [livePlatform, setLivePlatform] = useState<'chzzk' | 'soop'>('chzzk');
+  const [livePlatform, setLivePlatform] = useState<'chzzk' | 'soop' | 'youtube' | 'cime'>('chzzk');
   const [liveStartDate, setLiveStartDate] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [liveEndDate, setLiveEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [liveJobStatus, setLiveJobStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
@@ -1264,11 +1276,11 @@ const App: React.FC = () => {
                   <input
                     value={creatorLiveDraft}
                     onChange={e => setCreatorLiveDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); e.preventDefault(); }}}
-                    placeholder="CHZZK·SOOP URL 또는 chzzk:ID 입력 후 Enter"
+                    onKeyDown={e => { if (e.key === 'Enter' && creatorLiveDraft.trim()) { const parsed = parseLiveUrl(creatorLiveDraft.trim()); setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), parsed] })); setCreatorLiveDraft(''); e.preventDefault(); }}}
+                    placeholder="CHZZK·SOOP·YouTube·CIME URL 또는 플랫폼:ID 입력 후 Enter"
                     className="flex-1 bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-orange-400 transition-colors font-mono"
                   />
-                  <button type="button" onClick={() => { if (creatorLiveDraft.trim()) { setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), creatorLiveDraft.trim()] })); setCreatorLiveDraft(''); }}} className="px-3 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-xs font-medium transition-all"><Plus size={13} /></button>
+                  <button type="button" onClick={() => { if (creatorLiveDraft.trim()) { const parsed = parseLiveUrl(creatorLiveDraft.trim()); setCreatorForm(p => ({ ...p!, liveMetricsIds: [...(p!.liveMetricsIds ?? []), parsed] })); setCreatorLiveDraft(''); }}} className="px-3 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-xs font-medium transition-all"><Plus size={13} /></button>
                 </div>
               </div>
 
@@ -2810,7 +2822,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">라이브 지표 분석</h2>
-                  <p className="text-[13px] text-[#5a5a7a] mt-1">CHZZK / SOOP 방송 시청자 지표 수집 · viewership.softc.one</p>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">CHZZK / SOOP / YouTube / CIME 방송 시청자 지표 수집 · viewership.softc.one</p>
                 </div>
                 {liveMode === 'backend' && (localAgentRunning ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
@@ -3090,7 +3102,7 @@ const App: React.FC = () => {
                       onAddMultiple={vals => { vals.forEach(v => { setLiveInput(prev => prev ? prev + '\n' + v : v); }); setLiveDraft(''); }}
                       creators={creators}
                       field="live"
-                      placeholder="CHZZK·SOOP URL 또는 크리에이터명 입력"
+                      placeholder="CHZZK·SOOP·YouTube·CIME URL 또는 크리에이터명 입력"
                       className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
                     />
                     <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
@@ -3101,7 +3113,7 @@ const App: React.FC = () => {
                     ) : liveList.map((u, i) => (
                       <div key={i} className="flex items-center gap-2 bg-[#f2f2f8] hover:bg-[#eeeef8] border border-[#e0e1ef] rounded-lg px-3 py-2 group transition-colors">
                         <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${u.includes('soop') ? 'bg-blue-500/20 text-blue-500' : 'bg-emerald-500/20 text-emerald-600'}`}>
-                          {u.includes('soop:') ? 'SOOP' : u.includes('chzzk:') ? 'CHZZK' : livePlatform.toUpperCase()}
+                          {u.includes('soop:') ? 'SOOP' : u.includes('chzzk:') ? 'CHZZK' : u.includes('youtube:') ? 'YouTube' : u.includes('cime:') ? 'CIME' : livePlatform.toUpperCase()}
                         </span>
                         <span className="flex-1 text-xs font-mono text-[#1a1a2e] truncate">{u.includes(':') ? u.split(':')[1] : u}</span>
                         <button onClick={() => removeLiveItem(i)} className="opacity-0 group-hover:opacity-100 text-[#5a5a7a] hover:text-red-600 transition-all"><X size={13} /></button>

@@ -897,7 +897,7 @@ def _crawl_creator(platform: str, creator_id: str,
 
     # ── URL (KST → UTC -9h, 날짜 쿼리 파라미터 포함) ─────────────────────────
     BASE      = "https://viewership.softc.one"
-    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca"}.get(platform, platform)
+    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca", "youtube": "youtube", "cime": "cime"}.get(platform, platform)
     start_utc = (start_dt.replace(hour=0,  minute=0,  second=0,  microsecond=0)    - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     end_utc   = (end_dt.replace(  hour=14, minute=59, second=59, microsecond=999000) - _td(hours=9)).strftime("%Y-%m-%dT%H:%M:%S.999Z")
     url = f"{BASE}/channel/{PLAT_PATH}/{creator_id}/streams?startDateTime={_q(start_utc)}&endDateTime={_q(end_utc)}"

@@ -272,7 +272,7 @@ def _crawl_creator(
     )
     PAGE_BTN_SEL = "button.font-inter.text-xs.w-8.h-8"
 
-    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca"}.get(platform, platform)
+    PLAT_PATH = {"chzzk": "naverchzzk", "soop": "afreeca", "youtube": "youtube", "cime": "cime"}.get(platform, platform)
     start_utc = (
         start_dt.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=9)
     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")

@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-PLATFORM_MAP = {"chzzk": "naverchzzk", "soop": "afreeca"}
+PLATFORM_MAP = {"chzzk": "naverchzzk", "soop": "afreeca", "youtube": "youtube", "cime": "cime"}
 
 
 class LiveRequest(BaseModel):
