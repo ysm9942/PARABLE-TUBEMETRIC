@@ -4818,17 +4818,21 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
   value, onChange, onCommit, onAddMultiple, creators, field, placeholder, className,
 }) => {
   const [open, setOpen] = useState(false);
+  const [hiIdx, setHiIdx] = useState(-1);  // 키보드 하이라이트 인덱스
   const ref = useRef<HTMLDivElement>(null);
 
   const suggestions = value.trim().length > 0
     ? creators.filter(c => {
         const vals = getFieldValues(c, field);
-        if (vals.length === 0) return false;  // 해당 필드에 ID가 없으면 표시 안 함
+        if (vals.length === 0) return false;
         const q = value.toLowerCase();
         return c.name.toLowerCase().includes(q) ||
           vals.some(v => v.toLowerCase().includes(q));
       })
     : [];
+
+  // 입력이 바뀌면 하이라이트 초기화
+  useEffect(() => { setHiIdx(-1); }, [value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -4845,7 +4849,6 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
       onChange(vals[0]);
       setOpen(false);
     } else if (onAddMultiple) {
-      // 여러 개: draft 비우고 전부 추가
       onAddMultiple(vals);
       onChange('');
       setOpen(false);
@@ -4862,22 +4865,42 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
         onChange={e => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={e => {
-          if (e.key === 'Enter') { setOpen(false); onCommit(); }
-          if (e.key === 'Escape') setOpen(false);
+          if (e.key === 'ArrowDown' && open && suggestions.length > 0) {
+            e.preventDefault();
+            setHiIdx(prev => (prev + 1) % suggestions.length);
+          } else if (e.key === 'ArrowUp' && open && suggestions.length > 0) {
+            e.preventDefault();
+            setHiIdx(prev => (prev - 1 + suggestions.length) % suggestions.length);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (open && suggestions.length > 0) {
+              // 자동완성 목록이 열려있으면 → 하이라이트된 항목 또는 첫 번째 항목 선택
+              const idx = hiIdx >= 0 ? hiIdx : 0;
+              pick(suggestions[idx]);
+            } else {
+              // 목록이 없으면 → 입력값 그대로 커밋
+              setOpen(false);
+              onCommit();
+            }
+          } else if (e.key === 'Escape') {
+            setOpen(false);
+          }
         }}
         placeholder={placeholder}
         className={className}
       />
       {open && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#e0e1ef] rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
-          {suggestions.map(c => {
+          {suggestions.map((c, sIdx) => {
             const vals = getFieldValues(c, field);
+            const isHi = sIdx === hiIdx || (hiIdx === -1 && sIdx === 0);
             return (
               <button
                 key={c.id}
                 type="button"
                 onMouseDown={e => { e.preventDefault(); pick(c); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-violet-50 text-left transition-colors"
+                onMouseEnter={() => setHiIdx(sIdx)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${isHi ? 'bg-violet-50' : 'hover:bg-violet-50'}`}
               >
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shrink-0">
                   <span className="text-white text-[10px] font-bold">{c.name[0]?.toUpperCase()}</span>
