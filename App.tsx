@@ -57,6 +57,7 @@ import {
   Save,
   Clipboard,
   Search,
+  Hash,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos, searchChannelForKeyword, RefSearchProgress } from './services/youtubeService';
@@ -150,9 +151,12 @@ const App: React.FC = () => {
   // 폼 내 배열 필드용 draft
   const [creatorYtDraft,   setCreatorYtDraft]   = useState('');
   const [creatorLiveDraft, setCreatorLiveDraft] = useState('');
+  const [creatorHashtagDraft, setCreatorHashtagDraft] = useState('');
   // 검색/필터
   const [creatorSearch, setCreatorSearch] = useState<string>('');
   const [creatorFilterAff, setCreatorFilterAff] = useState<'all' | '패러블' | '외부' | 'none'>('all');
+  const [creatorFilterHashtag, setCreatorFilterHashtag] = useState<string | null>(null);
+  const [showHashtagPanel, setShowHashtagPanel] = useState(false);
 
   // Firebase 실시간 구독
   useEffect(() => {
@@ -161,9 +165,10 @@ const App: React.FC = () => {
   }, []);
 
   const openCreatorForm = (c?: Creator) => {
-    setCreatorForm(c ? { ...c } : { youtubeChannelIds: [], liveMetricsIds: [] });
+    setCreatorForm(c ? { ...c } : { youtubeChannelIds: [], liveMetricsIds: [], hashtags: [] });
     setCreatorYtDraft('');
     setCreatorLiveDraft('');
+    setCreatorHashtagDraft('');
   };
 
   const deleteCreator = async (id: string) => {
@@ -196,6 +201,7 @@ const App: React.FC = () => {
       instagramUsername: c.instagramUsername ? parseIgUsername(c.instagramUsername) || undefined : undefined,
       tiktokUsername:    c.tiktokUsername    ? parseTkUsername(c.tiktokUsername)    || undefined : undefined,
       memo:              (c.memo ?? '').trim() || undefined,
+      hashtags:          (c.hashtags ?? []).filter(Boolean).length > 0 ? c.hashtags!.filter(Boolean) : undefined,
       affiliation:       c.affiliation || undefined,
       thumbnailUrl:      c.thumbnailUrl || undefined,
     };
@@ -1311,6 +1317,53 @@ const App: React.FC = () => {
                     value={creatorForm.memo ?? ''}
                     onChange={e => setCreatorForm(p => ({ ...p!, memo: e.target.value }))}
                     placeholder="추가 메모 (선택)"
+                    className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                  />
+                </div>
+                {/* 해시태그 */}
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><Hash size={11} /> 해시태그</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {(creatorForm.hashtags ?? []).map((tag, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-700 rounded-full text-[11px] font-medium"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => setCreatorForm(p => ({
+                            ...p!,
+                            hashtags: (p!.hashtags ?? []).filter((_, j) => j !== i),
+                          }))}
+                          className="hover:text-red-500 transition-colors"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    value={creatorHashtagDraft}
+                    onChange={e => setCreatorHashtagDraft(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const raw = creatorHashtagDraft.trim();
+                        if (!raw) return;
+                        const tag = raw.startsWith('#') ? raw : `#${raw}`;
+                        if ((creatorForm.hashtags ?? []).includes(tag)) {
+                          setCreatorHashtagDraft('');
+                          return;
+                        }
+                        setCreatorForm(p => ({
+                          ...p!,
+                          hashtags: [...(p!.hashtags ?? []), tag],
+                        }));
+                        setCreatorHashtagDraft('');
+                      }
+                    }}
+                    placeholder="#버추얼, #게임 등 입력 후 Enter"
                     className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
                   />
                 </div>
@@ -3918,6 +3971,53 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {/* 해시태그 검색 패널 */}
+              {creators.length > 0 && (() => {
+                // 전체 해시태그 집계: { tag → count }
+                const tagMap = new Map<string, number>();
+                creators.forEach(c => (c.hashtags ?? []).forEach(t => tagMap.set(t, (tagMap.get(t) ?? 0) + 1)));
+                if (tagMap.size === 0) return null;
+                const sorted = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
+                return (
+                  <div className="bg-white border border-[#e4e5f0] rounded-xl p-3">
+                    <button
+                      onClick={() => setShowHashtagPanel(v => !v)}
+                      className="flex items-center gap-1.5 text-[12px] font-semibold text-[#5a5a7a] hover:text-violet-600 transition-colors w-full"
+                    >
+                      <Hash size={13} className="text-violet-500" />
+                      해시태그 검색
+                      <span className="text-[11px] text-[#a0a0b8] ml-1">({tagMap.size}개)</span>
+                      <ChevronDown size={13} className={`ml-auto transition-transform ${showHashtagPanel ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showHashtagPanel && (
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-[#f0f0f8]">
+                        {creatorFilterHashtag && (
+                          <button
+                            onClick={() => setCreatorFilterHashtag(null)}
+                            className="px-2.5 py-1.5 rounded-full text-[11px] font-medium bg-[#f0f0f8] text-[#5a5a7a] hover:bg-red-50 hover:text-red-500 transition-all"
+                          >
+                            <X size={10} className="inline mr-0.5" /> 필터 해제
+                          </button>
+                        )}
+                        {sorted.map(([tag, count]) => (
+                          <button
+                            key={tag}
+                            onClick={() => setCreatorFilterHashtag(prev => prev === tag ? null : tag)}
+                            className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all ${
+                              creatorFilterHashtag === tag
+                                ? 'bg-violet-600 text-white shadow-sm'
+                                : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                            }`}
+                          >
+                            {tag} <span className={`ml-0.5 ${creatorFilterHashtag === tag ? 'text-violet-200' : 'text-violet-400'}`}>({count})</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* 크리에이터 카드 그리드 */}
               {creators.length === 0 ? (
                 <div className="bg-white border border-[#e4e5f0] rounded-2xl py-20 flex flex-col items-center gap-3">
@@ -3938,6 +4038,8 @@ const App: React.FC = () => {
                     if (creatorFilterAff === '패러블' && c.affiliation !== '패러블') return false;
                     if (creatorFilterAff === '외부'   && c.affiliation !== '외부')   return false;
                     if (creatorFilterAff === 'none'   && c.affiliation)                return false;
+                    // 해시태그 필터
+                    if (creatorFilterHashtag && !(c.hashtags ?? []).includes(creatorFilterHashtag)) return false;
                     // 검색어 필터
                     if (!q) return true;
                     if (c.name.toLowerCase().includes(q)) return true;
@@ -3946,6 +4048,7 @@ const App: React.FC = () => {
                     if (c.instagramUsername?.toLowerCase().includes(q)) return true;
                     if (c.tiktokUsername?.toLowerCase().includes(q)) return true;
                     if (c.memo?.toLowerCase().includes(q)) return true;
+                    if ((c.hashtags ?? []).some(t => t.toLowerCase().includes(q))) return true;
                     return false;
                   })
                   .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
@@ -3956,7 +4059,7 @@ const App: React.FC = () => {
                       <Search size={32} className="text-[#c0c0d4]" strokeWidth={1.2} />
                       <p className="text-[13px] text-[#8888a8]">검색 결과가 없습니다</p>
                       <button
-                        onClick={() => { setCreatorSearch(''); setCreatorFilterAff('all'); }}
+                        onClick={() => { setCreatorSearch(''); setCreatorFilterAff('all'); setCreatorFilterHashtag(null); }}
                         className="mt-1 text-[11px] text-violet-600 hover:text-violet-700 font-medium"
                       >
                         필터 초기화
@@ -3995,6 +4098,17 @@ const App: React.FC = () => {
                         }`}>
                           {c.affiliation}
                         </span>
+                      )}
+                      {/* 해시태그 */}
+                      {(c.hashtags ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center w-full">
+                          {(c.hashtags ?? []).slice(0, 2).map(tag => (
+                            <span key={tag} className="text-[8px] text-violet-500 bg-violet-50 px-1 py-0.5 rounded leading-none">{tag}</span>
+                          ))}
+                          {(c.hashtags ?? []).length > 2 && (
+                            <span className="text-[8px] text-[#a0a0b8]">+{(c.hashtags!).length - 2}</span>
+                          )}
+                        </div>
                       )}
                       {/* 삭제 버튼 (hover 시 노출) */}
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">

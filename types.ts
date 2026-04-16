@@ -7,6 +7,7 @@ export interface Creator {
   instagramUsername?: string;   // @ 없는 username
   tiktokUsername?: string;      // @ 없는 username
   memo?: string;
+  hashtags?: string[];           // 카테고리 해시태그 (예: #버추얼, #게임)
   affiliation?: '패러블' | '외부';  // 소속
   thumbnailUrl?: string;        // YouTube 첫 번째 채널 썸네일 (자동 수집)
 }
