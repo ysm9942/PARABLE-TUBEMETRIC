@@ -1285,7 +1285,7 @@ const App: React.FC = () => {
                         creatorForm.affiliation === v
                           ? v === '패러블'
                             ? 'bg-violet-100 border-violet-400 text-violet-700'
-                            : 'bg-sky-100 border-sky-400 text-sky-700'
+                            : 'bg-red-100 border-red-400 text-red-700'
                           : 'bg-[#f8f8fd] border-[#e0e1ef] text-[#8888a8] hover:border-[#c0c0d8]'
                       }`}
                     >
@@ -3957,7 +3957,7 @@ const App: React.FC = () => {
                             ? key === '패러블'
                               ? 'bg-violet-600 text-white'
                               : key === '외부'
-                                ? 'bg-sky-600 text-white'
+                                ? 'bg-red-600 text-white'
                                 : key === 'none'
                                   ? 'bg-[#8888a8] text-white'
                                   : 'bg-[#1a1a2e] text-white'
@@ -4094,7 +4094,7 @@ const App: React.FC = () => {
                         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
                           c.affiliation === '패러블'
                             ? 'bg-violet-100 text-violet-600'
-                            : 'bg-sky-100 text-sky-600'
+                            : 'bg-red-100 text-red-600'
                         }`}>
                           {c.affiliation}
                         </span>
@@ -4743,7 +4743,7 @@ const RefCreatorPicker: React.FC<{
                 <div className="text-[10px] text-[#8888a8] font-mono truncate">{(c.youtubeChannelIds ?? []).join(', ')}</div>
               </div>
               {c.affiliation && (
-                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${c.affiliation === '패러블' ? 'bg-violet-100 text-violet-600' : 'bg-sky-100 text-sky-600'}`}>{c.affiliation}</span>
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${c.affiliation === '패러블' ? 'bg-violet-100 text-violet-600' : 'bg-red-100 text-red-600'}`}>{c.affiliation}</span>
               )}
             </button>
           ))}
