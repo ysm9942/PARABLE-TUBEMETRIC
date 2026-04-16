@@ -155,6 +155,17 @@ const App: React.FC = () => {
     return v;
   };
 
+  /** ID → 크리에이터명 역매핑 (수집결과 테이블용) */
+  const resolveCreatorName = (id: string, field: 'live' | 'instagram' | 'tiktok' | 'youtube'): string | null => {
+    for (const c of creators) {
+      if (field === 'live'      && (c.liveMetricsIds ?? []).some(v => v.includes(id))) return c.name;
+      if (field === 'instagram' && c.instagramUsername === id) return c.name;
+      if (field === 'tiktok'    && c.tiktokUsername === id) return c.name;
+      if (field === 'youtube'   && (c.youtubeChannelIds ?? []).some(v => v.includes(id))) return c.name;
+    }
+    return null;
+  };
+
   // ── Creator 상태 ─────────────────────────────────────────────────────────────
   const [creators, setCreators] = useState<Creator[]>(() => {
     try { return JSON.parse(localStorage.getItem('tubemetric-creators') ?? '[]'); } catch { return []; }
@@ -2174,6 +2185,7 @@ const App: React.FC = () => {
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                           <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t롱폼평균'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => setChannelResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
@@ -2367,6 +2379,7 @@ const App: React.FC = () => {
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
                           <button onClick={() => { const hdr = '제목\t채널\t조회수\t좋아요\t댓글'; const rows = videoResults.map(r => [r.title, r.channelTitle, r.viewCount, r.likeCount, r.commentCount].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => setVideoResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
                         </div>
                       </div>
                       {videoResultTab === 'table' && (
@@ -2559,12 +2572,13 @@ const App: React.FC = () => {
                       <h3 className="text-[13px] font-bold text-[#0f0f23]">검색 결과</h3>
                       <span className="bg-violet-50 text-violet-700 px-2 py-0.5 rounded text-[11px] font-medium">{refResults.length}건</span>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1.5">
                       {(['table', 'raw'] as ResultTab[]).map(t => (
                         <button key={t} onClick={() => setRefResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${refResultTab === t ? 'bg-violet-600 text-white' : 'text-[#5a5a7a] hover:bg-[#f0f0fa]'}`}>
                           {t === 'table' ? 'TABLE' : 'RAW DATA'}
                         </button>
                       ))}
+                      <button onClick={() => setRefResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
                     </div>
                   </div>
                   <div className="max-h-[60vh] overflow-auto">
@@ -2739,6 +2753,7 @@ const App: React.FC = () => {
                           ))}
                         </div>
                         <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                        <button onClick={() => setAdResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
                       </div>
                       {adResultTab === 'table' && (
                         <div className="overflow-x-auto">
@@ -3204,7 +3219,10 @@ const App: React.FC = () => {
                       <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#5a5a7a]">{liveResults.length}개 크리에이터</span>
                     </div>
-                    <button onClick={() => { const hdr = '크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)'; const rows = liveResults.map(r => [r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => { const hdr = '크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)'; const rows = liveResults.map(r => [resolveCreatorName(r.creatorId, 'live') ?? r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                      <button onClick={() => setLiveResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -3228,7 +3246,8 @@ const App: React.FC = () => {
                                   <Tv2 size={14} className={r.platform === 'CHZZK' ? 'text-emerald-600' : 'text-blue-500'} />
                                 </div>
                                 <div>
-                                  <div className="text-xs font-medium text-[#1a1a2e] group-hover:text-orange-600 transition-colors">{r.creatorId}</div>
+                                  <div className="text-xs font-medium text-[#1a1a2e] group-hover:text-orange-600 transition-colors">{resolveCreatorName(r.creatorId, 'live') ?? r.creatorId}</div>
+                                  {resolveCreatorName(r.creatorId, 'live') && <div className="text-[10px] text-[#a0a0b8] font-mono">{r.creatorId}</div>}
                                   {r.error && <div className="text-[10px] text-red-600 mt-0.5">{r.error}</div>}
                                 </div>
                               </div>
@@ -3534,10 +3553,11 @@ const App: React.FC = () => {
                       <span className="text-xs text-[#1a1a2e]">{igResults.length}개 계정</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => { const hdr = '계정\t릴스수\t평균조회수\t평균좋아요\t평균댓글\t수집일'; const rows = igResults.map(r => [r.username, r.reelCount, r.avgViews, r.avgLikes, r.avgComments, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all"><Clipboard size={11} /> 복사</button>
+                      <button onClick={() => { const hdr = '계정\t릴스수\t평균조회수\t평균좋아요\t평균댓글\t수집일'; const rows = igResults.map(r => [resolveCreatorName(r.username, 'instagram') ?? r.username, r.reelCount, r.avgViews, r.avgLikes, r.avgComments, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all"><Clipboard size={11} /> 복사</button>
                       <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all">
                         {igResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 새로고침
                       </button>
+                      <button onClick={() => setIgResults([])} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#f0f0f8] hover:bg-red-50 rounded-lg text-xs text-[#1a1a2e] hover:text-red-500 transition-all"><Trash2 size={11} /> 삭제</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -3564,7 +3584,8 @@ const App: React.FC = () => {
                                   <span className="text-white text-xs font-bold">{r.username[0]?.toUpperCase()}</span>
                                 </div>
                                 <div>
-                                  <div className="text-[12px] font-semibold text-[#3a3a5a] group-hover:text-pink-600 transition-colors">@{r.username}</div>
+                                  <div className="text-[12px] font-semibold text-[#3a3a5a] group-hover:text-pink-600 transition-colors">{resolveCreatorName(r.username, 'instagram') ?? `@${r.username}`}</div>
+                                  {resolveCreatorName(r.username, 'instagram') && <div className="text-[10px] text-[#a0a0b8]">@{r.username}</div>}
                                   {r.error && <div className="text-[10px] text-red-600 mt-0.5">{r.error}</div>}
                                 </div>
                               </div>
@@ -3878,7 +3899,10 @@ const App: React.FC = () => {
                       <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{tkResults.length}개 계정</span>
                     </div>
-                    <button onClick={() => { const hdr = '계정\t영상수\t평균조회수\t수집일'; const rows = tkResults.map(r => [r.username, r.videoCount, r.avgViews, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => { const hdr = '계정\t영상수\t평균조회수\t수집일'; const rows = tkResults.map(r => [resolveCreatorName(r.username, 'tiktok') ?? r.username, r.videoCount, r.avgViews, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                      <button onClick={() => setTkResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -3903,7 +3927,8 @@ const App: React.FC = () => {
                                   <span className="text-white text-xs font-bold">{r.username[0]?.toUpperCase()}</span>
                                 </div>
                                 <div>
-                                  <div className="text-[12px] font-semibold text-[#3a3a5a] group-hover:text-cyan-700 transition-colors">@{r.username}</div>
+                                  <div className="text-[12px] font-semibold text-[#3a3a5a] group-hover:text-cyan-700 transition-colors">{resolveCreatorName(r.username, 'tiktok') ?? `@${r.username}`}</div>
+                                  {resolveCreatorName(r.username, 'tiktok') && <div className="text-[10px] text-[#a0a0b8]">@{r.username}</div>}
                                   {r.error && <div className="text-[10px] text-red-600 mt-0.5">{r.error}</div>}
                                 </div>
                               </div>
