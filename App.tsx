@@ -4077,7 +4077,13 @@ const App: React.FC = () => {
                     <div
                       key={c.id}
                       onClick={() => openCreatorForm(c)}
-                      className="group relative bg-white border border-[#e4e5f0] rounded-xl p-3 flex flex-col items-center gap-2 hover:border-violet-300 hover:shadow-sm transition-all cursor-pointer"
+                      className={`group relative rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-sm transition-all cursor-pointer border ${
+                        c.affiliation === '패러블'
+                          ? 'bg-blue-50 border-blue-200 hover:border-blue-400'
+                          : c.affiliation === '외부'
+                            ? 'bg-red-50 border-red-200 hover:border-red-400'
+                            : 'bg-white border-[#e4e5f0] hover:border-violet-300'
+                      }`}
                     >
                       {/* 썸네일 */}
                       {c.thumbnailUrl ? (
@@ -4089,16 +4095,6 @@ const App: React.FC = () => {
                       )}
                       {/* 이름 */}
                       <span className="font-semibold text-[#1a1a2e] text-center leading-tight w-full truncate" style={{ fontSize: c.name.length > 6 ? `${Math.max(8, 11 - (c.name.length - 6) * 0.4)}px` : '11px' }}>{c.name}</span>
-                      {/* 소속 배지 */}
-                      {c.affiliation && (
-                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-                          c.affiliation === '패러블'
-                            ? 'bg-violet-100 text-violet-600'
-                            : 'bg-red-100 text-red-600'
-                        }`}>
-                          {c.affiliation}
-                        </span>
-                      )}
                       {/* 해시태그 */}
                       {(c.hashtags ?? []).length > 0 && (
                         <div className="flex flex-wrap gap-0.5 justify-center w-full">
