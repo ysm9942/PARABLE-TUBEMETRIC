@@ -1334,29 +1334,54 @@ const App: React.FC = () => {
                       </span>
                     ))}
                   </div>
-                  <input
-                    value={creatorHashtagDraft}
-                    onChange={e => setCreatorHashtagDraft(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const raw = creatorHashtagDraft.trim();
-                        if (!raw) return;
-                        const tag = raw.startsWith('#') ? raw : `#${raw}`;
-                        if ((creatorForm.hashtags ?? []).includes(tag)) {
-                          setCreatorHashtagDraft('');
-                          return;
-                        }
-                        setCreatorForm(p => ({
-                          ...p!,
-                          hashtags: [...(p!.hashtags ?? []), tag],
-                        }));
-                        setCreatorHashtagDraft('');
-                      }
-                    }}
-                    placeholder="#버추얼, #게임 등 입력 후 Enter"
-                    className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
-                  />
+                  {(() => {
+                    // 기존 해시태그 전체 집계 (현재 폼에 이미 추가된 태그는 제외)
+                    const allTags = new Set<string>();
+                    creators.forEach(c => (c.hashtags ?? []).forEach(t => allTags.add(t)));
+                    const currentTags = new Set(creatorForm.hashtags ?? []);
+                    const draft = creatorHashtagDraft.trim();
+                    const draftNorm = draft.startsWith('#') ? draft : draft ? `#${draft}` : '';
+                    const suggestions = draft
+                      ? [...allTags].filter(t => !currentTags.has(t) && t.toLowerCase().includes(draftNorm.toLowerCase()))
+                      : [];
+                    const addTag = (tag: string) => {
+                      if (currentTags.has(tag)) return;
+                      setCreatorForm(p => ({ ...p!, hashtags: [...(p!.hashtags ?? []), tag] }));
+                      setCreatorHashtagDraft('');
+                    };
+                    return (
+                      <div className="relative">
+                        <input
+                          value={creatorHashtagDraft}
+                          onChange={e => setCreatorHashtagDraft(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (!draft) return;
+                              const tag = draft.startsWith('#') ? draft : `#${draft}`;
+                              addTag(tag);
+                            }
+                          }}
+                          placeholder="#버추얼, #게임 등 입력 후 Enter"
+                          className="w-full bg-[#f8f8fd] border border-[#e0e1ef] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] placeholder:text-[#b0b0c8] focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-colors"
+                        />
+                        {suggestions.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-[#e0e1ef] rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                            {suggestions.map(tag => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onMouseDown={e => { e.preventDefault(); addTag(tag); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] text-violet-700 hover:bg-violet-50 transition-colors flex items-center gap-1.5"
+                              >
+                                <Hash size={10} className="text-violet-400" /> {tag}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[11px] font-semibold text-[#5a5a7a] mb-1.5 flex items-center gap-1.5"><MessageSquare size={11} /> 메모</label>
