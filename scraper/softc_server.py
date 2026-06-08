@@ -604,7 +604,7 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("=" * 55)
-    print("  TubeMetric SoftC Scraper Agent  v1.1")
+    print("  TubeMetric SoftC Scraper Agent  v1.2")
     print("  http://localhost:8002")
     print("  headless=False · undetected_chromedriver")
     print("=" * 55)
@@ -612,7 +612,7 @@ async def lifespan(app: FastAPI):
     print("[서버] 종료")
 
 
-app = FastAPI(title="SoftC Scraper Agent", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="SoftC Scraper Agent", version="1.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -632,7 +632,7 @@ class CrawlStartRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "mode": "softc-scraper-local", "version": "1.1.0"}
+    return {"status": "ok", "mode": "softc-scraper-local", "version": "1.2.0"}
 
 
 @app.post("/api/crawl/start")
