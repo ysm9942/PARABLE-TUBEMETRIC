@@ -1963,10 +1963,10 @@ const App: React.FC = () => {
                         value={channelDraft}
                         onChange={setChannelDraft}
                         onCommit={addChannelItem}
-                        onAddMultiple={vals => { vals.forEach(v => { setChannelInput(prev => prev ? prev + '\n' + v : v); }); setChannelDraft(''); }}
+                        onAddMultiple={vals => { setChannelInput(prev => { const add = vals.join('\n'); return prev ? prev + '\n' + add : add; }); setChannelDraft(''); }}
                         creators={creators}
                         field="youtube"
-                        placeholder="UC코드 · 채널 URL · 크리에이터명 입력"
+                        placeholder="UC코드 · 채널 URL · 크리에이터명 입력 (여러 줄 붙여넣기 가능)"
                         className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                       />
                       <button
@@ -2304,7 +2304,18 @@ const App: React.FC = () => {
                       value={videoDraft}
                       onChange={e => setVideoDraft(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addVideoItem()}
-                      placeholder="영상 URL 또는 ID 입력 후 Enter"
+                      onPaste={e => {
+                        const text = e.clipboardData.getData('text');
+                        const lines = text.split(/[\r\n\t]+/).map(s => s.trim()).filter(Boolean);
+                        if (lines.length <= 1) return;
+                        e.preventDefault();
+                        setVideoInput(prev => {
+                          const existing = prev ? prev + '\n' : '';
+                          return existing + lines.join('\n');
+                        });
+                        setVideoDraft('');
+                      }}
+                      placeholder="영상 URL 또는 ID 입력 후 Enter (여러 줄 붙여넣기 가능)"
                       className="flex-1 bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     />
                     <button onClick={addVideoItem} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
@@ -3122,10 +3133,10 @@ const App: React.FC = () => {
                       value={liveDraft}
                       onChange={setLiveDraft}
                       onCommit={addLiveItem}
-                      onAddMultiple={vals => { vals.forEach(v => { setLiveInput(prev => prev ? prev + '\n' + v : v); }); setLiveDraft(''); }}
+                      onAddMultiple={vals => { setLiveInput(prev => { const add = vals.join('\n'); return prev ? prev + '\n' + add : add; }); setLiveDraft(''); }}
                       creators={creators}
                       field="live"
-                      placeholder="CHZZK·SOOP·YouTube·CIME URL 또는 크리에이터명 입력"
+                      placeholder="CHZZK·SOOP URL 또는 크리에이터명 입력 (여러 줄 붙여넣기 가능)"
                       className="w-full bg-[#f0f0f8] border border-[#d4d5e2] rounded-lg px-3 py-2 text-[13px] text-[#1a1a2e] font-mono placeholder:text-[#a8a8c0] focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20"
                     />
                     <button onClick={addLiveItem} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded-lg transition-all active:scale-95"><Plus size={13} /> 추가</button>
@@ -4900,6 +4911,20 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    const lines = text.split(/[\r\n\t]+/).map(s => s.trim()).filter(Boolean);
+    if (lines.length <= 1) return; // 단일 값은 기본 동작
+    e.preventDefault();
+    if (onAddMultiple) {
+      onAddMultiple(lines);
+    } else {
+      lines.forEach(line => { onChange(line); onCommit(); });
+    }
+    onChange('');
+    setOpen(false);
+  };
+
   return (
     <div ref={ref} className="relative flex-1">
       <input
@@ -4928,6 +4953,7 @@ const CreatorAutocomplete: React.FC<CreatorAutocompleteProps> = ({
             setOpen(false);
           }
         }}
+        onPaste={handlePaste}
         placeholder={placeholder}
         className={className}
       />
