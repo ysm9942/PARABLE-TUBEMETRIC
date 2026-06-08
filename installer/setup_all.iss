@@ -48,9 +48,10 @@ Filename: "taskkill.exe"; Parameters: "/F /IM instagram-scraper.exe"; Flags: run
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
 begin
   if CurStep = ssInstall then begin
-    // 기존 실행 중인 에이전트 종료 후 설치 (충돌 방지)
     Exec('taskkill.exe', '/F /IM tubemetric-agent.exe',  '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('taskkill.exe', '/F /IM softc-scraper.exe',     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('taskkill.exe', '/F /IM instagram-scraper.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
