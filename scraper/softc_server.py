@@ -242,10 +242,44 @@ def _get_chrome_ver() -> Optional[int]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Chrome 드라이버 빌드 (공유 인스턴스용)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _build_driver():
+    """크롬 드라이버 1개 생성. 여러 크리에이터에 걸쳐 재사용됩니다."""
+    import undetected_chromedriver as uc
+
+    chrome_major = _get_chrome_ver()
+    print(f"[드라이버] Chrome: {chrome_major or '자동감지'}")
+
+    tmp_dir = tempfile.mkdtemp(prefix="sc_chrome_")
+    opts = uc.ChromeOptions()
+    opts.add_argument(f"--user-data-dir={tmp_dir}")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--start-maximized")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+
+    try:
+        driver = (
+            uc.Chrome(options=opts, version_main=chrome_major)
+            if chrome_major
+            else uc.Chrome(options=opts)
+        )
+        driver.implicitly_wait(3)
+        print("[드라이버] 준비 완료")
+        return driver, tmp_dir
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise RuntimeError(f"드라이버 생성 실패: {e}") from e
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 크롤러 (headless=False · undetected_chromedriver)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _crawl_creator(
+    driver,                     # 공유 드라이버 (재사용)
     platform: str,
     creator_id: str,
     start_dt: datetime,
@@ -284,32 +318,7 @@ def _crawl_creator(
         f"?startDateTime={quote(start_utc)}&endDateTime={quote(end_utc)}"
     )
 
-    # ── headless=False Chrome ─────────────────────────────────────────────
-    print(f"  [{creator_id}] 드라이버 시작...")
-    chrome_major = _get_chrome_ver()
-    print(f"  [{creator_id}] Chrome: {chrome_major or '자동감지'}")
-
-    # 독립적인 Chrome 프로파일 → 다른 스크래퍼(8001/8003)와 충돌 방지
-    tmp_dir = tempfile.mkdtemp(prefix="sc_chrome_")
-
-    opts = uc.ChromeOptions()
-    opts.add_argument(f"--user-data-dir={tmp_dir}")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--start-maximized")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    # ※ --headless 를 추가하지 않으므로 headless=False (실제 브라우저 창 표시)
-
-    try:
-        driver = uc.Chrome(options=opts, version_main=chrome_major) if chrome_major else uc.Chrome(options=opts)
-        driver.implicitly_wait(3)
-    except Exception as e:
-        import traceback
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        print(f"  [{creator_id}] 드라이버 오류: {e}\n{traceback.format_exc()}")
-        raise
-
-    print(f"  [{creator_id}] 드라이버 준비")
+    print(f"  [{creator_id}] 드라이버 재사용 (공유 인스턴스)")
 
     # ── 페이지네이션 헬퍼 ─────────────────────────────────────────────────
     def _get_num_btns():
@@ -472,25 +481,18 @@ def _crawl_creator(
             raise RuntimeError("파싱 결과가 없습니다.")
         return results
 
-    try:
-        for attempt in range(1, URL_MAX_RETRY + 1):
-            try:
-                print(f"   ↻ 시도 {attempt}/{URL_MAX_RETRY}")
-                return _attempt_once()
-            except Exception as e:
-                print(f"   ⚠ 실패({attempt}): {e}")
-                if attempt < URL_MAX_RETRY:
-                    cd = random.uniform(3.0, 6.0)
-                    print(f"   ⏳ {cd:.1f}s 후 재시도")
-                    time.sleep(cd)
-                else:
-                    raise
-    finally:
+    for attempt in range(1, URL_MAX_RETRY + 1):
         try:
-            driver.quit()
-        except Exception:
-            pass
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+            print(f"   ↻ 시도 {attempt}/{URL_MAX_RETRY}")
+            return _attempt_once()
+        except Exception as e:
+            print(f"   ⚠ 실패({attempt}): {e}")
+            if attempt < URL_MAX_RETRY:
+                cd = random.uniform(3.0, 6.0)
+                print(f"   ⏳ {cd:.1f}s 후 재시도")
+                time.sleep(cd)
+            else:
+                raise
 
 
 def _parse_creator_line(line: str, default_platform: str = "chzzk"):
@@ -527,7 +529,34 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
 
     all_results = []
     total = len(creators)
+    driver = None
+    tmp_dir = None
+
+    def _is_driver_alive():
+        try:
+            _ = driver.current_url
+            return True
+        except Exception:
+            return False
+
+    def _ensure_driver():
+        nonlocal driver, tmp_dir
+        if driver is not None and _is_driver_alive():
+            return
+        # 기존 드라이버 정리
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        print("[드라이버] (재)시작...")
+        driver, tmp_dir = _build_driver()
+
     try:
+        _ensure_driver()
+
         for idx, (platform, creator_id) in enumerate(creators, 1):
             if _stop_evt.is_set():
                 break
@@ -540,7 +569,8 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
                 print(f"  ⏳ 쿨다운 {cd:.1f}s")
                 time.sleep(cd)
             try:
-                rows = _crawl_creator(platform, creator_id, start_dt, end_dt, categories, _stop_evt)
+                _ensure_driver()  # 드라이버가 죽었으면 재시작
+                rows = _crawl_creator(driver, platform, creator_id, start_dt, end_dt, categories, _stop_evt)
                 all_results.extend(rows)
                 print(f"  ✅ {creator_id} → {len(rows)}건")
             except Exception as e:
@@ -557,6 +587,14 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
         print(f"[치명 오류] {e}\n{traceback.format_exc()}")
         with _job_lock:
             _job_state.update({"status": "error", "error": str(e)})
+    finally:
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
