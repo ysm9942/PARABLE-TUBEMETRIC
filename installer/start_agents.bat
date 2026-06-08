@@ -1,6 +1,7 @@
 @echo off
 :: TubeMetric 에이전트 순차 시작 스크립트
-:: 각 에이전트를 3초 간격으로 시작하여 포트/Chrome 충돌 방지
+:: 각 에이전트를 4초 간격으로 시작하여 포트/Chrome 충돌 방지
+:: 라이브 에이전트(8001) → SoftC 에이전트(8002) → Instagram·TikTok 에이전트(8003)
 
 set "DIR=%~dp0"
 
