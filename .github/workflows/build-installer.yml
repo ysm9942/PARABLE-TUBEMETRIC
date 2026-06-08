@@ -208,19 +208,26 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: pip 패키지 설치 (전체)
+      - name: pip 패키지 설치 — tubemetric-agent
         run: |
           pip install pyinstaller
-          pip install -r backend/requirements.txt
-          pip install fastapi uvicorn[standard] pydantic undetected-chromedriver selenium python-dotenv yt-dlp beautifulsoup4 lxml
+          pip install fastapi "uvicorn[standard]" pydantic httpx "curl_cffi" beautifulsoup4 requests python-dotenv yt-dlp playwright playwright-stealth
 
       - name: PyInstaller 빌드 — tubemetric-agent
         working-directory: installer
         run: pyinstaller tubemetric.spec --clean
 
+      - name: pip 패키지 설치 — softc-scraper
+        run: |
+          pip install fastapi "uvicorn[standard]" pydantic undetected-chromedriver selenium beautifulsoup4 lxml
+
       - name: PyInstaller 빌드 — softc-scraper (라이브 headless=False)
         working-directory: installer
         run: pyinstaller softc_scraper.spec --clean
+
+      - name: pip 패키지 설치 — instagram-scraper
+        run: |
+          pip install fastapi "uvicorn[standard]" pydantic undetected-chromedriver selenium python-dotenv
 
       - name: PyInstaller 빌드 — instagram-scraper (Instagram + TikTok)
         working-directory: installer
