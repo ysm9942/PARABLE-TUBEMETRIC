@@ -2614,7 +2614,7 @@ const App: React.FC = () => {
                       value={liveDraft}
                       onChange={setLiveDraft}
                       onCommit={addLiveItem}
-                      onAddMultiple={vals => { setLiveInput(prev => { const add = vals.join('\n'); return prev ? prev + '\n' + add : add; }); setLiveDraft(''); }}
+                      onAddMultiple={vals => { const parsed = vals.map(v => parseLiveUrl(v)).filter(Boolean); setLiveInput(prev => { const add = parsed.join('\n'); return prev ? prev + '\n' + add : add; }); setLiveDraft(''); }}
                       creators={creators}
                       field="live"
                       placeholder="CHZZK·SOOP URL 또는 크리에이터명 입력 (여러 줄 붙여넣기 가능)"
