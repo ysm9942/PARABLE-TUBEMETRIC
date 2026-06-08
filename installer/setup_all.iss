@@ -22,34 +22,41 @@ Source: "dist\tubemetric-agent.exe";  DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\softc-scraper.exe";     DestDir: "{app}"; Flags: ignoreversion
 ; Instagram + TikTok 분석 에이전트 (포트 8003)
 Source: "dist\instagram-scraper.exe"; DestDir: "{app}"; Flags: ignoreversion
+; 순차 시작 스크립트 (포트 충돌 방지용 4초 간격 시작)
+Source: "start_agents.bat";           DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; 시작 메뉴
+Name: "{group}\TubeMetric 에이전트 시작";             Filename: "{app}\start_agents.bat"
 Name: "{group}\TubeMetric 라이브 에이전트";           Filename: "{app}\tubemetric-agent.exe"
 Name: "{group}\TubeMetric SoftC 에이전트";            Filename: "{app}\softc-scraper.exe"
 Name: "{group}\TubeMetric Instagram·TikTok 에이전트"; Filename: "{app}\instagram-scraper.exe"
 Name: "{group}\TubeMetric 에이전트 제거";             Filename: "{uninstallexe}"
-; Windows 시작 시 자동 실행
-Name: "{userstartup}\TubeMetric Live Agent";           Filename: "{app}\tubemetric-agent.exe"
-Name: "{userstartup}\TubeMetric SoftC Agent";          Filename: "{app}\softc-scraper.exe"
-Name: "{userstartup}\TubeMetric Instagram Agent";      Filename: "{app}\instagram-scraper.exe"
+; Windows 시작 시 자동 실행 — 배치 스크립트로 순차 시작
+Name: "{userstartup}\TubeMetric Agents";               Filename: "{app}\start_agents.bat"
 
 [Run]
-; 설치 완료 후 세 에이전트 모두 즉시 실행
-Filename: "{app}\tubemetric-agent.exe"; \
-  Description: "라이브 지표 에이전트 시작 (포트 8001)"; \
-  Flags: nowait postinstall skipifsilent
-Filename: "{app}\softc-scraper.exe"; \
-  Description: "SoftC 에이전트 시작 (포트 8002)"; \
-  Flags: nowait postinstall skipifsilent
-Filename: "{app}\instagram-scraper.exe"; \
-  Description: "Instagram·TikTok 에이전트 시작 (포트 8003)"; \
-  Flags: nowait postinstall skipifsilent
+; 설치 완료 후 순차 시작 스크립트 실행 (4초 간격으로 순서대로 시작)
+Filename: "{app}\start_agents.bat"; \
+  Description: "모든 에이전트 순차 시작 (포트 8001·8002·8003)"; \
+  Flags: nowait postinstall skipifsilent runascurrentuser
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/F /IM tubemetric-agent.exe";  Flags: runhidden
 Filename: "taskkill.exe"; Parameters: "/F /IM softc-scraper.exe";     Flags: runhidden
 Filename: "taskkill.exe"; Parameters: "/F /IM instagram-scraper.exe"; Flags: runhidden
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then begin
+    // 기존 실행 중인 에이전트 종료 후 설치 (충돌 방지)
+    Exec('taskkill.exe', '/F /IM tubemetric-agent.exe',  '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill.exe', '/F /IM softc-scraper.exe',     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill.exe', '/F /IM instagram-scraper.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1500);
+  end;
+end;
 
 [Messages]
 WelcomeLabel1=TubeMetric 에이전트 설치에 오신 것을 환영합니다
