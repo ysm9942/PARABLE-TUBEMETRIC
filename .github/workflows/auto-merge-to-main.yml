@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -34,9 +35,32 @@ jobs:
           git merge "origin/$CLAUDE_BRANCH" \
             --no-ff \
             --strategy-option=theirs \
-            -m "auto-merge: $CLAUDE_BRANCH → main [skip ci]"
+            -m "auto-merge: $CLAUDE_BRANCH → main"
 
           git push origin main
+
+      - name: Check if scraper/installer changed
+        id: check_changes
+        run: |
+          CHANGED=$(git diff HEAD~1 --name-only 2>/dev/null | grep -E '^(scraper/|installer/|backend/)' | head -1 || true)
+          if [ -n "$CHANGED" ]; then
+            echo "build_needed=true" >> $GITHUB_OUTPUT
+            echo "변경 감지: $CHANGED → 빌드 트리거"
+          else
+            echo "build_needed=false" >> $GITHUB_OUTPUT
+            echo "scraper/installer 변경 없음 → 빌드 스킵"
+          fi
+
+      - name: Trigger build-installer workflow
+        if: steps.check_changes.outputs.build_needed == 'true'
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-installer.yml/dispatches \
+            -d '{"ref":"main"}' \
+            && echo "✅ build-installer.yml 트리거 완료" \
+            || echo "⚠ 빌드 트리거 실패 (수동 실행 필요)"
 
       - name: Report result
         if: success()
