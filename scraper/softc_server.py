@@ -320,6 +320,27 @@ def _crawl_creator(
 
     print(f"  [{creator_id}] 드라이버 재사용 (공유 인스턴스)")
 
+    # ── 진입 팝업 닫기 ────────────────────────────────────────────────────
+    def _dismiss_popup():
+        """사이트 진입 시 뜨는 안내 팝업의 '닫기' 버튼을 눌러 닫는다."""
+        try:
+            btns = driver.find_elements(
+                By.XPATH,
+                "//button[contains(normalize-space(.), '닫기')]",
+            )
+            for b in btns:
+                try:
+                    if b.is_displayed():
+                        driver.execute_script("arguments[0].click();", b)
+                        print(f"  [{creator_id}] 팝업 '닫기' 클릭")
+                        time.sleep(random.uniform(0.3, 0.6))
+                        return True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return False
+
     # ── 페이지네이션 헬퍼 ─────────────────────────────────────────────────
     def _get_num_btns():
         btns = driver.find_elements(By.CSS_SELECTOR, PAGE_BTN_SEL)
@@ -440,12 +461,16 @@ def _crawl_creator(
     def _attempt_once():
         print(f"  [{creator_id}] {url}")
         driver.get(url)
+        # 진입 직후 안내 팝업이 뜨면 닫기 (로딩 지연 대비 두 번 시도)
+        time.sleep(random.uniform(0.6, 1.2))
+        _dismiss_popup()
         try:
             WebDriverWait(driver, PAGEWAIT_SEC).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, STREAM_SEL))
             )
         except TimeoutException:
             print(f"  [{creator_id}] ⚠ 요소 대기 타임아웃")
+        _dismiss_popup()
         time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         results = []
@@ -604,7 +629,7 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("=" * 55)
-    print("  TubeMetric SoftC Scraper Agent  v1.2")
+    print("  TubeMetric SoftC Scraper Agent  v1.3")
     print("  http://localhost:8002")
     print("  headless=False · undetected_chromedriver")
     print("=" * 55)
@@ -612,7 +637,7 @@ async def lifespan(app: FastAPI):
     print("[서버] 종료")
 
 
-app = FastAPI(title="SoftC Scraper Agent", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="SoftC Scraper Agent", version="1.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -632,7 +657,7 @@ class CrawlStartRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "mode": "softc-scraper-local", "version": "1.2.0"}
+    return {"status": "ok", "mode": "softc-scraper-local", "version": "1.3.0"}
 
 
 @app.post("/api/crawl/start")
