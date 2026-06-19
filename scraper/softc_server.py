@@ -321,24 +321,36 @@ def _crawl_creator(
     print(f"  [{creator_id}] 드라이버 재사용 (공유 인스턴스)")
 
     # ── 진입 팝업 닫기 ────────────────────────────────────────────────────
-    def _dismiss_popup():
-        """사이트 진입 시 뜨는 안내 팝업의 '닫기' 버튼을 눌러 닫는다."""
-        try:
-            btns = driver.find_elements(
-                By.XPATH,
-                "//button[contains(normalize-space(.), '닫기')]",
-            )
-            for b in btns:
+    def _dismiss_popup(wait_sec: float = 2.5):
+        """사이트 진입 시 뜨는 안내 팝업의 '닫기' 버튼을 눌러 닫는다.
+        팝업은 opacity-0 → 애니메이션(0.65s, delay 0.25s) → 표시되므로
+        최대 wait_sec 초 동안 버튼이 클릭 가능해질 때까지 기다린다.
+        """
+        # 팝업 컨테이너: bg-stone-800/90 div 안의 '닫기' 텍스트 버튼
+        SELECTORS = [
+            # 텍스트 정확 매칭 (가장 신뢰도 높음)
+            "//button[normalize-space(text())='닫기']",
+            # 텍스트 포함 매칭 (fallback)
+            "//button[contains(normalize-space(.), '닫기')]",
+        ]
+        deadline = time.time() + wait_sec
+        while time.time() < deadline:
+            for xpath in SELECTORS:
                 try:
-                    if b.is_displayed():
-                        driver.execute_script("arguments[0].click();", b)
-                        print(f"  [{creator_id}] 팝업 '닫기' 클릭")
-                        time.sleep(random.uniform(0.3, 0.6))
-                        return True
+                    btns = driver.find_elements(By.XPATH, xpath)
+                    for b in btns:
+                        try:
+                            # is_displayed() 는 opacity 애니메이션 중에도 True 일 수 있어
+                            # JS click 으로 강제 클릭
+                            driver.execute_script("arguments[0].click();", b)
+                            print(f"  [{creator_id}] 팝업 '닫기' 클릭 완료")
+                            time.sleep(0.4)
+                            return True
+                        except Exception:
+                            pass
                 except Exception:
                     pass
-        except Exception:
-            pass
+            time.sleep(0.2)
         return False
 
     # ── 페이지네이션 헬퍼 ─────────────────────────────────────────────────
@@ -461,16 +473,16 @@ def _crawl_creator(
     def _attempt_once():
         print(f"  [{creator_id}] {url}")
         driver.get(url)
-        # 진입 직후 안내 팝업이 뜨면 닫기 (로딩 지연 대비 두 번 시도)
-        time.sleep(random.uniform(0.6, 1.2))
-        _dismiss_popup()
+        # 팝업 애니메이션 완료(최대 1초) 후 닫기 시도 — wait_sec 동안 버튼 폴링
+        _dismiss_popup(wait_sec=3.0)
         try:
             WebDriverWait(driver, PAGEWAIT_SEC).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, STREAM_SEL))
             )
         except TimeoutException:
             print(f"  [{creator_id}] ⚠ 요소 대기 타임아웃")
-        _dismiss_popup()
+        # 데이터 로딩 중 팝업이 늦게 뜰 경우 한 번 더 시도
+        _dismiss_popup(wait_sec=1.0)
         time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         results = []
