@@ -219,7 +219,7 @@ const App: React.FC = () => {
       checkSoftcAgent().then(ok => { setSoftcLocalRunning(ok); if (ok) agents.push('softc-scraper:8002'); }),
       checkInstagramAgent().then(ok => { setIgLocalRunning(ok); if (ok) agents.push('instagram-scraper:8003'); }),
       checkInstagramAgentTikTokSupport().then(ok => setTkAgentReady(ok)),
-    });
+    ]);
   }, []);
   const [dashboardSubTab, setDashboardSubTab] = useState<'channel' | 'video' | 'ad' | 'scraper'>('channel');
   
@@ -960,6 +960,54 @@ const App: React.FC = () => {
 
       XLSX.writeFile(wb, `TubeMetric_Video_${timestamp}.xlsx`);
     }
+  };
+
+  const handleDownloadLiveExcel = () => {
+    if (!liveResults.length) return;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const wb = XLSX.utils.book_new();
+
+    // ── 시트 1: 전체 요약 ──────────────────────────────────────────────
+    const summaryData = liveResults.map(r => ({
+      '크리에이터': r.creatorId,
+      '플랫폼': r.platform,
+      '방송 수': r.streamCount,
+      '평균 시청자': r.avgViewers,
+      '최고 시청자': r.peakViewers,
+      '총 방송시간(시간)': Number((r.totalDurationMin / 60).toFixed(1)),
+      '상태': r.status === 'ok' || r.status === 'completed' ? '완료' : (r.error ? `오류: ${r.error}` : r.status),
+      '수집일': r.scrapedAt ? new Date(r.scrapedAt).toLocaleString('ko-KR') : '',
+    }));
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, '전체 요약');
+
+    // ── 시트 N: 크리에이터별 방송 상세 (Detail) ───────────────────────
+    const usedNames = new Set<string>(['전체 요약']);
+    liveResults.forEach(r => {
+      if (!r.streams || r.streams.length === 0) return;
+      const detailData = r.streams.map(s => ({
+        '방송 제목': s.title || '(제목 없음)',
+        '카테고리': s.category || '',
+        '평균 시청자': s.avgViewers,
+        '최고 시청자': s.peakViewers,
+        '방송시간(분)': s.durationMin,
+        '방송시간': s.durationMin ? `${Math.floor(s.durationMin / 60)}h ${s.durationMin % 60}m` : '',
+        '날짜': s.date || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(detailData);
+
+      // 시트명: 엑셀 제한(31자, 특수문자 불가) + 중복 방지
+      let base = `${r.platform}_${r.creatorId}`.replace(/[\\/*?:[\]]/g, '').substring(0, 31);
+      let name = base;
+      let counter = 1;
+      while (usedNames.has(name)) {
+        name = `${base.substring(0, 27)}_${counter++}`;
+      }
+      usedNames.add(name);
+      XLSX.utils.book_append_sheet(wb, ws, name || r.creatorId);
+    });
+
+    XLSX.writeFile(wb, `TubeMetric_Live_${timestamp}.xlsx`);
   };
 
   const periodLabels: Record<AnalysisPeriod, string> = {
@@ -2713,7 +2761,10 @@ const App: React.FC = () => {
                       <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#5a5a7a]">{liveResults.length}개 크리에이터</span>
                     </div>
-                    <button onClick={() => { const hdr = '크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)'; const rows = liveResults.map(r => [r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleDownloadLiveExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
+                      <button onClick={() => { const hdr = '크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)'; const rows = liveResults.map(r => [r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
