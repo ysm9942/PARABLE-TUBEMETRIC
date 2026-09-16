@@ -572,10 +572,13 @@ const App: React.FC = () => {
       thumbnail: '',
       subscriberCount: '0',
       avgShortsViews: 0,
+      medianShortsViews: 0,
       shortsCountFound: 0,
       avgLongViews: 0,
+      medianLongViews: 0,
       longCountFound: 0,
       avgTotalViews: 0,
+      medianTotalViews: 0,
       totalCountFound: 0,
       shortsList: [],
       longsList: [],
@@ -622,10 +625,13 @@ const App: React.FC = () => {
             thumbnail: info.thumbnail,
             subscriberCount: info.subscriberCount,
             avgShortsViews: stats.avgShortsViews,
+            medianShortsViews: stats.medianShortsViews,
             shortsCountFound: stats.shortsCount,
             avgLongViews: stats.avgLongViews,
+            medianLongViews: stats.medianLongViews,
             longCountFound: stats.longCount,
             avgTotalViews: stats.avgTotalViews,
+            medianTotalViews: stats.medianTotalViews,
             totalCountFound: stats.totalCount,
             shortsList: stats.shortsList,
             longsList: stats.longsList,
@@ -1096,9 +1102,12 @@ const App: React.FC = () => {
         '채널 ID': r.channelId,
         '구독자 수': parseInt(r.subscriberCount, 10),
         '통합 평균 조회수': r.avgTotalViews,
+        '통합 중앙값 조회수': r.medianTotalViews ?? 0,
         '쇼츠 평균 조회수': r.avgShortsViews,
+        '쇼츠 중앙값 조회수': r.medianShortsViews ?? 0,
         '쇼츠 분석 개수': r.shortsCountFound,
         '롱폼 평균 조회수': r.avgLongViews,
+        '롱폼 중앙값 조회수': r.medianLongViews ?? 0,
         '롱폼 분석 개수': r.longCountFound,
         '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
       }));
@@ -1692,9 +1701,15 @@ const App: React.FC = () => {
                       <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
                       Shorts <span className="text-[#5a5a7a] font-normal">({selectedChannel.shortsList.length})</span>
                     </h4>
-                    <div className="text-right">
-                      <div className="text-xs text-[#5a5a7a] mb-0.5">Avg Views</div>
-                      <div className="text-base font-semibold text-violet-600">{selectedChannel.avgShortsViews.toLocaleString()}</div>
+                    <div className="flex items-center gap-5 text-right">
+                      <div>
+                        <div className="text-xs text-[#5a5a7a] mb-0.5">평균</div>
+                        <div className="text-base font-semibold text-violet-600">{selectedChannel.avgShortsViews.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-[#5a5a7a] mb-0.5">중앙값</div>
+                        <div className="text-base font-semibold text-violet-400">{(selectedChannel.medianShortsViews ?? 0).toLocaleString()}</div>
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3">
@@ -1722,9 +1737,15 @@ const App: React.FC = () => {
                       <div className="w-1.5 h-5 bg-[#3a3a58] rounded-full"></div>
                       Longform <span className="text-[#5a5a7a] font-normal">({selectedChannel.longsList.length})</span>
                     </h4>
-                    <div className="text-right">
-                      <div className="text-xs text-[#5a5a7a] mb-0.5">Avg Views</div>
-                      <div className="text-base font-semibold text-[#1a1a2e]">{selectedChannel.avgLongViews.toLocaleString()}</div>
+                    <div className="flex items-center gap-5 text-right">
+                      <div>
+                        <div className="text-xs text-[#5a5a7a] mb-0.5">평균</div>
+                        <div className="text-base font-semibold text-[#1a1a2e]">{selectedChannel.avgLongViews.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-[#5a5a7a] mb-0.5">중앙값</div>
+                        <div className="text-base font-semibold text-[#5a5a7a]">{(selectedChannel.medianLongViews ?? 0).toLocaleString()}</div>
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3">
@@ -2232,8 +2253,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t롱폼평균'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.avgLongViews].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
-                          <button onClick={() => setChannelResults([])} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-red-50 text-[#1a1a2e] hover:text-red-500 rounded text-xs transition-all"><Trash2 size={11} /> 삭제</button>
+                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
@@ -2243,8 +2263,8 @@ const App: React.FC = () => {
                               <tr>
                                 <th className="px-6 py-3.5 font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Channel</th>
                                 <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Subscribers</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Shorts Avg</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Longform Avg</th>
+                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Shorts 평균/중앙값</th>
+                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Longform 평균/중앙값</th>
                                 <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Detail</th>
                               </tr>
                             </thead>
@@ -2264,12 +2284,9 @@ const App: React.FC = () => {
                                     </div>
                                   </td>
                                   <td className="px-6 py-3.5 text-center"><span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-center flex items-center justify-center gap-1">
-                                    <button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button>
-                                    <button onClick={() => setChannelResults(prev => prev.filter(x => x.channelId !== r.channelId))} className="p-1.5 bg-[#f0f0f8] hover:bg-red-50 text-[#b0b0c8] hover:text-red-500 rounded-lg transition-all active:scale-90"><Trash2 size={12} /></button>
-                                  </td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianShortsViews ?? 0) > 0 ? `중앙값 ${r.medianShortsViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianLongViews ?? 0) > 0 ? `중앙값 ${r.medianLongViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
                                 </tr>
                               ))}
                             </tbody>
