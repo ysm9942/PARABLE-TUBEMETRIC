@@ -338,16 +338,25 @@ export const fetchChannelStats = async (
   }
 
   const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
-  return { 
-    avgShortsViews: calcAvg(shorts), 
-    shortsCount: shorts.length, 
-    avgLongViews: calcAvg(longs), 
-    longCount: longs.length, 
-    avgTotalViews: calcAvg([...shorts, ...longs]), 
-    totalCount: shorts.length + longs.length, 
-    shortsList: shorts, 
-    longsList: longs, 
-    liveList: lives 
+  const calcMedian = (arr: VideoDetail[]) => {
+    if (!arr.length) return 0;
+    const sorted = arr.map(v => v.viewCount).sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  };
+  return {
+    avgShortsViews: calcAvg(shorts),
+    medianShortsViews: calcMedian(shorts),
+    shortsCount: shorts.length,
+    avgLongViews: calcAvg(longs),
+    medianLongViews: calcMedian(longs),
+    longCount: longs.length,
+    avgTotalViews: calcAvg([...shorts, ...longs]),
+    medianTotalViews: calcMedian([...shorts, ...longs]),
+    totalCount: shorts.length + longs.length,
+    shortsList: shorts,
+    longsList: longs,
+    liveList: lives
   };
 };
 

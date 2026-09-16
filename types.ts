@@ -50,10 +50,13 @@ export interface ChannelResult {
   thumbnail: string;
   subscriberCount: string;
   avgShortsViews: number;
+  medianShortsViews: number;
   shortsCountFound: number;
   avgLongViews: number;
+  medianLongViews: number;
   longCountFound: number;
   avgTotalViews: number;
+  medianTotalViews: number;
   totalCountFound: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
