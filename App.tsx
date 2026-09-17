@@ -877,6 +877,12 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
+  // 결과 테이블을 TSV(탭 구분)로 클립보드에 복사 — 엑셀·구글시트에 바로 붙여넣기 가능
+  const copyTsv = (header: string, rows: (string | number)[][]) => {
+    const body = rows.map(cols => cols.join('\t')).join('\n');
+    navigator.clipboard.writeText(header + '\n' + body);
+  };
+
   const handleDownloadExcel = () => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const wb = XLSX.utils.book_new();
@@ -1936,7 +1942,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => copyTsv('채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값', channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0]))} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
@@ -2135,7 +2141,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => { const hdr = '제목\t채널\t조회수\t좋아요\t댓글'; const rows = videoResults.map(r => [r.title, r.channelTitle, r.viewCount, r.likeCount, r.commentCount].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => copyTsv('제목\t채널\t조회수\t좋아요\t댓글', videoResults.map(r => [r.title, r.channelTitle, r.viewCount, r.likeCount, r.commentCount]))} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                         </div>
                       </div>
                       {videoResultTab === 'table' && (
@@ -2784,7 +2790,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={handleDownloadLiveExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                      <button onClick={() => { const hdr = '크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)'; const rows = liveResults.map(r => [r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                      <button onClick={() => copyTsv('크리에이터\t플랫폼\t방송수\t평균시청자\t최고시청자\t총방송시간(h)', liveResults.map(r => [r.creatorId, r.platform, r.streamCount, r.avgViewers, r.peakViewers, (r.totalDurationMin/60).toFixed(1)]))} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -3110,7 +3116,7 @@ const App: React.FC = () => {
                       <span className="text-xs text-[#1a1a2e]">{igResults.length}개 계정</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => { const hdr = '계정\t릴스수\t평균조회수\t평균좋아요\t평균댓글\t수집일'; const rows = igResults.map(r => [r.username, r.reelCount, r.avgViews, r.avgLikes, r.avgComments, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all"><Clipboard size={11} /> 복사</button>
+                      <button onClick={() => copyTsv('계정\t릴스수\t평균조회수\t평균좋아요\t평균댓글\t수집일', igResults.map(r => [r.username, r.reelCount, r.avgViews, r.avgLikes, r.avgComments, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : '']))} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all"><Clipboard size={11} /> 복사</button>
                       <button onClick={loadIgResults} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f0f8] hover:bg-[#eaeaf4] rounded-lg text-xs text-[#1a1a2e] hover:text-[#0f0f23] transition-all">
                         {igResultsLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 새로고침
                       </button>
@@ -3448,7 +3454,7 @@ const App: React.FC = () => {
                       <span className="text-sm font-medium text-[#0f0f23]">수집 결과</span>
                       <span className="text-xs text-[#1a1a2e]">{tkResults.length}개 계정</span>
                     </div>
-                    <button onClick={() => { const hdr = '계정\t영상수\t평균조회수\t수집일'; const rows = tkResults.map(r => [r.username, r.videoCount, r.avgViews, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : ''].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                    <button onClick={() => copyTsv('계정\t영상수\t평균조회수\t수집일', tkResults.map(r => [r.username, r.videoCount, r.avgViews, r.scrapedAt ? new Date(r.scrapedAt).toLocaleDateString('ko-KR') : '']))} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">

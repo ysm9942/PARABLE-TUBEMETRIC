@@ -11,7 +11,10 @@
 import axios from 'axios';
 import type { ChannelResult, VideoResult, AdAnalysisResult, InstagramUserResult } from '../types';
 
-const BACKEND_URL = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+/** 후행 슬래시를 제거해 URL 결합 시 이중 슬래시를 방지한다. */
+const normalizeBase = (url?: string | null): string => (url || '').replace(/\/$/, '');
+
+const BACKEND_URL = normalizeBase(process.env.BACKEND_URL);
 
 /**
  * 백엔드 사용 가능 여부 확인
@@ -110,7 +113,7 @@ export const fetchInstagramReelsLocal = async (
   localBaseUrl: string = 'http://localhost:8003',
   headless: boolean = true
 ): Promise<InstagramUserResult[]> => {
-  const base = localBaseUrl.replace(/\/$/, '');
+  const base = normalizeBase(localBaseUrl);
 
   await axios.post(`${base}/api/crawl/start`, { usernames, amount, headless });
 
@@ -165,7 +168,7 @@ export const fetchTikTokVideosLocal = async (
   localBaseUrl: string = 'http://localhost:8003',
   headless: boolean = true
 ): Promise<TikTokUserResult[]> => {
-  const base = localBaseUrl.replace(/\/$/, '');
+  const base = normalizeBase(localBaseUrl);
 
   await axios.post(`${base}/api/tiktok/start`, { usernames, amount, headless });
 
@@ -213,7 +216,7 @@ export const fetchLiveStreams = async (
   categories: string[] = [],
   overrideBaseUrl?: string   // 로컬 에이전트 사용 시 주입
 ): Promise<LiveCreatorResult[]> => {
-  const base = (overrideBaseUrl || BACKEND_URL || '').replace(/\/$/, '');
+  const base = normalizeBase(overrideBaseUrl || BACKEND_URL);
   if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
   const res = await axios.post(`${base}/api/live/streams`, {
     creators,
@@ -236,7 +239,7 @@ export const fetchSoftcStreams = async (
   localBaseUrl?: string   // SOFTC_AGENT_URL (http://localhost:8002) 또는 undefined
 ): Promise<LiveCreatorResult[]> => {
   const isLocal = !!localBaseUrl;
-  const base    = (localBaseUrl || BACKEND_URL).replace(/\/$/, '');
+  const base    = normalizeBase(localBaseUrl || BACKEND_URL);
   if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
 
   const startPath  = isLocal ? '/api/crawl/start'  : '/api/softc/crawl/start';

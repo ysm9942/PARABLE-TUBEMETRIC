@@ -45,8 +45,6 @@ def _fetch_via_ytdlp(username: str, amount: int, use_browser_cookies: bool = Tru
     yt-dlp로 TikTok 영상 목록 수집.
     use_browser_cookies=True: 로컬 Chrome 쿠키 자동 추출 → 봇 감지 우회
     """
-    import yt_dlp
-
     # pinned 포함 여유분 추가 수집
     fetch_count = amount + 5
 
@@ -322,7 +320,7 @@ def fetch_user_videos(driver_unused, username: str, amount: int,
         result = _fetch_via_ytdlp(username, amount, use_browser_cookies=True)
         if result["videoCount"] > 0:
             return result
-        print(f"  [yt-dlp] 0개 수집됨 → 브라우저 fallback")
+        print("  [yt-dlp] 0개 수집됨 → 브라우저 fallback")
     except Exception as e:
         print(f"  [yt-dlp] 실패: {e} → 브라우저 fallback")
 
