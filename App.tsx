@@ -380,10 +380,22 @@ const App: React.FC = () => {
   };
 
   // ── List input helpers ───────────────────────────────────────────────────
+  // 크리에이터 이름(정확히 일치, 대소문자 무시)으로 등록된 크리에이터 찾기
+  const findCreatorByName = (name: string): Creator | undefined => {
+    const q = name.trim().toLowerCase();
+    if (!q) return undefined;
+    return creators.find(c => c.name.trim().toLowerCase() === q);
+  };
+
   const addChannelItem = () => {
     const v = channelDraft.trim();
     if (!v) return;
-    setChannelInput(prev => prev ? prev + '\n' + v : v);
+    // 크리에이터 이름과 정확히 일치하면 등록된 유튜브 채널로 치환
+    const creator = findCreatorByName(v);
+    const ids = creator && (creator.youtubeChannelIds ?? []).length > 0
+      ? creator.youtubeChannelIds
+      : [v];
+    setChannelInput(prev => { const add = ids.join('\n'); return prev ? prev + '\n' + add : add; });
     setChannelDraft('');
   };
   const removeChannelItem = (idx: number) => setChannelInput(channelList.filter((_, i) => i !== idx).join('\n'));
@@ -602,10 +614,17 @@ const App: React.FC = () => {
   // ── Instagram 핸들러 ────────────────────────────────────────────────────────
   const addIgItem = () => {
     let v = igDraft.trim();
-    // Instagram URL에서 username 추출 (예: https://www.instagram.com/haebom_m)
-    const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/);
-    if (urlMatch) v = urlMatch[1];
-    v = v.replace(/^@/, '').replace(/\/$/, '');
+    if (!v) return;
+    // 크리에이터 이름과 일치하면 등록된 Instagram username으로 치환
+    const creator = findCreatorByName(v);
+    if (creator?.instagramUsername) {
+      v = creator.instagramUsername;
+    } else {
+      // Instagram URL에서 username 추출 (예: https://www.instagram.com/haebom_m)
+      const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/);
+      if (urlMatch) v = urlMatch[1];
+      v = v.replace(/^@/, '').replace(/\/$/, '');
+    }
     if (!v) return;
     setIgInput(prev => prev ? prev + '\n' + v : v);
     setIgDraft('');
@@ -677,10 +696,17 @@ const App: React.FC = () => {
   const tkList = tkInput.split('\n').map(s => s.trim()).filter(Boolean);
   const addTkItem = () => {
     let v = tkDraft.trim();
-    // TikTok URL 전체 입력 지원: https://www.tiktok.com/@haebom_ → haebom_
-    const urlMatch = v.match(/tiktok\.com\/@?([^/?#\s]+)/);
-    if (urlMatch) v = urlMatch[1];
-    v = v.replace(/^@/, '');
+    if (!v) return;
+    // 크리에이터 이름과 일치하면 등록된 TikTok username으로 치환
+    const creator = findCreatorByName(v);
+    if (creator?.tiktokUsername) {
+      v = creator.tiktokUsername;
+    } else {
+      // TikTok URL 전체 입력 지원: https://www.tiktok.com/@haebom_ → haebom_
+      const urlMatch = v.match(/tiktok\.com\/@?([^/?#\s]+)/);
+      if (urlMatch) v = urlMatch[1];
+      v = v.replace(/^@/, '');
+    }
     if (!v) return;
     setTkInput(prev => prev ? prev + '\n' + v : v);
     setTkDraft('');
@@ -721,9 +747,15 @@ const App: React.FC = () => {
   const liveList = liveInput.split('\n').map(s => s.trim()).filter(Boolean);
 
   const addLiveItem = () => {
-    const v = parseLiveUrl(liveDraft);
-    if (!v) return;
-    setLiveInput(prev => prev ? prev + '\n' + v : v);
+    const raw = liveDraft.trim();
+    if (!raw) return;
+    // 크리에이터 이름과 일치하면 등록된 라이브 지표 ID로 치환
+    const creator = findCreatorByName(raw);
+    const ids = creator && (creator.liveMetricsIds ?? []).length > 0
+      ? creator.liveMetricsIds.map(s => parseLiveUrl(s)).filter(Boolean)
+      : [parseLiveUrl(raw)].filter(Boolean);
+    if (ids.length === 0) return;
+    setLiveInput(prev => { const add = ids.join('\n'); return prev ? prev + '\n' + add : add; });
     setLiveDraft('');
   };
   const removeLiveItem = (idx: number) => setLiveInput(liveList.filter((_, i) => i !== idx).join('\n'));
