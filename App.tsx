@@ -1825,16 +1825,35 @@ const App: React.FC = () => {
                               </div>
                            </div>
                            <div className={`space-y-2 transition-opacity ${(!useShorts || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
-                              <div className="flex justify-between text-xs">
+                              <div className="flex justify-between items-center text-xs">
                                 <span className="text-[#5a5a7a]">Max Target</span>
-                                <span className="text-violet-600 font-medium">{useGlobalCountFilter ? `${targetShorts}개` : '전체 수집'}</span>
+                                {useGlobalCountFilter ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={150}
+                                      disabled={!useShorts}
+                                      value={targetShorts}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (v === '') { setTargetShorts(''); return; }
+                                        setTargetShorts(Math.min(150, Math.max(1, Number(v))));
+                                      }}
+                                      className="w-14 text-right bg-[#f0f0f8] border border-[#d4d5e2] rounded px-2 py-0.5 text-violet-600 font-medium text-xs focus:outline-none focus:border-violet-500/50 disabled:opacity-50"
+                                    />
+                                    <span className="text-violet-600 font-medium">개</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-violet-600 font-medium">전체 수집</span>
+                                )}
                               </div>
                               <input
                                type="range"
                                min="1"
-                               max="100"
+                               max="150"
                                disabled={!useShorts || !useGlobalCountFilter}
-                               value={Number(targetShorts)}
+                               value={Number(targetShorts) || 1}
                                onChange={(e) => setTargetShorts(Number(e.target.value))}
                                className="w-full appearance-none bg-[#eeeef6] h-1.5 rounded-full accent-violet-500"
                               />
@@ -1858,16 +1877,35 @@ const App: React.FC = () => {
                               </div>
                            </div>
                            <div className={`space-y-2 transition-opacity ${(!useLongs || !useGlobalCountFilter) ? 'opacity-30' : ''}`}>
-                              <div className="flex justify-between text-xs">
+                              <div className="flex justify-between items-center text-xs">
                                 <span className="text-[#5a5a7a]">Max Target</span>
-                                <span className="text-[#5a5a7a] font-medium">{useGlobalCountFilter ? `${targetLong}개` : '전체 수집'}</span>
+                                {useGlobalCountFilter ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={100}
+                                      disabled={!useLongs}
+                                      value={targetLong}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (v === '') { setTargetLong(''); return; }
+                                        setTargetLong(Math.min(100, Math.max(1, Number(v))));
+                                      }}
+                                      className="w-14 text-right bg-[#f0f0f8] border border-[#d4d5e2] rounded px-2 py-0.5 text-[#5a5a7a] font-medium text-xs focus:outline-none focus:border-zinc-400 disabled:opacity-50"
+                                    />
+                                    <span className="text-[#5a5a7a] font-medium">개</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#5a5a7a] font-medium">전체 수집</span>
+                                )}
                               </div>
                               <input
                                type="range"
                                min="1"
-                               max="50"
+                               max="100"
                                disabled={!useLongs || !useGlobalCountFilter}
-                               value={Number(targetLong)}
+                               value={Number(targetLong) || 1}
                                onChange={(e) => setTargetLong(Number(e.target.value))}
                                className="w-full appearance-none bg-[#eeeef6] h-1.5 rounded-full accent-zinc-400"
                               />
