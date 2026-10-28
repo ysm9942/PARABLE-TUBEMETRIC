@@ -233,8 +233,13 @@ export interface OverlapNode {
   label: string;
   platform: string;
   image: string;
-  value: number;        // 관계 크기 → 노드 반지름
+  value: number;        // 관계 강도(strength) → 노드 반지름/정렬
   isCenter: boolean;
+  // softc.one이 제공하는 실제 지표 (중심 채널은 null)
+  thisPct?: number | null;   // 이 채널 중 (%)
+  otherPct?: number | null;  // 상대 채널 중 (%)
+  lift?: number | null;      // Lift (x)
+  strength?: number | null;  // 관계 강도
 }
 
 export interface OverlapLink {

@@ -3029,22 +3029,27 @@ const App: React.FC = () => {
                   (e.target === center.id && e.source === id));
                 return l ? l.weight : 0;
               };
-              const valOf = (n: typeof nodes[number]) => (n.value > 0 ? n.value : weightOf(n.id));
+              // 관계 강도(strength) 기준 — softc.one과 동일
+              const valOf = (n: typeof nodes[number]) =>
+                (n.strength ?? (n.value > 0 ? n.value : weightOf(n.id))) || 0;
               const ranked = [...others].sort((a, b) => valOf(b) - valOf(a));
+              // 그래프에는 관계가 강한 상위 15개만 (softc.one 동일) · 랭킹표는 전체
+              const graphOthers = ranked.slice(0, 15);
+              const graphNodes = center ? [center, ...graphOthers] : graphOthers;
 
               // ── 방사형 레이아웃 (중심 채널 기준) ──
               const W = 820, H = 540, cx = W / 2, cy = H / 2 - 4;
               const pos: Record<string, { x: number; y: number }> = {};
               if (center) pos[center.id] = { x: cx, y: cy };
-              const M = ranked.length;
-              ranked.forEach((n, k) => {
+              const M = graphOthers.length;
+              graphOthers.forEach((n, k) => {
                 const ang = -Math.PI / 2 + (k / Math.max(M, 1)) * Math.PI * 2;
                 const rr = M <= 1 ? 175 : 140 + (k / Math.max(M - 1, 1)) * 95;
                 pos[n.id] = { x: cx + Math.cos(ang) * rr, y: cy + Math.sin(ang) * rr };
               });
 
-              const maxW = Math.max(...links.map(l => l.weight), 1);
-              const maxVal = Math.max(...nodes.map(n => valOf(n)), 1);
+              const maxW = Math.max(...graphOthers.map(n => valOf(n)), 1);
+              const maxVal = Math.max(...graphOthers.map(n => valOf(n)), 1);
               const nodeR = (n: typeof nodes[number]) => {
                 const base = n.isCenter ? 32 : 17;
                 return base + 20 * Math.sqrt(Math.max(valOf(n), 0) / maxVal);
@@ -3216,24 +3221,24 @@ const App: React.FC = () => {
                           <pattern id="relGrid" width="32" height="32" patternUnits="userSpaceOnUse">
                             <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#edecfa" strokeWidth="1" />
                           </pattern>
-                          {nodes.map((n, i) => (
+                          {graphNodes.map((n, i) => (
                             <clipPath key={i} id={`ovclip-${i}`}><circle cx="0" cy="0" r={nodeR(n)} /></clipPath>
                           ))}
                         </defs>
                         <rect x="0" y="0" width={W} height={H} fill="url(#relGrid)" />
                         <g transform={`translate(${relView.tx} ${relView.ty}) scale(${relView.scale})`}>
                           {/* 중심 → 상대 연결선 (굵기 = 관계 강도) */}
-                          {center && ranked.map((n, i) => {
+                          {center && graphOthers.map((n, i) => {
                             const p = pos[n.id]; const hp = pos[center.id];
                             if (!p || !hp) return null;
-                            const w = weightOf(n.id);
+                            const w = valOf(n);
                             return (
                               <line key={`l${i}`} x1={hp.x} y1={hp.y} x2={p.x} y2={p.y}
                                 stroke="rgba(124,58,237,0.45)" strokeWidth={1.5 + (w / maxW) * 9} strokeLinecap="round" />
                             );
                           })}
                           {/* 노드 */}
-                          {nodes.map((n, i) => {
+                          {graphNodes.map((n, i) => {
                             const p = pos[n.id]; if (!p) return null;
                             const r = nodeR(n);
                             const fill = n.isCenter ? '#7c3aed' : platColor(n.platform);
@@ -3262,7 +3267,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="px-5 py-2.5 border-t border-[#f0f0f8] bg-[#fcfcff]">
                       <p className="text-[10px] text-[#a0a0b8] leading-relaxed">
-                        * viewership.softc.one의 관계도 데이터를 그대로 표시합니다. 노드 크기·선 굵기는 공유 채팅 참여자 규모에 비례합니다.
+                        * viewership.softc.one의 관계도 데이터를 그대로 표시합니다. 노드 크기·선 굵기는 관계 강도에 비례하며, 그래프에는 상위 15개 채널만 표시됩니다.
                       </p>
                     </div>
                   </div>
@@ -3279,26 +3284,92 @@ const App: React.FC = () => {
                       <div className="px-5 py-10 text-center text-[13px] text-[#8888a8]">
                         이 기간에는 연결된 다른 채널이 없습니다.
                       </div>
-                    ) : (
-                      <div className="divide-y divide-[#f6f6fb]">
-                        {ranked.map((n, i) => {
-                          const w = weightOf(n.id) || n.value;
-                          const pct = Math.min(100, (w / (valOf(ranked[0]) || w || 1)) * 100);
-                          return (
-                            <div key={n.id} className="flex items-center gap-3 px-5 py-3.5">
-                              <span className="text-[13px] font-bold text-[#b0b0c8] tabular-nums w-6 shrink-0">{i + 1}</span>
-                              {n.image
-                                ? <img src={n.image} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 bg-[#f0f0f8]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                : <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0" style={{ background: platColor(n.platform) }}>{initialOf(n.label)}</span>}
-                              <span className="text-[13px] font-semibold text-[#1a1a2e] truncate flex-1 min-w-0">{n.label}</span>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${/chzzk/i.test(n.platform) ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>{/chzzk/i.test(n.platform) ? 'CHZZK' : 'SOOP'}</span>
-                              <div className="hidden sm:block w-28 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden shrink-0"><div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div>
-                              <span className="text-[13px] font-bold text-violet-600 tabular-nums w-16 text-right shrink-0">{w ? w.toLocaleString() : '-'}</span>
+                    ) : (() => {
+                      const maxStrength = Math.max(...ranked.map(n => n.strength ?? valOf(n)), 1);
+                      const maxLift     = Math.max(...ranked.map(n => n.lift ?? 0), 1);
+                      const fmt = (v: number | null | undefined, d = 1) =>
+                        (v === null || v === undefined) ? '-' : v.toFixed(d);
+                      return (
+                      <>
+                        {/* 데스크톱 테이블 */}
+                        <div className="hidden lg:block overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="text-[11px] text-[#8888a8] border-b border-[#f0f0f8]">
+                                <th className="px-5 py-3 text-left font-medium w-12">#</th>
+                                <th className="px-5 py-3 text-left font-medium">채널</th>
+                                <th className="px-5 py-3 text-right font-medium">이 채널 중</th>
+                                <th className="px-5 py-3 text-right font-medium">상대 채널 중</th>
+                                <th className="px-5 py-3 text-right font-medium">Lift</th>
+                                <th className="px-5 py-3 text-right font-medium">관계 강도</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ranked.map((n, i) => (
+                                <tr key={n.id} className="border-b border-[#f6f6fb] hover:bg-[#fafaff] transition-colors">
+                                  <td className="px-5 py-3 text-[13px] font-bold text-[#b0b0c8] tabular-nums">{i + 1}</td>
+                                  <td className="px-5 py-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      {n.image
+                                        ? <img src={n.image} alt="" className="w-7 h-7 rounded-md object-cover shrink-0 bg-[#f0f0f8]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                        : <span className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: platColor(n.platform) }}>{initialOf(n.label)}</span>}
+                                      <span className="text-[13px] font-semibold text-[#1a1a2e] truncate max-w-[180px]">{n.label}</span>
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${/chzzk/i.test(n.platform) ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>{/chzzk/i.test(n.platform) ? 'CHZZK' : 'SOOP'}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3 text-right">
+                                    <div className="inline-flex items-center gap-2 justify-end">
+                                      <div className="w-16 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, n.thisPct ?? 0)}%`, background: 'rgb(193,117,24)' }} /></div>
+                                      <span className="text-[13px] font-medium text-[#1a1a2e] tabular-nums w-12">{fmt(n.thisPct)}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3 text-right">
+                                    <div className="inline-flex items-center gap-2 justify-end">
+                                      <div className="w-16 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, n.otherPct ?? 0)}%`, background: 'rgb(193,117,24)' }} /></div>
+                                      <span className="text-[13px] font-medium text-[#1a1a2e] tabular-nums w-12">{fmt(n.otherPct)}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3 text-right">
+                                    <div className="inline-flex items-center gap-2 justify-end">
+                                      <div className="w-14 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, ((n.lift ?? 0) / maxLift) * 100)}%`, background: 'rgb(120,120,120)' }} /></div>
+                                      <span className="text-[13px] font-medium text-[#5a5a7a] tabular-nums w-12">{fmt(n.lift, 2)}x</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3 text-right">
+                                    <div className="inline-flex items-center gap-2 justify-end">
+                                      <div className="w-20 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, ((n.strength ?? valOf(n)) / maxStrength) * 100)}%`, background: 'rgb(24,83,193)' }} /></div>
+                                      <span className="text-[13px] font-bold text-violet-600 tabular-nums w-14">{fmt(n.strength ?? valOf(n), 2)}</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* 모바일 카드 */}
+                        <div className="lg:hidden divide-y divide-[#f6f6fb]">
+                          {ranked.map((n, i) => (
+                            <div key={n.id} className="px-4 py-3.5">
+                              <div className="flex items-center gap-2.5 mb-2.5">
+                                <span className="text-[12px] font-bold text-[#b0b0c8] tabular-nums w-5 text-left">{i + 1}</span>
+                                {n.image
+                                  ? <img src={n.image} alt="" className="w-7 h-7 rounded-md object-cover shrink-0 bg-[#f0f0f8]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                  : <span className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: platColor(n.platform) }}>{initialOf(n.label)}</span>}
+                                <span className="text-[13px] font-semibold text-[#1a1a2e] truncate flex-1 text-left">{n.label}</span>
+                                <span className="text-[13px] font-bold text-violet-600 tabular-nums">{fmt(n.strength ?? valOf(n), 1)}</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-center">
+                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">이 채널 중</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{fmt(n.thisPct)}%</p></div>
+                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">상대 채널 중</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{fmt(n.otherPct)}%</p></div>
+                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">Lift</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{fmt(n.lift, 2)}x</p></div>
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      </>
+                      );
+                    })()}
                   </div>
                 </>
               )}
