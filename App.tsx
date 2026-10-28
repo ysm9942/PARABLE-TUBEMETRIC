@@ -67,7 +67,7 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult, Creator } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult, fetchOverlapGraph, OverlapGraphResult } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured, saveCreator as fbSaveCreator, deleteCreatorById as fbDeleteCreator, subscribeCreators } from './services/firebaseService';
 
@@ -75,144 +75,13 @@ type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | '
 type ResultTab = 'table' | 'chart' | 'raw';
 
 // ══════════════════════════════════════════════════════════════════════════
-// 관계도 (SNA · 사회 연결망 분석)
-//   원리: "같은 사람이 채팅한 방송끼리 연결한다. 선이 굵을수록 관계가 강하다."
-//   채팅 참여자 ID를 직접 수집하지 않으므로, 동일 카테고리를 같은 기간(주차)에
-//   방송한 '공유 시청 맥락'을 시청자 규모(시청자×방송시간)로 가중하여
-//   채널 간 관계 강도를 추정한다. 노드=채널, 엣지=공유 맥락의 세기.
+// 관계도 (채팅 참여자 overlap)
+//   viewership.softc.one의 /overlap 데이터를 그대로 표시한다.
+//   "같은 사람이 채팅한 방송끼리 연결한다. 선이 굵을수록 관계가 강하다."
+//   노드/링크 데이터는 백엔드(services/backendApiService: fetchOverlapGraph)가 수집한다.
 // ══════════════════════════════════════════════════════════════════════════
 
 type RelPeriod = 'week' | 'month';
-
-interface RelNode {
-  id: string;
-  label: string;
-  platform: string;
-  thumbnail?: string;
-  weight: number;       // 총 시청 가중치 (시청자×분)
-  streamCount: number;
-}
-
-interface RelEdge {
-  a: string;
-  b: string;
-  overlap: number;      // 공유 맥락 가중치
-  strength: number;     // 관계 강도 (정렬·굵기 기준)
-  lift: number;
-}
-
-interface RelRankRow {
-  node: RelNode;
-  thisPct: number;      // 이 채널 중 (hub 관점)
-  otherPct: number;     // 상대 채널 중
-  lift: number;
-  strength: number;
-}
-
-// ISO 주차 키 — 같은 주에 방송했는지 판별
-const relIsoWeekKey = (dateStr: string): string => {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'na';
-  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const day = tmp.getUTCDay() || 7;
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
-  const week = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${tmp.getUTCFullYear()}-W${week}`;
-};
-
-interface RelGraph { nodes: RelNode[]; edges: RelEdge[]; }
-
-function computeRelationshipGraph(
-  results: { creatorId: string; platform: string; streams: { category?: string; date: string; avgViewers?: number; durationMin?: number }[] }[],
-  period: RelPeriod,
-  nameOf: (id: string) => string,
-  thumbOf: (id: string) => string | undefined,
-): RelGraph {
-  // 데이터 내 가장 최근 방송일을 기준으로 기간 윈도우를 잡는다.
-  let latestMs = 0;
-  for (const r of results) for (const s of r.streams || []) {
-    const t = new Date(s.date).getTime();
-    if (!isNaN(t)) latestMs = Math.max(latestMs, t);
-  }
-  if (!latestMs) latestMs = Date.now();
-  const span = period === 'week' ? 7 : 31;
-  const cutoff = latestMs - span * 86400000;
-
-  const nodes: RelNode[] = [];
-  const ctx: Record<string, Map<string, number>> = {};
-  for (const r of results) {
-    const streams = (r.streams || []).filter(s => {
-      const t = new Date(s.date).getTime();
-      return isNaN(t) ? false : t >= cutoff;
-    });
-    if (!streams.length) continue;
-    const m = new Map<string, number>();
-    let w = 0;
-    for (const s of streams) {
-      const cat = ((s.category || '').trim()) || '기타';
-      const token = `${cat}#${relIsoWeekKey(s.date)}`;
-      const vm = Math.max(1, s.avgViewers || 0) * Math.max(1, s.durationMin || 0);
-      m.set(token, (m.get(token) || 0) + vm);
-      w += vm;
-    }
-    ctx[r.creatorId] = m;
-    nodes.push({
-      id: r.creatorId,
-      label: nameOf(r.creatorId),
-      platform: r.platform,
-      thumbnail: thumbOf(r.creatorId),
-      weight: w,
-      streamCount: streams.length,
-    });
-  }
-
-  const grand = nodes.reduce((s, n) => s + n.weight, 0) || 1;
-  const edges: RelEdge[] = [];
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const A = nodes[i], B = nodes[j];
-      const mA = ctx[A.id], mB = ctx[B.id];
-      const [small, large] = mA.size <= mB.size ? [mA, mB] : [mB, mA];
-      let overlap = 0;
-      for (const [tok, wv] of small) {
-        const other = large.get(tok);
-        if (other) overlap += Math.min(wv, other);
-      }
-      if (overlap <= 0) continue;
-      const pctA = overlap / A.weight;
-      const pctB = overlap / B.weight;
-      const expected = (A.weight * B.weight) / grand;
-      const lift = expected > 0 ? overlap / expected : 0;
-      const liftC = Math.min(lift, 50);
-      const strength = ((pctA + pctB) / 2) * 100 * Math.sqrt(Math.max(liftC, 0.0001));
-      edges.push({ a: A.id, b: B.id, overlap, strength, lift });
-    }
-  }
-  return { nodes, edges };
-}
-
-// hub 채널 관점의 관계 랭킹 (관계 강도 내림차순)
-function relHubRanking(hubId: string, graph: RelGraph): RelRankRow[] {
-  const byId = new Map(graph.nodes.map(n => [n.id, n]));
-  const hub = byId.get(hubId);
-  if (!hub) return [];
-  const rows: RelRankRow[] = [];
-  for (const e of graph.edges) {
-    if (e.a !== hubId && e.b !== hubId) continue;
-    const otherId = e.a === hubId ? e.b : e.a;
-    const other = byId.get(otherId);
-    if (!other) continue;
-    rows.push({
-      node: other,
-      thisPct: hub.weight > 0 ? (e.overlap / hub.weight) * 100 : 0,
-      otherPct: other.weight > 0 ? (e.overlap / other.weight) * 100 : 0,
-      lift: e.lift,
-      strength: e.strength,
-    });
-  }
-  return rows.sort((a, b) => b.strength - a.strength);
-}
 
 const App: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean>(
@@ -442,13 +311,18 @@ const App: React.FC = () => {
   const [liveResults, setLiveResults] = useState<LiveCreatorResult[]>([]);
   const [selectedLiveCreator, setSelectedLiveCreator] = useState<LiveCreatorResult | null>(null);
 
-  // 관계도 (SNA) 상태
+  // 관계도 (채팅 참여자 overlap · softc.one) 상태
   const [relPeriod, setRelPeriod] = useState<RelPeriod>('week');
-  const [relHub, setRelHub] = useState<string | null>(null);
-  const [relSort, setRelSort] = useState<{ key: 'thisPct' | 'otherPct' | 'lift' | 'strength'; dir: 'asc' | 'desc' }>({ key: 'strength', dir: 'desc' });
   const [relView, setRelView] = useState<{ scale: number; tx: number; ty: number }>({ scale: 1, tx: 0, ty: 0 });
   const relDragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const [relDragging, setRelDragging] = useState(false);
+  // overlap 입력/결과 (단일 채널만 있어도 동작)
+  const [ovPlatform, setOvPlatform] = useState<'chzzk' | 'soop'>('soop');
+  const [ovInput, setOvInput] = useState<string>('');
+  const [ovPeriodStart, setOvPeriodStart] = useState<string>('');
+  const [ovStatus, setOvStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [ovError, setOvError] = useState<string>('');
+  const [ovResult, setOvResult] = useState<OverlapGraphResult | null>(null);
 
   // 스크래퍼 날짜 필터
   const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
@@ -970,6 +844,68 @@ const App: React.FC = () => {
       addSystemLog('error', 'error', `라이브 지표 수집 오류: ${msg}`, { location: '라이브 지표 분석', os: navigator.platform });
       setLiveErrorMsg(msg);
       setLiveJobStatus('error');
+    }
+  };
+
+  // ── 관계도 (overlap) 기본 periodStart — 이번 주 월요일 / 이번 달 1일 ──
+  const defaultPeriodStart = (p: RelPeriod): string => {
+    const now = new Date();
+    if (p === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const d = new Date(now);
+    const day = (d.getDay() + 6) % 7; // 월요일=0
+    d.setDate(d.getDate() - day);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  // ── 관계도 (채팅 참여자 overlap) 수집 — softc.one 데이터 그대로 ──
+  const handleOverlapRequest = async () => {
+    const rawInput = ovInput.trim();
+    if (!rawInput) {
+      alert('채널 ID 또는 softc.one URL을 입력하세요.');
+      return;
+    }
+    // 로컬 에이전트(8001) 우선, 없으면 클라우드 백엔드
+    const base = localAgentRunning ? LOCAL_AGENT_URL : undefined;
+    if (!base && !isBackendAvailable()) {
+      setOvError('관계도 수집은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.');
+      setOvStatus('error');
+      return;
+    }
+
+    // 입력에서 platform / creatorId 추출
+    let platform: string = ovPlatform;
+    let creatorId = rawInput;
+    const urlMatch = rawInput.match(/softc\.one\/channel\/([^/]+)\/([^/?#\s]+)/);
+    if (urlMatch) {
+      const rawPlat = urlMatch[1];
+      platform = rawPlat === 'naverchzzk' ? 'chzzk' : rawPlat === 'afreeca' ? 'soop' : rawPlat;
+      creatorId = urlMatch[2];
+    } else if (rawInput.includes(':')) {
+      const [p, c] = rawInput.split(':', 2);
+      platform = p.trim().toLowerCase();
+      creatorId = c.trim();
+    }
+
+    const periodStart = ovPeriodStart || defaultPeriodStart(relPeriod);
+    setOvStatus('loading');
+    setOvError('');
+    try {
+      const result = await fetchOverlapGraph(platform, creatorId, relPeriod, periodStart, base);
+      setOvResult(result);
+      setRelView({ scale: 1, tx: 0, ty: 0 });
+      if (result.status === 'error') {
+        setOvError(result.error || '관계도 수집에 실패했습니다.');
+        setOvStatus('error');
+        addSystemLog('error', 'error', `관계도 수집 실패: ${result.error}`, { location: '관계도', creatorId, os: navigator.platform });
+      } else {
+        setOvStatus('done');
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || String(e);
+      console.error('관계도 오류:', msg);
+      addSystemLog('error', 'error', `관계도 수집 오류: ${msg}`, { location: '관계도', os: navigator.platform });
+      setOvError(msg);
+      setOvStatus('error');
     }
   };
 
@@ -3077,54 +3013,50 @@ const App: React.FC = () => {
             </div>
 
           ) : activeTab === 'relationship-config' ? (
-            /* ── 관계도 (SNA · 사회 연결망 분석) 탭 ─────────────────────────── */
+            /* ── 채팅 참여자 관계도 (overlap · viewership.softc.one) 탭 ──────── */
             (() => {
-              // liveMetrics ID → 크리에이터 이름/썸네일 매핑
-              const matchCreator = (id: string) => creators.find(cr =>
-                (cr.liveMetricsIds ?? []).some(m => {
-                  const parsed = parseLiveUrl(m);
-                  return parsed === id || parsed.split(':').pop() === id || m.trim() === id;
-                }));
-              const nameOf = (id: string) => matchCreator(id)?.name || id;
-              const thumbOf = (id: string) => matchCreator(id)?.thumbnailUrl;
+              const result = ovResult;
+              const nodes = result?.nodes ?? [];
+              const links = result?.links ?? [];
+              const center = nodes.find(n => n.isCenter) ?? nodes[0] ?? null;
+              const others = center ? nodes.filter(n => n.id !== center.id) : nodes;
 
-              const graph = computeRelationshipGraph(liveResults as any, relPeriod, nameOf, thumbOf);
-              const hubId = (relHub && graph.nodes.some(n => n.id === relHub))
-                ? relHub
-                : [...graph.nodes].sort((a, b) => b.weight - a.weight)[0]?.id ?? null;
-              const ranking = hubId ? relHubRanking(hubId, graph) : [];
-              const sortedRanking = [...ranking].sort((a, b) => {
-                const dir = relSort.dir === 'asc' ? 1 : -1;
-                return ((a as any)[relSort.key] - (b as any)[relSort.key]) * dir;
-              });
+              // 중심 ↔ 상대 링크 가중치 (방향 무관)
+              const weightOf = (id: string): number => {
+                if (!center) return 0;
+                const l = links.find(e =>
+                  (e.source === center.id && e.target === id) ||
+                  (e.target === center.id && e.source === id));
+                return l ? l.weight : 0;
+              };
+              const valOf = (n: typeof nodes[number]) => (n.value > 0 ? n.value : weightOf(n.id));
+              const ranked = [...others].sort((a, b) => valOf(b) - valOf(a));
 
-              // ── 그래프 레이아웃 (hub 중심 방사형) ──
-              const W = 820, H = 540, cx = W / 2, cy = H / 2 - 8;
+              // ── 방사형 레이아웃 (중심 채널 기준) ──
+              const W = 820, H = 540, cx = W / 2, cy = H / 2 - 4;
               const pos: Record<string, { x: number; y: number }> = {};
-              const others = ranking.map(r => r.node);
-              if (hubId) pos[hubId] = { x: cx, y: cy };
-              const M = others.length;
-              others.forEach((n, k) => {
+              if (center) pos[center.id] = { x: cx, y: cy };
+              const M = ranked.length;
+              ranked.forEach((n, k) => {
                 const ang = -Math.PI / 2 + (k / Math.max(M, 1)) * Math.PI * 2;
-                const rr = M <= 1 ? 170 : 128 + (k / Math.max(M - 1, 1)) * 112;
+                const rr = M <= 1 ? 175 : 140 + (k / Math.max(M - 1, 1)) * 95;
                 pos[n.id] = { x: cx + Math.cos(ang) * rr, y: cy + Math.sin(ang) * rr };
               });
-              const maxEdge = Math.max(...graph.edges.map(e => e.strength), 1);
-              const maxW = Math.max(...graph.nodes.map(n => n.weight), 1);
-              const nodeR = (w: number) => 16 + 24 * Math.sqrt(w / maxW);
+
+              const maxW = Math.max(...links.map(l => l.weight), 1);
+              const maxVal = Math.max(...nodes.map(n => valOf(n)), 1);
+              const nodeR = (n: typeof nodes[number]) => {
+                const base = n.isCenter ? 32 : 17;
+                return base + 20 * Math.sqrt(Math.max(valOf(n), 0) / maxVal);
+              };
               const platColor = (p: string) => /chzzk/i.test(p) ? '#3b82f6' : '#a855f7';
+              const initialOf = (s: string) => (s || '?').trim().charAt(0).toUpperCase();
 
               const setZoom = (f: number) => setRelView(v => ({ ...v, scale: Math.min(3, Math.max(0.4, v.scale * f)) }));
               const resetView = () => setRelView({ scale: 1, tx: 0, ty: 0 });
 
-              const sortBtn = (key: typeof relSort.key, label: string) => (
-                <button
-                  onClick={() => setRelSort(s => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }))}
-                  className={`inline-flex items-center gap-1 transition-colors ${relSort.key === key ? 'text-violet-600' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}
-                >
-                  {label}<ArrowUpDown size={10} className={relSort.key === key ? 'opacity-100' : 'opacity-40'} />
-                </button>
-              );
+              const periodStartShown = ovPeriodStart || defaultPeriodStart(relPeriod);
+              const canRun = ovStatus !== 'loading' && (localAgentRunning || isBackendAvailable());
 
               return (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -3135,37 +3067,112 @@ const App: React.FC = () => {
                     <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">관계도</h2>
                     <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> NEW</span>
                   </div>
-                  <p className="text-[13px] text-[#5a5a7a] mt-1">사회 연결망 분석(SNA) · 라이브 지표 데이터 기반 채널 관계 추정</p>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">같은 사람이 채팅한 방송끼리 연결한 관계도 · viewership.softc.one</p>
                 </div>
                 {/* 주간/월간 토글 */}
                 <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-xl">
                   {([['week', '주간'], ['month', '월간']] as [RelPeriod, string][]).map(([p, lbl]) => (
                     <button
                       key={p}
-                      onClick={() => setRelPeriod(p)}
+                      onClick={() => { setRelPeriod(p); setOvPeriodStart(''); }}
                       className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${relPeriod === p ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}
                     >{lbl}</button>
                   ))}
                 </div>
               </div>
 
-              {graph.nodes.length < 2 ? (
-                /* 데이터 부족 안내 */
+              {/* 입력 카드 — 채널 1개만 넣어도 동작 */}
+              <div className="bg-white rounded-2xl border border-[#ececf6] p-5">
+                <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+                  {/* 플랫폼 */}
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">플랫폼</label>
+                    <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-xl">
+                      {([['soop', 'SOOP'], ['chzzk', 'CHZZK']] as ['soop' | 'chzzk', string][]).map(([p, lbl]) => (
+                        <button
+                          key={p}
+                          onClick={() => setOvPlatform(p)}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${ovPlatform === p ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}
+                        >{lbl}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 채널 ID / URL */}
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">채널 ID 또는 softc.one URL</label>
+                    <input
+                      type="text"
+                      value={ovInput}
+                      onChange={e => setOvInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && canRun) handleOverlapRequest(); }}
+                      placeholder="예: sirianrain  ·  soop:sirianrain  ·  https://viewership.softc.one/channel/afreeca/sirianrain/overlap"
+                      className="w-full text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all"
+                    />
+                  </div>
+                  {/* periodStart */}
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">{relPeriod === 'week' ? '주 시작일(월)' : '월 시작일(1일)'}</label>
+                    <input
+                      type="date"
+                      value={periodStartShown}
+                      onChange={e => setOvPeriodStart(e.target.value)}
+                      className="text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all"
+                    />
+                  </div>
+                  {/* 수집 버튼 */}
+                  <button
+                    onClick={handleOverlapRequest}
+                    disabled={!canRun}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:bg-[#c8c8d8] disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-xl transition-all active:scale-95"
+                  >
+                    {ovStatus === 'loading'
+                      ? <><Loader2 size={15} className="animate-spin" /> 수집 중…</>
+                      : <><Network size={15} /> 관계도 수집</>}
+                  </button>
+                </div>
+                {!localAgentRunning && !isBackendAvailable() && (
+                  <p className="mt-3 text-[11px] text-amber-600 flex items-center gap-1.5"><AlertCircle size={12} /> 관계도 수집은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.</p>
+                )}
+              </div>
+
+              {/* 에러 */}
+              {ovStatus === 'error' && ovError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-red-700">관계도를 가져오지 못했습니다</p>
+                    <p className="text-[12px] text-red-500 mt-0.5 break-words">{ovError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 본문 */}
+              {ovStatus === 'loading' ? (
+                <div className="bg-white rounded-2xl border border-[#ececf6] p-16 text-center">
+                  <Loader2 size={28} className="mx-auto text-violet-500 animate-spin" />
+                  <p className="text-[13px] text-[#8888a8] mt-4">viewership.softc.one에서 관계도를 수집하는 중입니다…</p>
+                  <p className="text-[11px] text-[#b0b0c8] mt-1">SPA 렌더링 특성상 최대 1분가량 소요될 수 있습니다.</p>
+                </div>
+              ) : !result ? (
                 <div className="bg-white rounded-2xl border border-[#ececf6] p-12 text-center">
                   <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-violet-50 flex items-center justify-center">
                     <Network size={26} className="text-violet-400" />
                   </div>
-                  <h3 className="text-[15px] font-bold text-[#0f0f23]">관계도를 그리려면 2개 이상의 채널 데이터가 필요합니다</h3>
+                  <h3 className="text-[15px] font-bold text-[#0f0f23]">채널 하나만 입력하면 관계도가 그려집니다</h3>
                   <p className="text-[13px] text-[#8888a8] mt-2 leading-relaxed">
-                    <span className="text-violet-600 font-medium">라이브 지표 분석</span>에서 2명 이상의 크리에이터를 함께 수집하면<br />
-                    같은 맥락에서 방송한 채널끼리 연결한 관계도가 여기에 나타납니다.
+                    위에서 채널 ID(또는 softc.one URL)와 기간을 선택하고 <span className="text-violet-600 font-medium">관계도 수집</span>을 누르세요.<br />
+                    같은 사람이 채팅한 방송끼리 연결한 관계도가 여기에 나타납니다.
                   </p>
-                  <button
-                    onClick={() => setActiveTab('live-config')}
-                    className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-all"
-                  >
-                    <Tv2 size={14} /> 라이브 지표 분석으로 이동
-                  </button>
+                </div>
+              ) : nodes.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-[#ececf6] p-12 text-center">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-violet-50 flex items-center justify-center">
+                    <Network size={26} className="text-violet-400" />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-[#0f0f23]">이 기간에는 관계도 데이터가 없습니다</h3>
+                  <p className="text-[13px] text-[#8888a8] mt-2 leading-relaxed">
+                    다른 주/월을 선택하거나 채널 ID를 확인해 보세요.
+                  </p>
                 </div>
               ) : (
                 <>
@@ -3209,39 +3216,36 @@ const App: React.FC = () => {
                           <pattern id="relGrid" width="32" height="32" patternUnits="userSpaceOnUse">
                             <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#edecfa" strokeWidth="1" />
                           </pattern>
+                          {nodes.map((n, i) => (
+                            <clipPath key={i} id={`ovclip-${i}`}><circle cx="0" cy="0" r={nodeR(n)} /></clipPath>
+                          ))}
                         </defs>
                         <rect x="0" y="0" width={W} height={H} fill="url(#relGrid)" />
                         <g transform={`translate(${relView.tx} ${relView.ty}) scale(${relView.scale})`}>
-                          {/* 비-hub 간 약한 연결 */}
-                          {graph.edges.filter(e => e.a !== hubId && e.b !== hubId && e.strength >= 0.35 * maxEdge && pos[e.a] && pos[e.b]).map((e, i) => (
-                            <line key={`w${i}`} x1={pos[e.a].x} y1={pos[e.a].y} x2={pos[e.b].x} y2={pos[e.b].y}
-                              stroke="rgba(148,163,184,0.35)" strokeWidth={Math.max(1, (e.strength / maxEdge) * 3)} strokeLinecap="round" />
-                          ))}
-                          {/* hub 연결 (강조) */}
-                          {ranking.map((r, i) => {
-                            const p = pos[r.node.id]; const hp = pos[hubId!];
+                          {/* 중심 → 상대 연결선 (굵기 = 관계 강도) */}
+                          {center && ranked.map((n, i) => {
+                            const p = pos[n.id]; const hp = pos[center.id];
                             if (!p || !hp) return null;
+                            const w = weightOf(n.id);
                             return (
-                              <line key={`h${i}`} x1={hp.x} y1={hp.y} x2={p.x} y2={p.y}
-                                stroke="rgba(124,58,237,0.5)" strokeWidth={1.5 + (r.strength / maxEdge) * 7.5} strokeLinecap="round" />
+                              <line key={`l${i}`} x1={hp.x} y1={hp.y} x2={p.x} y2={p.y}
+                                stroke="rgba(124,58,237,0.45)" strokeWidth={1.5 + (w / maxW) * 9} strokeLinecap="round" />
                             );
                           })}
                           {/* 노드 */}
-                          {graph.nodes.map(n => {
+                          {nodes.map((n, i) => {
                             const p = pos[n.id]; if (!p) return null;
-                            const isHub = n.id === hubId;
-                            const r = nodeR(n.weight) + (isHub ? 5 : 0);
-                            const fill = isHub ? '#7c3aed' : platColor(n.platform);
-                            const initial = (n.label || '?').trim().charAt(0).toUpperCase();
+                            const r = nodeR(n);
+                            const fill = n.isCenter ? '#7c3aed' : platColor(n.platform);
                             return (
-                              <g key={n.id} transform={`translate(${p.x} ${p.y})`}
-                                className="cursor-pointer"
-                                onClick={ev => { ev.stopPropagation(); setRelHub(n.id); }}
-                                style={{ transition: 'opacity .2s' }}>
-                                {isHub && <circle r={r + 6} fill="none" stroke="rgba(124,58,237,0.25)" strokeWidth="2" />}
-                                <circle r={r} fill={fill} fillOpacity={isHub ? 1 : 0.9} stroke="#ffffff" strokeWidth="2.5" />
-                                <text textAnchor="middle" dy=".35em" fontSize={Math.max(11, r * 0.8)} fontWeight="700" fill="#ffffff">{initial}</text>
-                                <text textAnchor="middle" y={r + 14} fontSize="12" fontWeight={isHub ? 700 : 500}
+                              <g key={n.id} transform={`translate(${p.x} ${p.y})`} style={{ transition: 'opacity .2s' }}>
+                                {n.isCenter && <circle r={r + 6} fill="none" stroke="rgba(124,58,237,0.25)" strokeWidth="2.5" />}
+                                <circle r={r} fill={fill} fillOpacity={n.isCenter ? 1 : 0.92} stroke="#ffffff" strokeWidth="2.5" />
+                                {n.image
+                                  ? <image href={n.image} x={-r} y={-r} width={r * 2} height={r * 2}
+                                      clipPath={`url(#ovclip-${i})`} preserveAspectRatio="xMidYMid slice" />
+                                  : <text textAnchor="middle" dy=".35em" fontSize={Math.max(11, r * 0.8)} fontWeight="700" fill="#ffffff">{initialOf(n.label)}</text>}
+                                <text textAnchor="middle" y={r + 14} fontSize="12" fontWeight={n.isCenter ? 700 : 500}
                                   fill="#1a1a2e" stroke="#fafaff" strokeWidth="3" paintOrder="stroke"
                                   style={{ pointerEvents: 'none' }}>{n.label}</text>
                               </g>
@@ -3258,7 +3262,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="px-5 py-2.5 border-t border-[#f0f0f8] bg-[#fcfcff]">
                       <p className="text-[10px] text-[#a0a0b8] leading-relaxed">
-                        * 채팅 참여자 ID를 직접 수집하지 않아, 동일 카테고리를 같은 기간에 방송한 <strong className="text-[#8888a8]">공유 시청 맥락</strong>을 시청자 규모로 가중해 관계 강도를 추정합니다. 노드를 클릭하면 해당 채널 중심으로 다시 그립니다.
+                        * viewership.softc.one의 관계도 데이터를 그대로 표시합니다. 노드 크기·선 굵기는 공유 채팅 참여자 규모에 비례합니다.
                       </p>
                     </div>
                   </div>
@@ -3268,98 +3272,32 @@ const App: React.FC = () => {
                     <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f8] flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <h3 className="text-[14px] font-bold text-[#0f0f23]">관계 강도 랭킹</h3>
-                        <span className="text-[11px] text-[#8888a8]">중심 채널 <strong className="text-violet-600">{hubId ? nameOf(hubId) : '-'}</strong> 기준 · {sortedRanking.length}개 채널</span>
+                        <span className="text-[11px] text-[#8888a8]">중심 채널 <strong className="text-violet-600">{center?.label ?? '-'}</strong> 기준 · {ranked.length}개 채널</span>
                       </div>
-                      {/* 중심 채널 선택 */}
-                      <select
-                        value={hubId ?? ''}
-                        onChange={e => setRelHub(e.target.value)}
-                        className="text-xs text-[#4a4a6a] bg-[#f5f5fc] border border-[#ececf6] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                      >
-                        {[...graph.nodes].sort((a, b) => b.weight - a.weight).map(n => (
-                          <option key={n.id} value={n.id}>{n.label}</option>
-                        ))}
-                      </select>
                     </div>
-
-                    {sortedRanking.length === 0 ? (
+                    {ranked.length === 0 ? (
                       <div className="px-5 py-10 text-center text-[13px] text-[#8888a8]">
-                        이 기간에는 중심 채널과 공유 맥락을 가진 채널이 없습니다. 기간을 넓히거나 다른 채널을 선택해 보세요.
+                        이 기간에는 연결된 다른 채널이 없습니다.
                       </div>
                     ) : (
-                      <>
-                        {/* 데스크톱 테이블 */}
-                        <div className="hidden lg:block overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="text-[11px] text-[#8888a8] border-b border-[#f0f0f8]">
-                                <th className="px-5 py-3 text-left font-medium w-12">#</th>
-                                <th className="px-5 py-3 text-left font-medium">채널</th>
-                                <th className="px-5 py-3 text-right font-medium">{sortBtn('thisPct', '이 채널 중')}</th>
-                                <th className="px-5 py-3 text-right font-medium">{sortBtn('otherPct', '상대 채널 중')}</th>
-                                <th className="px-5 py-3 text-right font-medium">{sortBtn('lift', 'Lift')}</th>
-                                <th className="px-5 py-3 text-right font-medium">{sortBtn('strength', '관계 강도')}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sortedRanking.map((row, i) => (
-                                <tr key={row.node.id} className="border-b border-[#f6f6fb] hover:bg-[#fafaff] transition-colors">
-                                  <td className="px-5 py-3.5 text-[13px] font-bold text-[#b0b0c8] tabular-nums">{i + 1}</td>
-                                  <td className="px-5 py-3.5">
-                                    <button onClick={() => setRelHub(row.node.id)} className="flex items-center gap-2.5 group">
-                                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: platColor(row.node.platform) }}>
-                                        {(row.node.label || '?').trim().charAt(0).toUpperCase()}
-                                      </span>
-                                      <span className="text-[13px] font-semibold text-[#1a1a2e] group-hover:text-violet-600 transition-colors truncate max-w-[180px]">{row.node.label}</span>
-                                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${/chzzk/i.test(row.node.platform) ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>{/chzzk/i.test(row.node.platform) ? 'CHZZK' : 'SOOP'}</span>
-                                    </button>
-                                  </td>
-                                  <td className="px-5 py-3.5 text-right">
-                                    <div className="inline-flex items-center gap-2 justify-end">
-                                      <div className="w-16 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, row.thisPct)}%`, background: 'rgb(193,117,24)' }} /></div>
-                                      <span className="text-[13px] font-medium text-[#1a1a2e] tabular-nums w-12">{row.thisPct.toFixed(1)}%</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-3.5 text-right">
-                                    <div className="inline-flex items-center gap-2 justify-end">
-                                      <div className="w-16 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, row.otherPct)}%`, background: 'rgb(120,120,120)' }} /></div>
-                                      <span className="text-[13px] font-medium text-[#1a1a2e] tabular-nums w-12">{row.otherPct.toFixed(1)}%</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-3.5 text-right text-[13px] font-medium text-[#5a5a7a] tabular-nums">{row.lift.toFixed(2)}x</td>
-                                  <td className="px-5 py-3.5 text-right">
-                                    <div className="inline-flex items-center gap-2 justify-end">
-                                      <div className="w-20 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(100, (row.strength / (sortedRanking[0]?.strength || row.strength || 1)) * 100)}%`, background: 'rgb(24,83,193)' }} /></div>
-                                      <span className="text-[13px] font-bold text-violet-600 tabular-nums w-14">{row.strength.toFixed(2)}</span>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* 모바일 카드 */}
-                        <div className="lg:hidden divide-y divide-[#f6f6fb]">
-                          {sortedRanking.map((row, i) => (
-                            <div key={row.node.id} className="px-4 py-3.5">
-                              <button onClick={() => setRelHub(row.node.id)} className="flex items-center gap-2.5 w-full mb-2.5">
-                                <span className="text-[12px] font-bold text-[#b0b0c8] tabular-nums w-5 text-left">{i + 1}</span>
-                                <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: platColor(row.node.platform) }}>
-                                  {(row.node.label || '?').trim().charAt(0).toUpperCase()}
-                                </span>
-                                <span className="text-[13px] font-semibold text-[#1a1a2e] truncate flex-1 text-left">{row.node.label}</span>
-                                <span className="text-[13px] font-bold text-violet-600 tabular-nums">{row.strength.toFixed(1)}</span>
-                              </button>
-                              <div className="grid grid-cols-3 gap-2 text-center">
-                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">이 채널 중</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{row.thisPct.toFixed(1)}%</p></div>
-                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">상대 채널 중</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{row.otherPct.toFixed(1)}%</p></div>
-                                <div className="bg-[#fafaff] rounded-lg py-1.5"><p className="text-[9px] text-[#a0a0b8]">Lift</p><p className="text-[12px] font-semibold text-[#1a1a2e] tabular-nums">{row.lift.toFixed(2)}x</p></div>
-                              </div>
+                      <div className="divide-y divide-[#f6f6fb]">
+                        {ranked.map((n, i) => {
+                          const w = weightOf(n.id) || n.value;
+                          const pct = Math.min(100, (w / (valOf(ranked[0]) || w || 1)) * 100);
+                          return (
+                            <div key={n.id} className="flex items-center gap-3 px-5 py-3.5">
+                              <span className="text-[13px] font-bold text-[#b0b0c8] tabular-nums w-6 shrink-0">{i + 1}</span>
+                              {n.image
+                                ? <img src={n.image} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 bg-[#f0f0f8]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                : <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0" style={{ background: platColor(n.platform) }}>{initialOf(n.label)}</span>}
+                              <span className="text-[13px] font-semibold text-[#1a1a2e] truncate flex-1 min-w-0">{n.label}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${/chzzk/i.test(n.platform) ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>{/chzzk/i.test(n.platform) ? 'CHZZK' : 'SOOP'}</span>
+                              <div className="hidden sm:block w-28 h-1.5 bg-[#f0f0f8] rounded-full overflow-hidden shrink-0"><div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div>
+                              <span className="text-[13px] font-bold text-violet-600 tabular-nums w-16 text-right shrink-0">{w ? w.toLocaleString() : '-'}</span>
                             </div>
-                          ))}
-                        </div>
-                      </>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </>

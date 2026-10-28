@@ -224,6 +224,57 @@ export const fetchLiveStreams = async (
   return res.data;
 };
 
+// ── 채팅 참여자 관계도 (overlap · softc.one 기반) ──────────────────────────
+// softc.one의 /channel/{platform}/{creatorId}/overlap 페이지 데이터를 그대로 수집.
+// 단일 채널만 있어도 동작한다 (중심 채널 + 관련 채널 star 그래프).
+
+export interface OverlapNode {
+  id: string;
+  label: string;
+  platform: string;
+  image: string;
+  value: number;        // 관계 크기 → 노드 반지름
+  isCenter: boolean;
+}
+
+export interface OverlapLink {
+  source: string;
+  target: string;
+  weight: number;       // 관계 강도 → 선 굵기
+}
+
+export interface OverlapGraphResult {
+  platform: string;
+  creatorId: string;
+  period: 'week' | 'month';
+  periodStart: string;
+  url?: string;
+  nodes: OverlapNode[];
+  links: OverlapLink[];
+  status: 'completed' | 'empty' | 'error';
+  error?: string;
+  raw?: Array<{ url: string; data: any }>;
+  scrapedAt?: string;
+}
+
+export const fetchOverlapGraph = async (
+  platform: string,
+  creatorId: string,
+  period: 'week' | 'month' = 'week',
+  periodStart: string = '',
+  overrideBaseUrl?: string,   // 로컬 에이전트(port 8001) 사용 시 주입
+): Promise<OverlapGraphResult> => {
+  const base = (overrideBaseUrl || BACKEND_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${base}/api/live/overlap`, {
+    platform,
+    creatorId,
+    period,
+    periodStart,
+  }, { timeout: 300000 });  // Playwright 렌더링 대기 (최대 5분)
+  return res.data;
+};
+
 // ── softc 스크래퍼 ────────────────────────────────────────────────────────
 // localBaseUrl 지정 시: 로컬 에이전트 (port 8002) → /api/crawl/*
 // 미지정 시:           클라우드 Render → /api/softc/crawl/*

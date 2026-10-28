@@ -42,6 +42,14 @@ class StreamRecord(BaseModel):
     durationMin: int
 
 
+class OverlapRequest(BaseModel):
+    """채팅 참여자 관계도(overlap) 요청 — 단일 채널."""
+    platform: str                 # "chzzk" | "soop"
+    creatorId: str                # 채널 ID (또는 softc.one URL 통째)
+    period: str = "week"          # "week" | "month"
+    periodStart: str = ""         # YYYY-MM-DD (비면 백엔드가 기본값 계산)
+
+
 def _build_url(platform: str, creator_id: str, start_date: str, end_date: str) -> str:
     plat_path = PLATFORM_MAP.get(platform, platform)
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -313,8 +321,18 @@ def _find_chrome_executable() -> str | None:
     return None
 
 
-async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
+async def _fetch_with_playwright(
+    url: str,
+    wait_selector: str = "a[href*='/streams/']",
+    capture_all_json: bool = False,
+) -> tuple[str, list[dict]]:
     """Playwright + PC 설치 Chrome으로 SPA 렌더링 후 HTML 반환.
+
+    Args:
+        url: 렌더링할 softc.one URL
+        wait_selector: 렌더 완료 판별용 CSS 셀렉터 (streams 페이지 기본값)
+        capture_all_json: True면 스트림 키워드와 무관하게 200 JSON 응답을 폭넓게 수집
+            (overlap/관계도 등 다른 페이지용)
 
     Returns:
         (html, api_responses): HTML 문자열과 가로챈 API JSON 응답 목록
@@ -373,7 +391,11 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
                     body = await response.text()
                     # 스트림/뷰어 관련 키워드 또는 _next/data 응답
                     stream_keywords = ['"streams"', '"peakViewers"', '"maxViewer"', '"averageViewer"', '"avgViewers"', '"peakCcv"', '"avgCcv"']
-                    if is_next_data or any(kw in body for kw in stream_keywords):
+                    matched = is_next_data or any(kw in body for kw in stream_keywords)
+                    # capture_all_json: overlap(관계도) 등 다른 페이지의 JSON도 폭넓게 수집
+                    if not matched and capture_all_json and 0 < len(body) <= 2_000_000:
+                        matched = True
+                    if matched:
                         data = json.loads(body)
                         # Next.js _next/data 응답은 {pageProps: {...}} 구조
                         if isinstance(data, dict) and "pageProps" in data:
@@ -473,8 +495,8 @@ async def _fetch_with_playwright(url: str) -> tuple[str, list[dict]]:
 
         # 방송 기록 요소가 렌더링될 때까지 대기
         try:
-            await page.wait_for_selector("a[href*='/streams/']", timeout=15000)
-            logger.info("[Playwright] 방송 기록 요소 발견")
+            await page.wait_for_selector(wait_selector, timeout=15000)
+            logger.info("[Playwright] 대기 요소 발견: %s", wait_selector)
         except Exception:
             page_title = await page.title()
             snippet = (await page.content())[:2000]
@@ -761,6 +783,321 @@ async def fetch_live_streams(req: LiveRequest):
     results = await asyncio.gather(*tasks)
 
     return [r for r in results if r is not None]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 채팅 참여자 관계도 (overlap) — softc.one의 overlap 페이지를 그대로 수집
+#   같은 사람이 채팅한 방송끼리 연결한 네트워크 그래프 데이터.
+#   softc.one이 제공하는 데이터를 그대로 전달한다 (새 지표 계산 없음).
+# ══════════════════════════════════════════════════════════════════════════════
+
+# 다양한 응답 스키마를 흡수하기 위한 후보 키 목록
+_OV_ID_KEYS = ("id", "channelId", "channelHash", "hash", "creatorId", "userId",
+               "bjId", "bj_id", "userid", "channel", "key", "channelKey")
+_OV_NAME_KEYS = ("name", "channelName", "nickname", "displayName", "title",
+                 "userNick", "label", "creatorName", "bjNick", "nick")
+_OV_IMG_KEYS = ("image", "imageUrl", "logo", "logoUrl", "profileImage",
+                "profileImageUrl", "thumbnail", "thumbnailUrl", "channelImageUrl",
+                "profileImg", "img", "avatar")
+_OV_WEIGHT_KEYS = ("weight", "value", "overlap", "overlapCount", "count",
+                   "sharedViewers", "sharedCount", "strength", "sharedChatters",
+                   "chatterCount", "score", "common", "commonCount", "intersection")
+_OV_SRC_KEYS = ("source", "from", "src", "a", "start", "sourceId")
+_OV_DST_KEYS = ("target", "to", "dst", "b", "end", "targetId")
+
+
+def _soop_logo(cid: str) -> str:
+    cid = (cid or "").strip()
+    if not cid:
+        return ""
+    low = cid.lower()
+    return f"https://stimg.sooplive.com/LOGO/{low[:2]}/{low}/{low}.jpg"
+
+
+def _ov_first(d: dict, keys):
+    """dict에서 후보 키(대소문자 무시) 중 처음 발견되는 값을 반환."""
+    for k in keys:
+        if k in d and d[k] not in (None, ""):
+            return d[k]
+    low = {str(k).lower(): v for k, v in d.items()}
+    for k in keys:
+        v = low.get(k.lower())
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _ov_to_num(v) -> float:
+    try:
+        if isinstance(v, str):
+            v = re.sub(r"[^\d.\-]", "", v) or 0
+        return float(v)
+    except Exception:
+        return 0.0
+
+
+def _ov_mk_node(item: dict, platform: str, is_center: bool = False) -> dict | None:
+    if not isinstance(item, dict):
+        return None
+    nid = _ov_first(item, _OV_ID_KEYS)
+    name = _ov_first(item, _OV_NAME_KEYS)
+    img = _ov_first(item, _OV_IMG_KEYS)
+    val = _ov_to_num(_ov_first(item, _OV_WEIGHT_KEYS))
+    if nid is None and name is None:
+        return None
+    nid = str(nid) if nid is not None else str(name)
+    if not img and platform == "soop":
+        img = _soop_logo(nid)
+    return {
+        "id": nid,
+        "label": str(name) if name else nid,
+        "platform": platform,
+        "image": str(img) if img else "",
+        "value": val,
+        "isCenter": is_center,
+    }
+
+
+def _ov_walk_lists(obj, depth: int = 0):
+    """JSON 트리를 순회하며 '딕셔너리들의 리스트'를 모두 yield."""
+    if depth > 7:
+        return
+    if isinstance(obj, list):
+        if obj and all(isinstance(x, dict) for x in obj):
+            yield obj
+        for x in obj:
+            yield from _ov_walk_lists(x, depth + 1)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _ov_walk_lists(v, depth + 1)
+
+
+def _ov_looks_like_links(lst: list) -> bool:
+    if not lst:
+        return False
+    hit = 0
+    for x in lst[:10]:
+        if _ov_first(x, _OV_SRC_KEYS) is not None and _ov_first(x, _OV_DST_KEYS) is not None:
+            hit += 1
+    return hit >= max(1, len(lst[:10]) // 2)
+
+
+def _ov_score_channel_list(lst: list) -> tuple:
+    """채널 후보 리스트 점수 — (가중치보유, 이름/ID보유비율, 길이)."""
+    if not lst:
+        return (0, 0, 0)
+    sample = lst[:20]
+    has_weight = sum(1 for x in sample if _ov_first(x, _OV_WEIGHT_KEYS) is not None)
+    has_idname = sum(1 for x in sample if _ov_first(x, _OV_ID_KEYS) is not None or _ov_first(x, _OV_NAME_KEYS) is not None)
+    if not has_idname:
+        return (0, 0, 0)
+    return (1 if has_weight else 0, has_idname, len(lst))
+
+
+def _extract_overlap_graph(api_responses: list[dict], creator_id: str, platform: str) -> dict:
+    """softc.one overlap 응답에서 노드/링크를 최대한 유연하게 추출한다.
+
+    두 가지 스키마를 모두 처리:
+      A) {nodes: [...], links|edges: [...]}  (명시적 그래프)
+      B) [{채널, 가중치}, ...]               (중심 채널 기준 star 그래프로 구성)
+    추출 실패에 대비해 raw(가로챈 JSON)도 함께 반환한다.
+    """
+    best_nodes_list = None
+    best_links_list = None
+    best_channel_list = None
+    best_channel_score = (0, 0, 0)
+
+    for resp in api_responses:
+        data = resp.get("data")
+        if data is None:
+            continue
+
+        # 명시적 nodes/links 쌍 탐색
+        for container in list(_ov_walk_lists(data)):
+            if _ov_looks_like_links(container):
+                if best_links_list is None or len(container) > len(best_links_list):
+                    best_links_list = container
+            else:
+                score = _ov_score_channel_list(container)
+                if score > best_channel_score:
+                    best_channel_score = score
+                    best_channel_list = container
+
+        # dict 안에 nodes 키가 직접 있는 경우 우선
+        def _find_nodes(o, d=0):
+            if d > 7:
+                return None
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if str(k).lower() in ("nodes", "node", "vertices") and isinstance(v, list) and v and isinstance(v[0], dict):
+                        return v
+                for v in o.values():
+                    r = _find_nodes(v, d + 1)
+                    if r:
+                        return r
+            elif isinstance(o, list):
+                for x in o:
+                    r = _find_nodes(x, d + 1)
+                    if r:
+                        return r
+            return None
+
+        nl = _find_nodes(data)
+        if nl and (best_nodes_list is None or len(nl) > len(best_nodes_list)):
+            best_nodes_list = nl
+
+    nodes: list[dict] = []
+    links: list[dict] = []
+    seen: set = set()
+
+    def _add_node(n):
+        if n and n["id"] not in seen:
+            seen.add(n["id"])
+            nodes.append(n)
+
+    # ── 스키마 A: 명시적 nodes + links ──
+    if best_nodes_list and best_links_list:
+        for item in best_nodes_list:
+            _add_node(_ov_mk_node(item, platform))
+        for e in best_links_list:
+            s = _ov_first(e, _OV_SRC_KEYS)
+            t = _ov_first(e, _OV_DST_KEYS)
+            w = _ov_to_num(_ov_first(e, _OV_WEIGHT_KEYS))
+            if s is None or t is None:
+                continue
+            links.append({"source": str(s), "target": str(t), "weight": w})
+        # 중심 채널 표시
+        for n in nodes:
+            if n["id"] == str(creator_id):
+                n["isCenter"] = True
+        if not any(n["isCenter"] for n in nodes) and nodes:
+            nodes[0]["isCenter"] = True
+
+    # ── 스키마 B: 관련 채널 리스트 → star 그래프 ──
+    elif best_channel_list:
+        # 중심 채널 노드 (리스트 안에서 이름/이미지 찾기 시도)
+        center_name = str(creator_id)
+        center_img = _soop_logo(creator_id) if platform == "soop" else ""
+        center = {
+            "id": str(creator_id),
+            "label": center_name,
+            "platform": platform,
+            "image": center_img,
+            "value": 0.0,
+            "isCenter": True,
+        }
+        _add_node(center)
+        for item in best_channel_list:
+            n = _ov_mk_node(item, platform)
+            if not n or n["id"] == center["id"]:
+                continue
+            _add_node(n)
+            links.append({"source": center["id"], "target": n["id"], "weight": n["value"]})
+
+    return {"nodes": nodes, "links": links}
+
+
+def _build_overlap_url(platform: str, creator_id: str, period: str, period_start: str) -> str:
+    plat_path = PLATFORM_MAP.get(platform, platform)
+    base = "https://viewership.softc.one"
+    return (
+        f"{base}/channel/{plat_path}/{creator_id}/overlap"
+        f"?period={quote(period)}&periodStart={quote(period_start)}"
+    )
+
+
+def _default_period_start(period: str) -> str:
+    """periodStart 미지정 시 기본값 — 이번 주 월요일 / 이번 달 1일."""
+    today = datetime.utcnow() + timedelta(hours=9)  # KST
+    if period == "month":
+        return today.replace(day=1).strftime("%Y-%m-%d")
+    monday = today - timedelta(days=today.weekday())
+    return monday.strftime("%Y-%m-%d")
+
+
+@router.post("/overlap")
+async def fetch_overlap(req: OverlapRequest):
+    """단일 채널의 '채팅 참여자 관계도' 데이터를 softc.one에서 그대로 수집한다."""
+    platform = (req.platform or "chzzk").strip().lower()
+    creator_id = (req.creatorId or "").strip()
+
+    # softc.one URL 통째로 입력된 경우 platform/creatorId 추출
+    if "viewership.softc.one" in creator_id or creator_id.startswith("http"):
+        m = re.search(r"/channel/([^/]+)/([^/?#\s]+)", creator_id)
+        if m:
+            raw_plat, creator_id = m.group(1), m.group(2)
+            platform = {"naverchzzk": "chzzk", "afreeca": "soop"}.get(raw_plat, raw_plat)
+
+    if not creator_id:
+        raise HTTPException(status_code=400, detail="creatorId가 필요합니다.")
+
+    period = "month" if str(req.period).lower().startswith("m") else "week"
+    period_start = (req.periodStart or "").strip() or _default_period_start(period)
+    url = _build_overlap_url(platform, creator_id, period, period_start)
+
+    # Playwright 사용 가능 여부
+    try:
+        import playwright  # noqa: F401
+        use_playwright = True
+    except ImportError:
+        use_playwright = False
+
+    base_result = {
+        "platform": platform.upper(),
+        "creatorId": creator_id,
+        "period": period,
+        "periodStart": period_start,
+        "url": url,
+        "nodes": [],
+        "links": [],
+        "status": "error",
+        "scrapedAt": datetime.utcnow().isoformat() + "Z",
+    }
+
+    if not use_playwright:
+        base_result["error"] = "playwright 미설치 — 관계도 수집 불가 (SPA 렌더링 필요)"
+        return base_result
+
+    logger.info("[Overlap] 수집 시작: %s/%s period=%s start=%s → %s",
+                platform, creator_id, period, period_start, url)
+
+    try:
+        html, api_responses = await _fetch_with_playwright(
+            url,
+            wait_selector="svg",            # 관계도는 SVG로 렌더링됨
+            capture_all_json=True,
+        )
+        graph = _extract_overlap_graph(api_responses, creator_id, platform)
+
+        # 디버깅/복구용 raw (크기 제한)
+        raw = []
+        import json as _json
+        total = 0
+        for r in api_responses:
+            try:
+                blob = _json.dumps(r.get("data"), ensure_ascii=False)
+            except Exception:
+                continue
+            if total + len(blob) > 300_000:
+                break
+            total += len(blob)
+            raw.append({"url": r.get("url", ""), "data": r.get("data")})
+
+        base_result.update({
+            "nodes": graph["nodes"],
+            "links": graph["links"],
+            "status": "completed" if graph["nodes"] else "empty",
+            "raw": raw,
+        })
+        logger.info("[Overlap] 수집 완료: 노드 %d · 링크 %d (가로챈 응답 %d)",
+                    len(graph["nodes"]), len(graph["links"]), len(api_responses))
+        return base_result
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error("[Overlap] 수집 실패: %s/%s — %s\n%s", platform, creator_id, e, tb)
+        base_result["error"] = f"{type(e).__name__}: {e}"
+        return base_result
 
 
 # ── 로그 확인 / GitHub push ────────────────────────────────────────────────────
