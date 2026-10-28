@@ -3102,15 +3102,16 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                  {/* 채널 ID / URL */}
+                  {/* 채널 ID / URL (크리에이터 자동완성) */}
                   <div className="flex-1 min-w-0">
                     <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">채널 ID 또는 softc.one URL</label>
-                    <input
-                      type="text"
+                    <CreatorAutocomplete
                       value={ovInput}
-                      onChange={e => setOvInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && canRun) handleOverlapRequest(); }}
-                      placeholder="예: sirianrain  ·  soop:sirianrain  ·  https://viewership.softc.one/channel/afreeca/sirianrain/overlap"
+                      onChange={setOvInput}
+                      onCommit={() => { if (canRun) handleOverlapRequest(); }}
+                      creators={creators}
+                      field="live"
+                      placeholder="예: 시리안_레인  ·  soop:sirianrain  ·  https://viewership.softc.one/channel/afreeca/sirianrain/overlap"
                       className="w-full text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all"
                     />
                   </div>
