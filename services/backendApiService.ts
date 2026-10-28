@@ -280,6 +280,87 @@ export const fetchOverlapGraph = async (
   return res.data;
 };
 
+// ── SNA(팬덤 네트워크 분석 · 관계 강도 z 기반) ─────────────────────────────
+// 시드 크리에이터 + 상위 이웃을 스노우볼 크롤링해 무방향 가중 네트워크를
+// 구성하고 networkx로 중심성/커뮤니티를 계산한다 (월간 고정).
+
+export interface SNANode {
+  id: string;
+  name: string;
+  platform: string;
+  profileImage?: string;
+  chatterCount?: number;
+  communityId: number;
+  degree: number;
+  weightedDegree: number;
+  averageTieStrength: number;
+  betweenness: number;
+  eigenvectorCentrality: number | null;
+  crossCommunityRatio: number;
+  role: string;
+  roleSecondary?: string | null;
+  isSeed?: boolean;
+  x: number;
+  y: number;
+}
+
+export interface SNAEdge {
+  source: string;
+  target: string;
+  relationshipZ: number;
+  lift?: number | null;
+  sourceOverlapPct?: number | null;
+  targetOverlapPct?: number | null;
+  analysisWeight?: number;
+  visualWeight: number;
+  distance?: number;
+}
+
+export interface SNACommunity {
+  id: number;
+  name: string;
+  color: string;
+  size: number;
+  coreId?: string | null;
+  coreName?: string | null;
+  internalAvgZ: number;
+  density: number;
+  externalLinks: number;
+  externalZ: number;
+}
+
+export interface SNAResult {
+  status: 'completed' | 'error';
+  seed: string;
+  platform: string;
+  period: 'month';
+  periodStart: string;
+  partial: boolean;
+  eigenvectorOk?: boolean;
+  stats: { nodes: number; edges: number; communities: number; density: number };
+  communities: SNACommunity[];
+  nodes: SNANode[];
+  edges: SNAEdge[];
+  error?: string;
+  scrapedAt?: string;
+}
+
+export const buildSNANetwork = async (
+  platform: string,
+  seed: string,
+  periodStart: string,
+  neighbors: number = 12,
+  resolution: number = 1.0,
+  overrideBaseUrl?: string,
+): Promise<SNAResult> => {
+  const base = (overrideBaseUrl || BACKEND_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
+  const res = await axios.post(`${base}/api/sna/build`, {
+    platform, seed, periodStart, neighbors, resolution,
+  }, { timeout: 900000 });  // 스노우볼 크롤링 (최대 15분)
+  return res.data;
+};
+
 // ── softc 스크래퍼 ────────────────────────────────────────────────────────
 // localBaseUrl 지정 시: 로컬 에이전트 (port 8002) → /api/crawl/*
 // 미지정 시:           클라우드 Render → /api/softc/crawl/*

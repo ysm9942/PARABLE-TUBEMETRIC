@@ -67,11 +67,11 @@ import * as XLSX from 'xlsx';
 import { getChannelInfo, fetchChannelStats, fetchVideosByIds, AnalysisPeriod, analyzeAdVideos } from './services/youtubeService';
 import { ChannelResult, VideoResult, VideoDetail, CommentInfo, AdAnalysisResult, InstagramUserResult, Creator } from './types';
 import { submitScrapeRequest, checkQueueStatus, getAllChannelResults, submitInstagramRequest, checkInstagramQueueStatus, getAllInstagramResults } from './services/githubResultsService';
-import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult, fetchOverlapGraph, OverlapGraphResult } from './services/backendApiService';
+import { isBackendAvailable, scrapeChannel as backendScrapeChannel, scrapeVideos as backendScrapeVideos, detectAds as backendDetectAds, fetchTikTokVideos as backendFetchTikTok, fetchTikTokVideosLocal, TikTokUserResult, fetchLiveStreams, fetchSoftcStreams, fetchInstagramReelsLocal, LiveCreatorResult, fetchOverlapGraph, OverlapGraphResult, buildSNANetwork, SNAResult, SNANode, SNAEdge } from './services/backendApiService';
 import { checkLocalAgent, waitForLocalAgent, checkSoftcAgent, waitForSoftcAgent, checkInstagramAgent, waitForInstagramAgent, checkInstagramAgentTikTokSupport, detectOS, ALL_INSTALLER_URLS, INSTALLER_URLS, LOCAL_AGENT_URL, SOFTC_AGENT_URL, INSTAGRAM_AGENT_URL, SOFTC_INSTALLER_URLS, INSTAGRAM_INSTALLER_URLS } from './services/localAgentService';
 import { addSystemLog, subscribeSystemLogs, SystemLogEntry, isConfigured as isFirebaseConfigured, saveCreator as fbSaveCreator, deleteCreatorById as fbDeleteCreator, subscribeCreators } from './services/firebaseService';
 
-type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'relationship-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
+type TabType = 'channel-config' | 'video-config' | 'ad-config' | 'dashboard' | 'live-config' | 'relationship-config' | 'sna-config' | 'instagram-config' | 'tiktok-config' | 'install' | 'system-log' | 'creator';
 type ResultTab = 'table' | 'chart' | 'raw';
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -323,6 +323,26 @@ const App: React.FC = () => {
   const [ovStatus, setOvStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [ovError, setOvError] = useState<string>('');
   const [ovResult, setOvResult] = useState<OverlapGraphResult | null>(null);
+
+  // SNA 네트워크 상태 (관계 강도 z 기반 팬덤 네트워크 · 월간 고정)
+  const [snaPlatform, setSnaPlatform] = useState<'chzzk' | 'soop'>('soop');
+  const [snaSeed, setSnaSeed] = useState<string>('');
+  const [snaPeriodStart, setSnaPeriodStart] = useState<string>('');
+  const [snaNeighbors, setSnaNeighbors] = useState<number>(12);
+  const [snaResolution, setSnaResolution] = useState<number>(1.0);
+  const [snaStatus, setSnaStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [snaError, setSnaError] = useState<string>('');
+  const [snaResult, setSnaResult] = useState<SNAResult | null>(null);
+  const [snaMode, setSnaMode] = useState<'all' | 'ego' | 'community' | 'bridge'>('all');
+  const [snaSizeBy, setSnaSizeBy] = useState<'weightedDegree' | 'betweenness' | 'eigenvectorCentrality' | 'chatterCount'>('weightedDegree');
+  const [snaEdgeFilter, setSnaEdgeFilter] = useState<'all' | 'top30' | 'top10' | 'perNode'>('perNode');
+  const [snaShowLabels, setSnaShowLabels] = useState<boolean>(true);
+  const [snaSelected, setSnaSelected] = useState<string | null>(null);
+  const [snaView, setSnaView] = useState<{ scale: number; tx: number; ty: number }>({ scale: 1, tx: 0, ty: 0 });
+  const snaDragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
+  const [snaDragging, setSnaDragging] = useState(false);
+  const snaNodeDragRef = useRef<{ id: string; x: number; y: number; ox: number; oy: number } | null>(null);
+  const [snaPos, setSnaPos] = useState<Record<string, { x: number; y: number }>>({});
 
   // 스크래퍼 날짜 필터
   const [scraperUseDateFilter, setScraperUseDateFilter] = useState<boolean>(false);
@@ -906,6 +926,56 @@ const App: React.FC = () => {
       addSystemLog('error', 'error', `관계도 수집 오류: ${msg}`, { location: '관계도', os: navigator.platform });
       setOvError(msg);
       setOvStatus('error');
+    }
+  };
+
+  // ── SNA 네트워크 구성 (시드 스노우볼 · 월간) ──
+  const handleSNABuild = async () => {
+    const raw = snaSeed.trim();
+    if (!raw) { alert('시드 크리에이터 ID 또는 softc.one URL을 입력하세요.'); return; }
+    const base = localAgentRunning ? LOCAL_AGENT_URL : undefined;
+    if (!base && !isBackendAvailable()) {
+      setSnaError('SNA 분석은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.');
+      setSnaStatus('error');
+      return;
+    }
+    let platform: string = snaPlatform;
+    let seed = raw;
+    const urlMatch = raw.match(/softc\.one\/channel\/([^/]+)\/([^/?#\s]+)/);
+    if (urlMatch) {
+      const rp = urlMatch[1];
+      platform = rp === 'naverchzzk' ? 'chzzk' : rp === 'afreeca' ? 'soop' : rp;
+      seed = urlMatch[2];
+    } else if (raw.includes(':')) {
+      const [p, c] = raw.split(':', 2);
+      platform = p.trim().toLowerCase();
+      seed = c.trim();
+    }
+    const periodStart = snaPeriodStart || defaultPeriodStart('month');
+    setSnaStatus('loading');
+    setSnaError('');
+    setSnaSelected(null);
+    try {
+      const result = await buildSNANetwork(platform, seed, periodStart, snaNeighbors, snaResolution, base);
+      setSnaResult(result);
+      // 백엔드 좌표로 위치 초기화 + 뷰 리셋
+      const pos: Record<string, { x: number; y: number }> = {};
+      (result.nodes || []).forEach(n => { pos[n.id] = { x: n.x, y: n.y }; });
+      setSnaPos(pos);
+      setSnaView({ scale: 1, tx: 0, ty: 0 });
+      if (result.status === 'error') {
+        setSnaError(result.error || 'SNA 분석에 실패했습니다.');
+        setSnaStatus('error');
+        addSystemLog('error', 'error', `SNA 분석 실패: ${result.error}`, { location: 'SNA 네트워크', seed, os: navigator.platform });
+      } else {
+        setSnaStatus('done');
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || String(e);
+      console.error('SNA 오류:', msg);
+      addSystemLog('error', 'error', `SNA 분석 오류: ${msg}`, { location: 'SNA 네트워크', os: navigator.platform });
+      setSnaError(msg);
+      setSnaStatus('error');
     }
   };
 
@@ -1708,6 +1778,7 @@ const App: React.FC = () => {
                 { id: 'video-config',     label: '단일 영상 분석',   Icon: Video,       soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석', Icon: Tv2,         soon: false },
                 { id: 'relationship-config', label: '관계도',       Icon: Share2,      soon: false, isNew: true },
+                { id: 'sna-config',       label: 'SNA 네트워크',    Icon: Network,     soon: false, isNew: true },
                 { id: 'instagram-config', label: 'Instagram 분석',  Icon: Instagram,   soon: false },
                 { id: 'tiktok-config',    label: 'TikTok 분석',     Icon: Music,       soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean; isNew?: boolean }[]).map(({ id, label, Icon, soon, isNew }) => {
@@ -3377,6 +3448,378 @@ const App: React.FC = () => {
             </div>
               );
             })()
+          ) : activeTab === 'sna-config' ? (
+            /* ── SNA 팬덤 네트워크 탭 (관계 강도 z 기반) ──────────────────────── */
+            (() => {
+              const r = snaResult;
+              const nodes: SNANode[] = r?.nodes ?? [];
+              const edges: SNAEdge[] = r?.edges ?? [];
+              const communities = r?.communities ?? [];
+              const byId = new Map(nodes.map(n => [n.id, n]));
+              const commColor = (cid: number) => communities.find(c => c.id === cid)?.color ?? '#9aa3b2';
+              const commName = (cid: number) => communities.find(c => c.id === cid)?.name ?? `커뮤니티 ${cid + 1}`;
+              const selected = snaSelected ? byId.get(snaSelected) ?? null : null;
+              const initialOf = (s: string) => (s || '?').trim().charAt(0).toUpperCase();
+
+              const periodStartShown = snaPeriodStart || defaultPeriodStart('month');
+              const canRun = snaStatus !== 'loading' && (localAgentRunning || isBackendAvailable());
+
+              // 노드 크기 기준값
+              const sizeVal = (n: SNANode): number => {
+                if (snaSizeBy === 'chatterCount') return n.chatterCount ?? 0;
+                if (snaSizeBy === 'betweenness') return n.betweenness ?? 0;
+                if (snaSizeBy === 'eigenvectorCentrality') return n.eigenvectorCentrality ?? 0;
+                return n.weightedDegree ?? 0;
+              };
+              const maxSize = Math.max(...nodes.map(sizeVal), 1e-9);
+              const nodeR = (n: SNANode) => 10 + Math.sqrt(Math.max(sizeVal(n), 0) / maxSize) * 32; // 10~42
+              const maxVW = Math.max(...edges.map(e => e.visualWeight), 1e-9);
+              const edgeW = (e: SNAEdge) => 0.5 + (e.visualWeight / maxVW) * 4.5; // 0.5~5
+
+              // 엣지 필터 (시각화 전용 · 분석값은 불변)
+              const edgesForView: SNAEdge[] = (() => {
+                if (!edges.length) return [];
+                if (snaEdgeFilter === 'all') return edges;
+                if (snaEdgeFilter === 'perNode') {
+                  const adj = new Map<string, number[]>();
+                  edges.forEach((e, i) => {
+                    if (!adj.has(e.source)) adj.set(e.source, []);
+                    if (!adj.has(e.target)) adj.set(e.target, []);
+                    adj.get(e.source)!.push(i);
+                    adj.get(e.target)!.push(i);
+                  });
+                  const keep = new Set<number>();
+                  adj.forEach(idxs => {
+                    idxs.sort((a, b) => edges[b].relationshipZ - edges[a].relationshipZ);
+                    idxs.slice(0, 4).forEach(i => keep.add(i));
+                  });
+                  return edges.filter((_, i) => keep.has(i));
+                }
+                const sorted = [...edges].sort((a, b) => b.relationshipZ - a.relationshipZ);
+                const cut = Math.max(1, Math.round(sorted.length * (snaEdgeFilter === 'top10' ? 0.1 : 0.3)));
+                const th = sorted[cut - 1].relationshipZ;
+                return edges.filter(e => e.relationshipZ >= th);
+              })();
+
+              // 에고 모드 강조 집합
+              const egoSet: Set<string> | null = (() => {
+                if (snaMode !== 'ego' || !selected) return null;
+                const s = new Set<string>([selected.id]);
+                edgesForView.forEach(e => {
+                  if (e.source === selected.id) s.add(e.target);
+                  if (e.target === selected.id) s.add(e.source);
+                });
+                return s;
+              })();
+              const isBridge = snaMode === 'bridge';
+              const diffComm = (e: SNAEdge) => byId.get(e.source)?.communityId !== byId.get(e.target)?.communityId;
+
+              const W = 1000, H = 1000;
+              const posOf = (id: string) => snaPos[id] ?? { x: byId.get(id)?.x ?? 500, y: byId.get(id)?.y ?? 500 };
+
+              const setZoom = (f: number) => setSnaView(v => ({ ...v, scale: Math.min(4, Math.max(0.3, v.scale * f)) }));
+              const resetView = () => setSnaView({ scale: 1, tx: 0, ty: 0 });
+
+              // 강한 관계 TOP5 (선택 노드 기준)
+              const top5 = selected ? edges
+                .filter(e => e.source === selected.id || e.target === selected.id)
+                .map(e => {
+                  const otherId = e.source === selected.id ? e.target : e.source;
+                  const myPct = e.source === selected.id ? e.sourceOverlapPct : e.targetOverlapPct;
+                  const otherPct = e.source === selected.id ? e.targetOverlapPct : e.sourceOverlapPct;
+                  return { other: byId.get(otherId), z: e.relationshipZ, lift: e.lift, myPct, otherPct };
+                })
+                .sort((a, b) => b.z - a.z)
+                .slice(0, 5) : [];
+
+              return (
+            <div className="space-y-5 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">SNA 네트워크</h2>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> NEW</span>
+                  </div>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">관계 강도(z) 기반 팬덤 네트워크 · 월간 · 시드 스노우볼 · viewership.softc.one</p>
+                </div>
+              </div>
+
+              {/* 입력 카드 */}
+              <div className="bg-white rounded-2xl border border-[#ececf6] p-5">
+                <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">플랫폼</label>
+                    <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-xl">
+                      {([['soop', 'SOOP'], ['chzzk', 'CHZZK']] as ['soop' | 'chzzk', string][]).map(([p, lbl]) => (
+                        <button key={p} onClick={() => setSnaPlatform(p)}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${snaPlatform === p ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}>{lbl}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">시드 크리에이터 (ID 또는 softc.one URL)</label>
+                    <CreatorAutocomplete
+                      value={snaSeed}
+                      onChange={setSnaSeed}
+                      onCommit={() => { if (canRun) handleSNABuild(); }}
+                      creators={creators}
+                      field="live"
+                      placeholder="예: 시리안_레인  ·  soop:sirianrain"
+                      className="w-full text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all"
+                    />
+                  </div>
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">월 시작일(1일)</label>
+                    <input type="date" value={periodStartShown} onChange={e => setSnaPeriodStart(e.target.value)}
+                      className="text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all" />
+                  </div>
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">이웃 수 (K)</label>
+                    <input type="number" min={2} max={40} value={snaNeighbors} onChange={e => setSnaNeighbors(Math.max(2, Math.min(40, Number(e.target.value) || 12)))}
+                      className="w-20 text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 transition-all" />
+                  </div>
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">해상도</label>
+                    <input type="number" min={0.2} max={3} step={0.1} value={snaResolution} onChange={e => setSnaResolution(Math.max(0.2, Math.min(3, Number(e.target.value) || 1)))}
+                      className="w-20 text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 transition-all" />
+                  </div>
+                  <button onClick={handleSNABuild} disabled={!canRun}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:bg-[#c8c8d8] disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-xl transition-all active:scale-95">
+                    {snaStatus === 'loading' ? <><Loader2 size={15} className="animate-spin" /> 분석 중…</> : <><Network size={15} /> 네트워크 분석</>}
+                  </button>
+                </div>
+                <p className="mt-3 text-[11px] text-[#a0a0b8]">
+                  시드 + 상위 {snaNeighbors}명 이웃을 각각 수집해 그들 사이의 관계까지 포함한 네트워크를 구성합니다. 수집 특성상 최대 수 분이 걸릴 수 있습니다.
+                  {!localAgentRunning && !isBackendAvailable() && <span className="text-amber-600"> · 로컬 에이전트(8001) 또는 클라우드 백엔드가 필요합니다.</span>}
+                </p>
+              </div>
+
+              {snaStatus === 'error' && snaError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0"><p className="text-[13px] font-semibold text-red-700">SNA 분석 실패</p><p className="text-[12px] text-red-500 mt-0.5 break-words">{snaError}</p></div>
+                </div>
+              )}
+
+              {snaStatus === 'loading' ? (
+                <div className="bg-white rounded-2xl border border-[#ececf6] p-16 text-center">
+                  <Loader2 size={28} className="mx-auto text-violet-500 animate-spin" />
+                  <p className="text-[13px] text-[#8888a8] mt-4">팬덤 네트워크를 수집·분석하는 중입니다…</p>
+                  <p className="text-[11px] text-[#b0b0c8] mt-1">시드 + 이웃 {snaNeighbors}명을 순차 수집하므로 수 분이 소요될 수 있습니다.</p>
+                </div>
+              ) : !r || r.status !== 'completed' ? (
+                <div className="bg-white rounded-2xl border border-[#ececf6] p-12 text-center">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-violet-50 flex items-center justify-center"><Network size={26} className="text-violet-400" /></div>
+                  <h3 className="text-[15px] font-bold text-[#0f0f23]">시드 크리에이터로 팬덤 네트워크를 분석합니다</h3>
+                  <p className="text-[13px] text-[#8888a8] mt-2 leading-relaxed">시드를 입력하고 <span className="text-violet-600 font-medium">네트워크 분석</span>을 누르면, 관계 강도 기반 커뮤니티·중심성·역할이 계산됩니다.</p>
+                </div>
+              ) : (
+                <>
+                  {/* 통계 행 */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {([['분석 노드 수', r.stats.nodes], ['연결 수', r.stats.edges], ['커뮤니티 수', r.stats.communities], ['네트워크 밀도', r.stats.density.toFixed(3)]] as [string, any][]).map(([lbl, v]) => (
+                      <div key={lbl} className="bg-white rounded-2xl border border-[#ececf6] px-5 py-4">
+                        <p className="text-[11px] text-[#8888a8]">{lbl}</p>
+                        <p className="text-[22px] font-bold text-[#0f0f23] tabular-nums mt-0.5">{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {r.partial && (
+                    <div className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <AlertCircle size={13} /> 부분 네트워크: 시드와 상위 이웃 범위에서 관측된 관계만 포함합니다. 관측되지 않은 관계는 0이 아니라 '미관측'입니다.
+                    </div>
+                  )}
+
+                  {/* 모드 + 컨트롤 */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-xl">
+                      {([['all', '전체'], ['ego', '개인'], ['community', '커뮤니티'], ['bridge', '브리지']] as [typeof snaMode, string][]).map(([m, lbl]) => (
+                        <button key={m} onClick={() => setSnaMode(m)}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${snaMode === m ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}>{lbl}</button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select value={snaEdgeFilter} onChange={e => setSnaEdgeFilter(e.target.value as any)}
+                        className="text-xs text-[#4a4a6a] bg-[#f5f5fc] border border-[#ececf6] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        <option value="perNode">노드별 상위 연결</option>
+                        <option value="top10">상위 10% 관계</option>
+                        <option value="top30">상위 30% 관계</option>
+                        <option value="all">전체 연결</option>
+                      </select>
+                      <select value={snaSizeBy} onChange={e => setSnaSizeBy(e.target.value as any)}
+                        className="text-xs text-[#4a4a6a] bg-[#f5f5fc] border border-[#ececf6] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-200">
+                        <option value="weightedDegree">크기: 팬덤 연결력</option>
+                        <option value="betweenness">크기: 매개 중심성</option>
+                        <option value="eigenvectorCentrality">크기: 핵심 영향력</option>
+                      </select>
+                      <button onClick={() => setSnaShowLabels(v => !v)}
+                        className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${snaShowLabels ? 'bg-violet-50 border-violet-200 text-violet-600' : 'bg-white border-[#ececf6] text-[#8888a8]'}`}>라벨 {snaShowLabels ? 'ON' : 'OFF'}</button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setZoom(1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a]" title="확대"><ZoomIn size={15} /></button>
+                        <button onClick={() => setZoom(1 / 1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a]" title="축소"><ZoomOut size={15} /></button>
+                        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a]" title="원래대로"><Maximize2 size={14} /></button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 그래프 + 우측 패널 */}
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                    {/* 그래프 */}
+                    <div className="xl:col-span-2 bg-white rounded-2xl border border-[#ececf6] overflow-hidden">
+                      <div className="relative bg-[#fbfbfe]" style={{ height: 560 }}>
+                        <svg viewBox={`0 0 ${W} ${H}`} className={`w-full h-full ${snaDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                          onMouseDown={e => { snaDragRef.current = { x: e.clientX, y: e.clientY, tx: snaView.tx, ty: snaView.ty }; setSnaDragging(true); }}
+                          onMouseMove={e => {
+                            const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+                            const sx = W / rect.width, sy = H / rect.height;
+                            if (snaNodeDragRef.current) {
+                              const d = snaNodeDragRef.current;
+                              const nx = d.ox + (e.clientX - d.x) * sx / snaView.scale;
+                              const ny = d.oy + (e.clientY - d.y) * sy / snaView.scale;
+                              setSnaPos(prev => ({ ...prev, [d.id]: { x: nx, y: ny } }));
+                              return;
+                            }
+                            if (snaDragRef.current) {
+                              const d = snaDragRef.current;
+                              setSnaView(v => ({ ...v, tx: d.tx + (e.clientX - d.x) * sx, ty: d.ty + (e.clientY - d.y) * sy }));
+                            }
+                          }}
+                          onMouseUp={() => { snaDragRef.current = null; snaNodeDragRef.current = null; setSnaDragging(false); }}
+                          onMouseLeave={() => { snaDragRef.current = null; snaNodeDragRef.current = null; setSnaDragging(false); }}>
+                          <defs>
+                            {nodes.map((n, i) => (<clipPath key={i} id={`snaclip-${i}`}><circle cx="0" cy="0" r={Math.max(2, nodeR(n) - 2)} /></clipPath>))}
+                          </defs>
+                          <g transform={`translate(${snaView.tx} ${snaView.ty}) scale(${snaView.scale})`}>
+                            {/* 엣지 */}
+                            {edgesForView.map((e, i) => {
+                              const a = posOf(e.source), b = posOf(e.target);
+                              const touchesSel = selected && (e.source === selected.id || e.target === selected.id);
+                              const inEgo = !egoSet || (egoSet.has(e.source) && egoSet.has(e.target));
+                              const cross = diffComm(e);
+                              let opacity = 0.16 + (e.visualWeight / maxVW) * 0.34;
+                              let stroke = 'rgba(120,130,150,1)';
+                              if (isBridge) { if (cross) { opacity = 0.55; stroke = commColor(byId.get(e.source)?.communityId ?? 0); } else { opacity = 0.05; } }
+                              if (egoSet && !inEgo) opacity = 0.04;
+                              if (touchesSel) { opacity = 0.9; stroke = commColor(selected!.communityId); }
+                              return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={edgeW(e) * (touchesSel ? 1.4 : 1)} strokeLinecap="round" />;
+                            })}
+                            {/* 노드 */}
+                            {nodes.map((n, i) => {
+                              const p = posOf(n.id);
+                              const rad = nodeR(n);
+                              const col = commColor(n.communityId);
+                              const dim = (egoSet && !egoSet.has(n.id)) || (isBridge && (n.betweenness ?? 0) <= 0 && n.id !== selected?.id);
+                              const isSel = n.id === selected?.id;
+                              return (
+                                <g key={n.id} transform={`translate(${p.x} ${p.y})`} style={{ cursor: 'pointer', opacity: dim ? 0.28 : 1, transition: 'opacity .2s' }}
+                                  onMouseDown={ev => { ev.stopPropagation(); snaNodeDragRef.current = { id: n.id, x: ev.clientX, y: ev.clientY, ox: p.x, oy: p.y }; }}
+                                  onClick={ev => { ev.stopPropagation(); setSnaSelected(n.id); }}>
+                                  {(isSel || n.isSeed) && <circle r={rad + 5} fill="none" stroke={col} strokeOpacity={0.4} strokeWidth={3} />}
+                                  <circle r={rad} fill={col} fillOpacity={n.profileImage ? 1 : 0.9} stroke="#ffffff" strokeWidth={2.5} />
+                                  {n.profileImage
+                                    ? <image href={n.profileImage} x={-(rad - 2)} y={-(rad - 2)} width={(rad - 2) * 2} height={(rad - 2) * 2} clipPath={`url(#snaclip-${i})`} preserveAspectRatio="xMidYMid slice" />
+                                    : <text textAnchor="middle" dy=".35em" fontSize={Math.max(10, rad * 0.75)} fontWeight="700" fill="#fff">{initialOf(n.name)}</text>}
+                                  {snaShowLabels && (!dim) && (
+                                    <text textAnchor="middle" y={rad + 13} fontSize="11" fontWeight={isSel || n.isSeed ? 700 : 500} fill="#1a1a2e" stroke="#fbfbfe" strokeWidth="3" paintOrder="stroke" style={{ pointerEvents: 'none' }}>{n.name}</text>
+                                  )}
+                                </g>
+                              );
+                            })}
+                          </g>
+                        </svg>
+                        {/* 범례 */}
+                        <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 bg-white/85 backdrop-blur px-3 py-2 rounded-lg border border-[#f0f0f8] max-w-[60%]">
+                          <span className="text-[10px] text-[#8888a8]">노드 크기 = {snaSizeBy === 'betweenness' ? '매개 중심성' : snaSizeBy === 'eigenvectorCentrality' ? '핵심 팬덤 영향력' : '팬덤 연결력'} · 선 굵기 = 관계 강도(z)</span>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                            {communities.slice(0, 8).map(c => (
+                              <span key={c.id} className="flex items-center gap-1 text-[10px] text-[#5a5a7a]"><span className="w-2.5 h-2.5 rounded-full" style={{ background: c.color }} /> {c.name}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 우측 분석 패널 */}
+                    <div className="space-y-4">
+                      <div className="bg-white rounded-2xl border border-[#ececf6] p-5">
+                        <h3 className="text-[13px] font-bold text-[#0f0f23] mb-3">SNA 분석</h3>
+                        {!selected ? (
+                          <p className="text-[12px] text-[#8888a8] py-6 text-center">노드를 클릭하면 상세 분석이 표시됩니다.</p>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-3 mb-4">
+                              {selected.profileImage
+                                ? <img src={selected.profileImage} alt="" className="w-11 h-11 rounded-full object-cover bg-[#f0f0f8]" style={{ boxShadow: `0 0 0 2px ${commColor(selected.communityId)}` }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                : <span className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold" style={{ background: commColor(selected.communityId) }}>{initialOf(selected.name)}</span>}
+                              <div className="min-w-0">
+                                <div className="text-[14px] font-bold text-[#0f0f23] truncate">{selected.name}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${/chzzk/i.test(selected.platform) ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>{/chzzk/i.test(selected.platform) ? 'CHZZK' : 'SOOP'}</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: commColor(selected.communityId) + '22', color: commColor(selected.communityId) }}>{commName(selected.communityId)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-1 rounded-full mb-3">{selected.role}{selected.roleSecondary ? ` · ${selected.roleSecondary}` : ''}</div>
+                            <div className="grid grid-cols-2 gap-2 text-center mb-2">
+                              {([['팬덤 연결력', selected.weightedDegree.toFixed(0)], ['연결 수', selected.degree], ['평균 관계강도', selected.averageTieStrength.toFixed(1)], ['매개 중심성', selected.betweenness.toFixed(3)], ['핵심 영향력', selected.eigenvectorCentrality === null ? '—' : selected.eigenvectorCentrality.toFixed(3)], ['외부 연결 비율', `${selected.crossCommunityRatio.toFixed(0)}%`]] as [string, any][]).map(([l, v]) => (
+                                <div key={l} className="bg-[#fafaff] rounded-lg py-2"><p className="text-[9px] text-[#a0a0b8]">{l}</p><p className="text-[13px] font-bold text-[#1a1a2e] tabular-nums">{v}</p></div>
+                              ))}
+                            </div>
+                            {selected.eigenvectorCentrality === null && <p className="text-[10px] text-amber-600 mb-2">* 고유벡터 중심성 수렴 실패로 표시하지 않습니다.</p>}
+
+                            <h4 className="text-[12px] font-bold text-[#0f0f23] mt-4 mb-2">강한 관계 TOP 5</h4>
+                            <div className="space-y-1.5">
+                              {top5.length === 0 ? <p className="text-[11px] text-[#a0a0b8]">연결된 관계가 없습니다.</p> : top5.map((t, i) => (
+                                <div key={i} className="flex items-center gap-2 bg-[#fafaff] rounded-lg px-2.5 py-2">
+                                  {t.other?.profileImage
+                                    ? <img src={t.other.profileImage} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 bg-[#f0f0f8]" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                    : <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: commColor(t.other?.communityId ?? 0) }}>{initialOf(t.other?.name ?? '?')}</span>}
+                                  <button onClick={() => t.other && setSnaSelected(t.other.id)} className="text-[12px] font-semibold text-[#1a1a2e] hover:text-violet-600 truncate flex-1 text-left">{t.other?.name ?? '?'}</button>
+                                  <div className="flex items-center gap-2 text-[10px] text-[#8888a8] shrink-0">
+                                    <span className="font-bold text-violet-600 text-[12px]">z {t.z.toFixed(0)}</span>
+                                    {t.lift != null && <span>Lift {t.lift.toFixed(1)}x</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {top5.length > 0 && (
+                              <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-[#8888a8]">
+                                <div>이 채널 중 {top5[0].myPct != null ? top5[0].myPct.toFixed(1) : '—'}%</div>
+                                <div className="text-right">상대 채널 중 {top5[0].otherPct != null ? top5[0].otherPct.toFixed(1) : '—'}%</div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* 커뮤니티 요약 */}
+                      <div className="bg-white rounded-2xl border border-[#ececf6] p-5">
+                        <h3 className="text-[13px] font-bold text-[#0f0f23] mb-3">팬덤 커뮤니티 ({communities.length})</h3>
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {communities.map(c => (
+                            <div key={c.id} className="flex items-center gap-2.5 py-1.5 border-b border-[#f6f6fb] last:border-0">
+                              <span className="w-3 h-3 rounded-full shrink-0" style={{ background: c.color }} />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[12px] font-semibold text-[#1a1a2e]">{c.name} <span className="text-[10px] text-[#a0a0b8] font-normal">· {c.size}명</span></div>
+                                <div className="text-[10px] text-[#8888a8] truncate">핵심 {c.coreName ?? '-'} · 내부 평균 z {c.internalAvgZ.toFixed(0)} · 밀도 {c.density.toFixed(2)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-[#a0a0b8] leading-relaxed px-1">
+                    * 관계 강도(z)는 공유 채팅 참여자 기준 추정치이며 실제 시청자 유입·낙수 방향을 의미하지 않습니다. 매개 중심성이 높다고 시청자가 해당 채널을 경유해 이동한다는 뜻은 아니며, 네트워크 구조상 연결 경로의 중심에 있다는 의미입니다. 선택한 플랫폼·월간 기간, 시드 스노우볼 범위에서 관측된 관계만 사용했습니다. 커뮤니티/역할은 데이터 기반 추정으로 실제 크루 소속이나 친분을 뜻하지 않습니다.
+                  </p>
+                </>
+              )}
+            </div>
+              );
+            })()
+
 
           ) : activeTab === 'instagram-config' ? (
             /* ── Instagram 릴스 분석 탭 ──────────────────────────────────────── */
