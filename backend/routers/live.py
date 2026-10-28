@@ -997,6 +997,86 @@ def _extract_overlap_graph(api_responses: list[dict], creator_id: str, platform:
     return {"nodes": nodes, "links": links}
 
 
+def _parse_overlap_html(html: str, creator_id: str, platform: str) -> dict:
+    """softc.one overlap 페이지의 렌더링된 DOM을 그대로 파싱한다.
+
+    실제 페이지 구조(안정적):
+      - 그래프 노드:  <g data-node-id="{id},{platform}"> (중심 채널 포함)
+      - 랭킹 리스트:  <a href="/channel/{plat}/{id}/overlap">  각 행에
+          mono-font 숫자 = [순위, 이 채널 중%, 상대 채널 중%, Lift, 관계 강도]
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    nodes: list[dict] = []
+    links: list[dict] = []
+    seen: set = set()
+
+    # ── 중심 채널: 그래프 <g data-node-id>에서 이름/로고 추출 ──
+    center_label = creator_id
+    center_image = _soop_logo(creator_id) if platform == "soop" else ""
+    for g in soup.select("g[data-node-id]"):
+        did = (g.get("data-node-id") or "").split(",")[0].strip()
+        if did and did == creator_id:
+            img = g.find("image")
+            if img and img.get("href"):
+                center_image = img.get("href")
+            txt = g.find("text")
+            if txt and txt.get_text(strip=True):
+                center_label = txt.get_text(strip=True)
+            break
+
+    nodes.append({
+        "id": creator_id, "label": center_label, "platform": platform,
+        "image": center_image, "value": 0.0, "isCenter": True,
+        "thisPct": None, "otherPct": None, "lift": None, "strength": None,
+    })
+    seen.add(creator_id)
+
+    # ── 랭킹 리스트 (실제 지표 포함) ──
+    for a in soup.select("a[href*='/overlap']"):
+        href = a.get("href") or ""
+        m = re.search(r"/channel/([^/]+)/([^/?#]+)/overlap", href)
+        if not m:
+            continue
+        raw_plat, cid = m.group(1), m.group(2)
+        plat = {"naverchzzk": "chzzk", "afreeca": "soop"}.get(raw_plat, raw_plat)
+        if not cid or cid == creator_id or cid in seen:
+            continue
+
+        btn = a.find("button")  # 첫 번째(데스크톱) 버튼
+        if not btn:
+            continue
+        name_el = btn.select_one("span.truncate")
+        name = name_el.get_text(strip=True) if name_el else cid
+        img_el = btn.find("img")
+        image = (img_el.get("src") if img_el and img_el.get("src")
+                 else (_soop_logo(cid) if plat == "soop" else ""))
+
+        # mono-font 숫자만 추출 → [순위, thisPct, otherPct, lift, strength]
+        nums: list[float] = []
+        for s in btn.select("span.mono-font"):
+            t = s.get_text(strip=True).replace(",", "")
+            try:
+                nums.append(float(t))
+            except ValueError:
+                pass  # '%', 'x' 등은 무시
+        metrics = nums[-4:] if len(nums) >= 4 else nums
+        metrics = (metrics + [None, None, None, None])[:4]
+        this_pct, other_pct, lift, strength = metrics
+        val = float(strength) if strength is not None else 0.0
+
+        seen.add(cid)
+        nodes.append({
+            "id": cid, "label": name, "platform": plat, "image": image,
+            "value": val, "isCenter": False,
+            "thisPct": this_pct, "otherPct": other_pct, "lift": lift, "strength": strength,
+        })
+        links.append({"source": creator_id, "target": cid, "weight": val})
+
+    return {"nodes": nodes, "links": links}
+
+
 def _build_overlap_url(platform: str, creator_id: str, period: str, period_start: str) -> str:
     plat_path = PLATFORM_MAP.get(platform, platform)
     base = "https://viewership.softc.one"
@@ -1064,10 +1144,13 @@ async def fetch_overlap(req: OverlapRequest):
     try:
         html, api_responses = await _fetch_with_playwright(
             url,
-            wait_selector="svg",            # 관계도는 SVG로 렌더링됨
+            wait_selector="a[href*='/overlap']",   # 랭킹/그래프 렌더 완료 대기
             capture_all_json=True,
         )
-        graph = _extract_overlap_graph(api_responses, creator_id, platform)
+        # 렌더링된 DOM 파싱이 가장 안정적 (실제 지표 포함). 실패 시 API JSON 폴백.
+        graph = _parse_overlap_html(html, creator_id, platform)
+        if len(graph.get("nodes") or []) <= 1:
+            graph = _extract_overlap_graph(api_responses, creator_id, platform)
 
         # 디버깅/복구용 raw (크기 제한)
         raw = []
