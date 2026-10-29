@@ -635,6 +635,159 @@ def _run_crawl_job(creators: list, start_dt: datetime, end_dt: datetime, categor
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 관계도(overlap) 크롤링 + 파싱
+#   backend/routers/live.py 의 Playwright 파서와 동일 로직을 undetected_chromedriver
+#   렌더링 결과(page_source)에 적용한다. (이 에이전트는 standalone EXE라 복제 보관)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_PLATFORM_MAP = {"chzzk": "naverchzzk", "soop": "afreeca"}
+_PLAT_NORM = {"naverchzzk": "chzzk", "afreeca": "soop"}
+
+
+def _soop_logo(cid: str) -> str:
+    cid = (cid or "").strip()
+    if not cid:
+        return ""
+    low = cid.lower()
+    return f"https://stimg.sooplive.com/LOGO/{low[:2]}/{low}/{low}.jpg"
+
+
+def _overlap_url(platform: str, creator_id: str, period: str, period_start: str) -> str:
+    plat_path = _PLATFORM_MAP.get(platform, platform)
+    return (
+        f"https://viewership.softc.one/channel/{plat_path}/{creator_id}/overlap"
+        f"?period={quote(period)}&periodStart={quote(period_start)}"
+    )
+
+
+def _overlap_default_period_start(period: str) -> str:
+    """periodStart 미지정 시 기본값 — 이번 주 월요일 / 이번 달 1일 (KST)."""
+    today = datetime.utcnow() + timedelta(hours=9)
+    if period == "month":
+        return today.replace(day=1).strftime("%Y-%m-%d")
+    monday = today - timedelta(days=today.weekday())
+    return monday.strftime("%Y-%m-%d")
+
+
+def _parse_overlap_html(html: str, creator_id: str, platform: str) -> dict:
+    """softc.one overlap 페이지의 렌더링된 DOM을 그대로 파싱한다.
+
+      - 그래프 노드:  <g data-node-id="{id},{platform}"> (중심 채널 포함)
+      - 랭킹 리스트:  <a href="/channel/{plat}/{id}/overlap"> 각 행에
+          mono-font 숫자 = [이 채널 중%, 상대 채널 중%, Lift, 관계 강도]
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    nodes: list = []
+    links: list = []
+    seen: set = set()
+
+    center_label = creator_id
+    center_image = _soop_logo(creator_id) if platform == "soop" else ""
+    for g in soup.select("g[data-node-id]"):
+        did = (g.get("data-node-id") or "").split(",")[0].strip()
+        if did and did == creator_id:
+            img = g.find("image")
+            if img and img.get("href"):
+                center_image = img.get("href")
+            txt = g.find("text")
+            if txt and txt.get_text(strip=True):
+                center_label = txt.get_text(strip=True)
+            break
+
+    nodes.append({
+        "id": creator_id, "label": center_label, "platform": platform,
+        "image": center_image, "value": 0.0, "isCenter": True,
+        "thisPct": None, "otherPct": None, "lift": None, "strength": None,
+    })
+    seen.add(creator_id)
+
+    for a in soup.select("a[href*='/overlap']"):
+        href = a.get("href") or ""
+        m = re.search(r"/channel/([^/]+)/([^/?#]+)/overlap", href)
+        if not m:
+            continue
+        raw_plat, cid = m.group(1), m.group(2)
+        plat = _PLAT_NORM.get(raw_plat, raw_plat)
+        if not cid or cid == creator_id or cid in seen:
+            continue
+
+        btn = a.find("button")
+        if not btn:
+            continue
+        name_el = btn.select_one("span.truncate")
+        name = name_el.get_text(strip=True) if name_el else cid
+        img_el = btn.find("img")
+        image = (img_el.get("src") if img_el and img_el.get("src")
+                 else (_soop_logo(cid) if plat == "soop" else ""))
+
+        nums: list = []
+        for s in btn.select("span.mono-font"):
+            t = s.get_text(strip=True).replace(",", "")
+            try:
+                nums.append(float(t))
+            except ValueError:
+                pass
+        metrics = nums[-4:] if len(nums) >= 4 else nums
+        metrics = (metrics + [None, None, None, None])[:4]
+        this_pct, other_pct, lift, strength = metrics
+        val = float(strength) if strength is not None else 0.0
+
+        seen.add(cid)
+        nodes.append({
+            "id": cid, "label": name, "platform": plat, "image": image,
+            "value": val, "isCenter": False,
+            "thisPct": this_pct, "otherPct": other_pct, "lift": lift, "strength": strength,
+        })
+        links.append({"source": creator_id, "target": cid, "weight": val})
+
+    return {"nodes": nodes, "links": links}
+
+
+def _crawl_overlap_uc(platform: str, creator_id: str, period: str, period_start: str) -> dict:
+    """undetected_chromedriver로 overlap 페이지를 렌더링 → DOM 파싱 (전용 드라이버)."""
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    url = _overlap_url(platform, creator_id, period, period_start)
+    driver, tmp_dir = _build_driver()
+    try:
+        print(f"[overlap] {platform}:{creator_id} ({period} {period_start})")
+        driver.get(url)
+
+        # 진입 팝업 '닫기'
+        try:
+            for b in driver.find_elements(By.XPATH, "//button[normalize-space(text())='닫기']"):
+                try:
+                    driver.execute_script("arguments[0].click();", b)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        time.sleep(0.5)
+
+        # 랭킹 리스트 렌더 대기 (없으면 현재 DOM으로 파싱)
+        try:
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='/overlap']"))
+            )
+        except Exception:
+            print("  [overlap] 랭킹 요소 대기 타임아웃 — 현재 DOM으로 파싱")
+        time.sleep(1.2)
+        html = driver.page_source
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return _parse_overlap_html(html, creator_id, platform)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # FastAPI 앱
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -722,6 +875,67 @@ async def crawl_status():
 async def crawl_stop():
     _stop_evt.set()
     return {"status": "stopping"}
+
+
+class OverlapRequest(BaseModel):
+    platform:   str = "soop"
+    creatorId:  str = ""
+    period:     str = "week"      # week | month
+    periodStart: str = ""
+
+
+@app.post("/api/live/overlap")
+def overlap(req: OverlapRequest):
+    """채팅 참여자 관계도(overlap) — undetected_chromedriver로 렌더링 후 파싱.
+
+    8001(Playwright) 에이전트의 /api/live/overlap 과 동일한 응답 형태를 반환하므로
+    프론트는 base URL만 바꿔(SoftC 8002) 그대로 사용할 수 있다. (동기 핸들러 →
+    FastAPI가 스레드풀에서 실행하므로 Selenium 블로킹 OK)
+    """
+    platform = (req.platform or "soop").strip().lower()
+    creator_id = (req.creatorId or "").strip()
+
+    # softc.one URL / "plat:id" 입력 지원
+    if "softc.one" in creator_id or creator_id.startswith("http"):
+        m = re.search(r"/channel/([^/]+)/([^/?#\s]+)", creator_id)
+        if m:
+            platform = _PLAT_NORM.get(m.group(1), m.group(1))
+            creator_id = m.group(2)
+    elif ":" in creator_id:
+        p, c = creator_id.split(":", 1)
+        platform, creator_id = p.strip().lower(), c.strip()
+
+    period = (req.period or "week").strip().lower()
+    if period not in ("week", "month"):
+        period = "week"
+    period_start = (req.periodStart or "").strip() or _overlap_default_period_start(period)
+
+    result = {
+        "platform": platform, "creatorId": creator_id,
+        "period": period, "periodStart": period_start,
+        "url": _overlap_url(platform, creator_id, period, period_start),
+        "nodes": [], "links": [], "status": "error",
+        "scrapedAt": datetime.utcnow().isoformat() + "Z",
+    }
+    if not creator_id:
+        result["error"] = "채널 ID가 필요합니다."
+        return result
+
+    try:
+        graph = _crawl_overlap_uc(platform, creator_id, period, period_start)
+    except Exception as e:
+        import traceback
+        print(f"[overlap] 오류: {e}\n{traceback.format_exc()}")
+        result["error"] = str(e)
+        return result
+
+    nodes = graph.get("nodes") or []
+    others = [n for n in nodes if not n.get("isCenter")]
+    result["nodes"] = nodes
+    result["links"] = graph.get("links") or []
+    result["status"] = "completed" if others else "empty"
+    print(f"[overlap] 완료: 중심 1 + 이웃 {len(others)}개 · {result['status']}")
+    return result
 
 
 def main():
