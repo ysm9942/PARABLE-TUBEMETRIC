@@ -871,10 +871,10 @@ const App: React.FC = () => {
       alert('채널 ID 또는 softc.one URL을 입력하세요.');
       return;
     }
-    // 로컬 에이전트(8001) 우선, 없으면 클라우드 백엔드
-    const base = localAgentRunning ? LOCAL_AGENT_URL : undefined;
+    // 우선순위: SoftC(8002 · undetected_chromedriver) > tubemetric-agent(8001 · Playwright) > 클라우드 백엔드
+    const base = softcLocalRunning ? SOFTC_AGENT_URL : localAgentRunning ? LOCAL_AGENT_URL : undefined;
     if (!base && !isBackendAvailable()) {
-      setOvError('관계도 수집은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.');
+      setOvError('관계도 수집은 SoftC 에이전트(8002) 또는 라이브 지표 에이전트(8001), 혹은 클라우드 백엔드가 필요합니다.');
       setOvStatus('error');
       return;
     }
@@ -3097,7 +3097,7 @@ const App: React.FC = () => {
               const resetView = () => { setRelView({ scale: 1, tx: 0, ty: 0 }); setRelPos({}); setRelSelected(null); setRelFocus(null); };
 
               const periodStartShown = ovPeriodStart || defaultPeriodStart(relPeriod);
-              const canRun = ovStatus !== 'loading' && (localAgentRunning || isBackendAvailable());
+              const canRun = ovStatus !== 'loading' && (softcLocalRunning || localAgentRunning || isBackendAvailable());
 
               return (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -3172,8 +3172,13 @@ const App: React.FC = () => {
                       : <><Network size={15} /> 관계도 수집</>}
                   </button>
                 </div>
-                {!localAgentRunning && !isBackendAvailable() && (
-                  <p className="mt-3 text-[11px] text-amber-600 flex items-center gap-1.5"><AlertCircle size={12} /> 관계도 수집은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.</p>
+                {!softcLocalRunning && !localAgentRunning && !isBackendAvailable() && (
+                  <p className="mt-3 text-[11px] text-amber-600 flex items-center gap-1.5"><AlertCircle size={12} /> 관계도 수집은 SoftC 에이전트(8002)·라이브 지표 에이전트(8001) 또는 클라우드 백엔드가 필요합니다.</p>
+                )}
+                {(softcLocalRunning || localAgentRunning) && (
+                  <p className="mt-3 text-[11px] text-[#a0a0b8] flex items-center gap-1.5">
+                    <Share2 size={12} /> 수집 엔진: {softcLocalRunning ? 'SoftC 에이전트 (undetected_chromedriver · 봇 감지 우회 최강)' : '라이브 지표 에이전트 (Playwright + 설치 Chrome)'}
+                  </p>
                 )}
               </div>
 
