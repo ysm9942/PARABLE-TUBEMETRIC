@@ -1,11 +1,14 @@
 """
 SNA(사회연결망 분석) 라우터 — 관계 강도(z) 기반 팬덤 네트워크 분석
 
-softc.one overlap 데이터(ego network)만으로는 커뮤니티/매개 중심성을
-신뢰성 있게 계산할 수 없으므로, 시드 크리에이터 + 상위 이웃을 스노우볼로
-추가 크롤링하여 '관측된' 쌍별 관계 강도(z) 엣지만으로 무방향 가중
-네트워크를 구성한다(부분 네트워크). 관측되지 않은 엣지는 0으로 확정하지
-않는다.
+'관계도'(채팅 참여자 overlap)와 동일한 softc.one 데이터를 기반으로 한다.
+관계도는 중심 채널의 ego network(중심 + 상위 이웃 + 쌍별 지표: 관계 강도 z,
+Lift, 이 채널 중 %, 상대 채널 중 %)를 그대로 보여주고, SNA 분석은 그 관계도
+데이터를 '분석 계층'으로 확장한다: 관계도의 중심+이웃을 노드 집합으로 삼고,
+각 이웃의 관계도까지 스노우볼로 모아 이웃 간 엣지를 채운 뒤 무방향 가중
+네트워크로 중심성/커뮤니티/역할을 계산한다(부분 네트워크). 프론트에서 이미
+수집한 관계도(seedGraph)를 넘기면 시드 재크롤 없이 그 데이터를 그대로 쓴다.
+관측되지 않은 엣지는 0으로 확정하지 않는다.
 
 분석(networkx):
   - 가중 연결 중심성(weighted degree, weight=z)
@@ -16,12 +19,13 @@ softc.one overlap 데이터(ego network)만으로는 커뮤니티/매개 중심�
   - 레이아웃 좌표(spring_layout, 극단값 제한 위해 log(1+z) 가중)
 
 엔드포인트:
-  POST /api/sna/build   — 시드 기준 네트워크 구성 + 분석 (월간 고정)
+  POST /api/sna/build   — 관계도(seedGraph) 또는 시드 기준 네트워크 구성 + 분석
 """
 import asyncio
 import logging
 import math
 from datetime import datetime
+from typing import Any, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -49,15 +53,19 @@ COMMUNITY_COLORS = [
 class SNARequest(BaseModel):
     platform: str = "soop"          # 시드 플랫폼 (soop|chzzk)
     seed: str = ""                  # 시드 크리에이터 ID 또는 softc URL
-    periodStart: str = ""           # YYYY-MM-DD (월 시작일); 비면 이번 달 1일
+    period: str = "month"           # week|month — 관계도와 동일 기간
+    periodStart: str = ""           # YYYY-MM-DD (기간 시작일); 비면 기본값
     neighbors: int = 12             # 스노우볼 이웃 수 (K)
     resolution: float = 1.0         # Louvain 해상도
     concurrency: int = 3            # Playwright 동시 실행 상한
+    # 프론트에서 이미 수집한 '관계도'(fetchOverlapGraph 결과)를 그대로 넘기면
+    # 시드 재크롤 없이 그 중심+이웃+지표를 노드 집합/시드 엣지로 사용한다.
+    seedGraph: Optional[dict[str, Any]] = None
 
 
-async def _crawl_overlap(platform: str, cid: str, period_start: str, sem: asyncio.Semaphore):
+async def _crawl_overlap(platform: str, cid: str, period: str, period_start: str, sem: asyncio.Semaphore):
     """단일 크리에이터 overlap 크롤링 → (center, neighbors[])."""
-    url = _build_overlap_url(platform, cid, "month", period_start)
+    url = _build_overlap_url(platform, cid, period, period_start)
     async with sem:
         try:
             html, _ = await _fetch_with_playwright(
@@ -84,31 +92,54 @@ def _num(v):
 async def build_sna(req: SNARequest):
     platform = (req.platform or "soop").strip().lower()
     seed = (req.seed or "").strip()
+    period = (req.period or "month").strip().lower()
+    if period not in ("week", "month"):
+        period = "month"
+
+    # ── 관계도(seedGraph)가 함께 오면 그 중심/이웃/기간을 그대로 사용 ──
+    sg = req.seedGraph if isinstance(req.seedGraph, dict) else None
+    sg_nodes = (sg or {}).get("nodes") or []
+    sg_center = next((n for n in sg_nodes if n.get("isCenter")), None) if sg_nodes else None
+    use_graph = bool(sg_center or (sg_nodes and len(sg_nodes) >= 2))
+    if use_graph:
+        # 중심 채널: isCenter 노드 우선, 없으면 seedGraph.creatorId
+        seed = (sg_center or {}).get("id") or (sg.get("creatorId") or "").strip() or seed
+        platform = (
+            (sg_center or {}).get("platform")
+            or sg.get("platform") or platform
+        ).strip().lower()
+        if sg.get("period") in ("week", "month"):
+            period = sg["period"]
 
     # softc URL 통째 입력 지원
-    if "softc.one" in seed or seed.startswith("http"):
+    if not use_graph and ("softc.one" in seed or seed.startswith("http")):
         import re
         m = re.search(r"/channel/([^/]+)/([^/?#\s]+)", seed)
         if m:
             platform = PLAT_NORM.get(m.group(1), m.group(1))
             seed = m.group(2)
-    elif ":" in seed:
+    elif not use_graph and ":" in seed:
         p, c = seed.split(":", 1)
         platform, seed = p.strip().lower(), c.strip()
 
-    period_start = (req.periodStart or "").strip() or _default_period_start("month")
+    period_start = (
+        (sg.get("periodStart") if use_graph else "")
+        or (req.periodStart or "").strip()
+        or _default_period_start(period)
+    )
     K = max(2, min(int(req.neighbors or 12), 40))
     resolution = float(req.resolution or 1.0)
 
     base = {
         "status": "error", "seed": seed, "platform": platform.upper(),
-        "period": "month", "periodStart": period_start, "partial": True,
+        "period": period, "periodStart": period_start, "partial": True,
+        "basedOn": "관계도" if use_graph else "시드 스노우볼",
         "stats": {"nodes": 0, "edges": 0, "communities": 0, "density": 0.0},
         "communities": [], "nodes": [], "edges": [],
         "scrapedAt": datetime.utcnow().isoformat() + "Z",
     }
     if not seed:
-        base["error"] = "시드 크리에이터가 필요합니다."
+        base["error"] = "시드 크리에이터(또는 관계도)가 필요합니다."
         return base
 
     try:
@@ -119,11 +150,19 @@ async def build_sna(req: SNARequest):
 
     sem = asyncio.Semaphore(max(1, min(int(req.concurrency or 3), 6)))
 
-    # ── 1) 시드 크롤 → 상위 K 이웃 선정 ──
-    logger.info("[SNA] 시드 크롤: %s/%s (월 %s)", platform, seed, period_start)
-    seed_center, seed_neighbors = await _crawl_overlap(platform, seed, period_start, sem)
+    # ── 1) 시드 이웃 확보 → 상위 K 선정 ──
+    if use_graph:
+        # 관계도 데이터를 그대로 사용 (시드 재크롤 없음)
+        logger.info("[SNA] 관계도 기반: %s/%s (%s %s) · 이웃 %d",
+                    platform, seed, period, period_start,
+                    len([n for n in sg_nodes if not n.get("isCenter")]))
+        seed_center = sg_center
+        seed_neighbors = [n for n in sg_nodes if not n.get("isCenter") and n.get("id")]
+    else:
+        logger.info("[SNA] 시드 크롤: %s/%s (%s %s)", platform, seed, period, period_start)
+        seed_center, seed_neighbors = await _crawl_overlap(platform, seed, period, period_start, sem)
     if not seed_neighbors:
-        base["error"] = "시드의 관계도 데이터를 가져오지 못했습니다. ID/기간을 확인하세요."
+        base["error"] = "관계도 데이터를 가져오지 못했습니다. 채널 ID/기간을 확인하세요."
         return base
 
     seed_neighbors.sort(key=lambda n: _num(n.get("strength")) or 0, reverse=True)
@@ -172,7 +211,7 @@ async def build_sna(req: SNARequest):
     # ── 2) 이웃들 스노우볼 크롤 (이웃 간 엣지 발견용) ──
     async def _crawl_one(cid):
         p = meta[cid]["platform"]
-        _, nbs = await _crawl_overlap(p, cid, period_start, sem)
+        _, nbs = await _crawl_overlap(p, cid, period, period_start, sem)
         return cid, nbs
 
     tasks = [_crawl_one(cid) for cid in node_ids if cid != seed]

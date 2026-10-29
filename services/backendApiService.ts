@@ -280,9 +280,11 @@ export const fetchOverlapGraph = async (
   return res.data;
 };
 
-// ── SNA(팬덤 네트워크 분석 · 관계 강도 z 기반) ─────────────────────────────
-// 시드 크리에이터 + 상위 이웃을 스노우볼 크롤링해 무방향 가중 네트워크를
-// 구성하고 networkx로 중심성/커뮤니티를 계산한다 (월간 고정).
+// ── SNA(사회연결망 분석 · 관계 강도 z 기반) ───────────────────────────────
+// '관계도'(채팅 참여자 overlap)와 동일한 softc.one 데이터를 기반으로 한다.
+// 이미 수집한 관계도(OverlapGraphResult)를 seedGraph로 넘기면 시드 재크롤
+// 없이 그 중심+이웃+지표를 쓰고, 각 이웃의 관계도만 추가로 모아 이웃 간
+// 엣지를 채운 뒤 networkx로 중심성/커뮤니티/역할을 계산한다.
 
 export interface SNANode {
   id: string;
@@ -333,9 +335,10 @@ export interface SNAResult {
   status: 'completed' | 'error';
   seed: string;
   platform: string;
-  period: 'month';
+  period: 'week' | 'month';
   periodStart: string;
   partial: boolean;
+  basedOn?: string;        // '관계도' | '시드 스노우볼'
   eigenvectorOk?: boolean;
   stats: { nodes: number; edges: number; communities: number; density: number };
   communities: SNACommunity[];
@@ -352,11 +355,18 @@ export const buildSNANetwork = async (
   neighbors: number = 12,
   resolution: number = 1.0,
   overrideBaseUrl?: string,
+  period: 'week' | 'month' = 'month',
+  seedGraph?: OverlapGraphResult | null,   // 관계도 결과를 넘기면 시드 재크롤 생략
 ): Promise<SNAResult> => {
   const base = (overrideBaseUrl || BACKEND_URL || '').replace(/\/$/, '');
   if (!base) throw new Error('백엔드 URL이 설정되지 않았습니다.');
   const res = await axios.post(`${base}/api/sna/build`, {
-    platform, seed, periodStart, neighbors, resolution,
+    platform, seed, period, periodStart, neighbors, resolution,
+    seedGraph: seedGraph
+      ? { platform: seedGraph.platform, creatorId: seedGraph.creatorId,
+          period: seedGraph.period, periodStart: seedGraph.periodStart,
+          nodes: seedGraph.nodes }
+      : undefined,
   }, { timeout: 900000 });  // 스노우볼 크롤링 (최대 15분)
   return res.data;
 };
