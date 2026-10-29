@@ -324,7 +324,7 @@ const App: React.FC = () => {
   const [ovError, setOvError] = useState<string>('');
   const [ovResult, setOvResult] = useState<OverlapGraphResult | null>(null);
 
-  // SNA 네트워크 상태 (관계 강도 z 기반 팬덤 네트워크 · 월간 고정)
+  // SNA 분석 상태 (관계도 overlap 데이터 기반 · 관계 강도 z)
   const [snaPlatform, setSnaPlatform] = useState<'chzzk' | 'soop'>('soop');
   const [snaSeed, setSnaSeed] = useState<string>('');
   const [snaPeriodStart, setSnaPeriodStart] = useState<string>('');
@@ -929,34 +929,57 @@ const App: React.FC = () => {
     }
   };
 
-  // ── SNA 네트워크 구성 (시드 스노우볼 · 월간) ──
-  const handleSNABuild = async () => {
-    const raw = snaSeed.trim();
-    if (!raw) { alert('시드 크리에이터 ID 또는 softc.one URL을 입력하세요.'); return; }
+  // ── SNA 분석 구성 — 관계도(overlap) 데이터 기반 ──
+  // fromOverlap 지정 시: 이미 수집한 관계도를 그대로 seedGraph로 사용(시드 재크롤 생략).
+  // 미지정 시: 입력한 시드 크리에이터의 관계도를 백엔드가 수집해 분석.
+  const handleSNABuild = async (fromOverlap?: OverlapGraphResult | null) => {
+    const ov = (fromOverlap && fromOverlap.status === 'completed' && (fromOverlap.nodes?.length ?? 0) > 0)
+      ? fromOverlap : null;
+
+    let platform: string = snaPlatform;
+    let seed = '';
+    let period: 'week' | 'month' = 'month';
+    let periodStart = '';
+
+    if (ov) {
+      const center = ov.nodes.find(n => n.isCenter) ?? ov.nodes[0];
+      platform = ov.platform || snaPlatform;
+      seed = center?.id || ov.creatorId;
+      period = ov.period;
+      periodStart = ov.periodStart;
+      // 입력 필드도 연동해 어떤 관계도를 분석 중인지 보이게 함
+      setSnaPlatform((platform === 'chzzk' ? 'chzzk' : 'soop'));
+      setSnaSeed(seed);
+      setSnaPeriodStart(periodStart);
+    } else {
+      const raw = snaSeed.trim();
+      if (!raw) { alert('관계도를 먼저 수집하거나, 시드 크리에이터 ID/URL을 입력하세요.'); return; }
+      seed = raw;
+      const urlMatch = raw.match(/softc\.one\/channel\/([^/]+)\/([^/?#\s]+)/);
+      if (urlMatch) {
+        const rp = urlMatch[1];
+        platform = rp === 'naverchzzk' ? 'chzzk' : rp === 'afreeca' ? 'soop' : rp;
+        seed = urlMatch[2];
+      } else if (raw.includes(':')) {
+        const [p, c] = raw.split(':', 2);
+        platform = p.trim().toLowerCase();
+        seed = c.trim();
+      }
+      periodStart = snaPeriodStart || defaultPeriodStart('month');
+    }
+
     const base = localAgentRunning ? LOCAL_AGENT_URL : undefined;
     if (!base && !isBackendAvailable()) {
       setSnaError('SNA 분석은 로컬 에이전트(port 8001) 또는 클라우드 백엔드가 필요합니다.');
       setSnaStatus('error');
       return;
     }
-    let platform: string = snaPlatform;
-    let seed = raw;
-    const urlMatch = raw.match(/softc\.one\/channel\/([^/]+)\/([^/?#\s]+)/);
-    if (urlMatch) {
-      const rp = urlMatch[1];
-      platform = rp === 'naverchzzk' ? 'chzzk' : rp === 'afreeca' ? 'soop' : rp;
-      seed = urlMatch[2];
-    } else if (raw.includes(':')) {
-      const [p, c] = raw.split(':', 2);
-      platform = p.trim().toLowerCase();
-      seed = c.trim();
-    }
-    const periodStart = snaPeriodStart || defaultPeriodStart('month');
+
     setSnaStatus('loading');
     setSnaError('');
     setSnaSelected(null);
     try {
-      const result = await buildSNANetwork(platform, seed, periodStart, snaNeighbors, snaResolution, base);
+      const result = await buildSNANetwork(platform, seed, periodStart, snaNeighbors, snaResolution, base, period, ov);
       setSnaResult(result);
       // 백엔드 좌표로 위치 초기화 + 뷰 리셋
       const pos: Record<string, { x: number; y: number }> = {};
@@ -966,14 +989,14 @@ const App: React.FC = () => {
       if (result.status === 'error') {
         setSnaError(result.error || 'SNA 분석에 실패했습니다.');
         setSnaStatus('error');
-        addSystemLog('error', 'error', `SNA 분석 실패: ${result.error}`, { location: 'SNA 네트워크', seed, os: navigator.platform });
+        addSystemLog('error', 'error', `SNA 분석 실패: ${result.error}`, { location: 'SNA 분석', seed, os: navigator.platform });
       } else {
         setSnaStatus('done');
       }
     } catch (e: any) {
       const msg = e?.response?.data?.detail || e?.message || String(e);
       console.error('SNA 오류:', msg);
-      addSystemLog('error', 'error', `SNA 분석 오류: ${msg}`, { location: 'SNA 네트워크', os: navigator.platform });
+      addSystemLog('error', 'error', `SNA 분석 오류: ${msg}`, { location: 'SNA 분석', os: navigator.platform });
       setSnaError(msg);
       setSnaStatus('error');
     }
@@ -1778,7 +1801,7 @@ const App: React.FC = () => {
                 { id: 'video-config',     label: '단일 영상 분석',   Icon: Video,       soon: false },
                 { id: 'live-config',      label: '라이브 지표 분석', Icon: Tv2,         soon: false },
                 { id: 'relationship-config', label: '관계도',       Icon: Share2,      soon: false, isNew: true },
-                { id: 'sna-config',       label: 'SNA 네트워크',    Icon: Network,     soon: false, isNew: true },
+                { id: 'sna-config',       label: 'SNA 분석',        Icon: Network,     soon: false, isNew: true },
                 { id: 'instagram-config', label: 'Instagram 분석',  Icon: Instagram,   soon: false },
                 { id: 'tiktok-config',    label: 'TikTok 분석',     Icon: Music,       soon: false },
               ] as { id: TabType; label: string; Icon: React.ElementType; soon: boolean; isNew?: boolean }[]).map(({ id, label, Icon, soon, isNew }) => {
@@ -3265,11 +3288,19 @@ const App: React.FC = () => {
                           <p className="text-[11px] text-[#8888a8]">같은 사람이 채팅한 방송끼리 연결했습니다. 선이 굵을수록 관계가 강합니다.</p>
                         </div>
                       </div>
-                      {/* 줌 컨트롤 */}
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setZoom(1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="확대"><ZoomIn size={15} /></button>
-                        <button onClick={() => setZoom(1 / 1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="축소"><ZoomOut size={15} /></button>
-                        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="원래대로"><Maximize2 size={14} /></button>
+                      <div className="flex items-center gap-2">
+                        {/* 이 관계도 데이터로 SNA 분석 */}
+                        <button
+                          onClick={() => { setActiveTab('sna-config'); handleSNABuild(ovResult); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-600 text-[12px] font-semibold rounded-lg border border-violet-200 transition-all active:scale-95"
+                          title="이 관계도 데이터로 사회연결망(SNA) 분석을 실행합니다"
+                        ><Network size={13} /> SNA 분석</button>
+                        {/* 줌 컨트롤 */}
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setZoom(1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="확대"><ZoomIn size={15} /></button>
+                          <button onClick={() => setZoom(1 / 1.2)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="축소"><ZoomOut size={15} /></button>
+                          <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#f5f5fc] hover:bg-[#ececf6] text-[#5a5a7a] transition-all active:scale-90" title="원래대로"><Maximize2 size={14} /></button>
+                        </div>
                       </div>
                     </div>
 
@@ -3449,7 +3480,7 @@ const App: React.FC = () => {
               );
             })()
           ) : activeTab === 'sna-config' ? (
-            /* ── SNA 팬덤 네트워크 탭 (관계 강도 z 기반) ──────────────────────── */
+            /* ── SNA 분석 탭 (관계도 overlap 데이터 기반 · 관계 강도 z) ────────── */
             (() => {
               const r = snaResult;
               const nodes: SNANode[] = r?.nodes ?? [];
@@ -3538,15 +3569,35 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">SNA 네트워크</h2>
+                    <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">SNA 분석</h2>
                     <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> NEW</span>
                   </div>
-                  <p className="text-[13px] text-[#5a5a7a] mt-1">관계 강도(z) 기반 팬덤 네트워크 · 월간 · 시드 스노우볼 · viewership.softc.one</p>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">관계도 데이터를 기반으로 한 사회연결망 분석(SNA) · 커뮤니티·중심성·역할 · viewership.softc.one</p>
                 </div>
               </div>
 
-              {/* 입력 카드 */}
+              {/* 관계도 연동 — 수집된 관계도가 있으면 그 데이터로 바로 분석 */}
+              {ovResult && ovResult.status === 'completed' && (ovResult.nodes?.length ?? 0) > 0 && (() => {
+                const c = ovResult.nodes.find(n => n.isCenter) ?? ovResult.nodes[0];
+                const nb = ovResult.nodes.filter(n => !n.isCenter).length;
+                return (
+                  <div className="bg-violet-50/60 border border-violet-200 rounded-2xl p-4 flex flex-wrap items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center shrink-0"><Share2 size={16} className="text-violet-600" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-[#1a1a2e]">수집된 관계도: <span className="text-violet-700">{c?.label ?? ovResult.creatorId}</span></p>
+                      <p className="text-[11px] text-[#8888a8] mt-0.5">{(ovResult.platform || '').toUpperCase()} · {ovResult.period === 'week' ? '주간' : '월간'} {ovResult.periodStart} · 연결 채널 {nb}개 — 이 데이터를 그대로 분석합니다(시드 재수집 없음).</p>
+                    </div>
+                    <button onClick={() => handleSNABuild(ovResult)} disabled={!canRun}
+                      className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:bg-[#c8c8d8] disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-xl transition-all active:scale-95">
+                      {snaStatus === 'loading' ? <><Loader2 size={15} className="animate-spin" /> 분석 중…</> : <><Network size={15} /> 관계도 기반 SNA 분석</>}
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* 입력 카드 — 관계도가 없을 때 직접 시드로 수집·분석 */}
               <div className="bg-white rounded-2xl border border-[#ececf6] p-5">
+                <p className="text-[11px] font-medium text-[#8888a8] mb-3">관계도 없이 직접 분석 — 시드 크리에이터의 관계도를 수집해 분석합니다.</p>
                 <div className="flex flex-col lg:flex-row lg:items-end gap-3">
                   <div className="shrink-0">
                     <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">플랫폼</label>
@@ -3584,13 +3635,13 @@ const App: React.FC = () => {
                     <input type="number" min={0.2} max={3} step={0.1} value={snaResolution} onChange={e => setSnaResolution(Math.max(0.2, Math.min(3, Number(e.target.value) || 1)))}
                       className="w-20 text-[13px] text-[#1a1a2e] bg-[#f7f7fc] border border-[#ececf6] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-200 transition-all" />
                   </div>
-                  <button onClick={handleSNABuild} disabled={!canRun}
-                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:bg-[#c8c8d8] disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-xl transition-all active:scale-95">
-                    {snaStatus === 'loading' ? <><Loader2 size={15} className="animate-spin" /> 분석 중…</> : <><Network size={15} /> 네트워크 분석</>}
+                  <button onClick={() => handleSNABuild()} disabled={!canRun}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#f0f0f8] hover:bg-[#e6e6f2] disabled:bg-[#f5f5fa] disabled:cursor-not-allowed text-[#4a4a6a] text-[13px] font-semibold rounded-xl transition-all active:scale-95">
+                    {snaStatus === 'loading' ? <><Loader2 size={15} className="animate-spin" /> 분석 중…</> : <><Network size={15} /> 직접 수집·분석</>}
                   </button>
                 </div>
                 <p className="mt-3 text-[11px] text-[#a0a0b8]">
-                  시드 + 상위 {snaNeighbors}명 이웃을 각각 수집해 그들 사이의 관계까지 포함한 네트워크를 구성합니다. 수집 특성상 최대 수 분이 걸릴 수 있습니다.
+                  시드와 상위 {snaNeighbors}명 이웃의 관계도를 각각 모아 이웃 간 관계까지 포함한 네트워크를 구성합니다(월간 기준). 수집 특성상 최대 수 분이 걸릴 수 있습니다.
                   {!localAgentRunning && !isBackendAvailable() && <span className="text-amber-600"> · 로컬 에이전트(8001) 또는 클라우드 백엔드가 필요합니다.</span>}
                 </p>
               </div>
@@ -3611,8 +3662,8 @@ const App: React.FC = () => {
               ) : !r || r.status !== 'completed' ? (
                 <div className="bg-white rounded-2xl border border-[#ececf6] p-12 text-center">
                   <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-violet-50 flex items-center justify-center"><Network size={26} className="text-violet-400" /></div>
-                  <h3 className="text-[15px] font-bold text-[#0f0f23]">시드 크리에이터로 팬덤 네트워크를 분석합니다</h3>
-                  <p className="text-[13px] text-[#8888a8] mt-2 leading-relaxed">시드를 입력하고 <span className="text-violet-600 font-medium">네트워크 분석</span>을 누르면, 관계 강도 기반 커뮤니티·중심성·역할이 계산됩니다.</p>
+                  <h3 className="text-[15px] font-bold text-[#0f0f23]">관계도 데이터로 사회연결망을 분석합니다</h3>
+                  <p className="text-[13px] text-[#8888a8] mt-2 leading-relaxed"><span className="text-violet-600 font-medium">관계도</span> 탭에서 채널을 수집한 뒤 <span className="text-violet-600 font-medium">SNA 분석</span>을 누르거나, 위에서 시드를 직접 입력하세요. 관계 강도(z)를 기반으로 커뮤니티·중심성·역할이 계산됩니다.</p>
                 </div>
               ) : (
                 <>
@@ -3625,11 +3676,16 @@ const App: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  {r.partial && (
-                    <div className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      <AlertCircle size={13} /> 부분 네트워크: 시드와 상위 이웃 범위에서 관측된 관계만 포함합니다. 관측되지 않은 관계는 0이 아니라 '미관측'입니다.
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
+                      <Share2 size={12} /> 기반: {r.basedOn ?? '관계도'} · {r.platform} · {r.period === 'week' ? '주간' : '월간'} {r.periodStart}
+                    </span>
+                    {r.partial && (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                        <AlertCircle size={13} /> 부분 네트워크: 관측된 관계만 포함(미관측 ≠ 0)
+                      </span>
+                    )}
+                  </div>
 
                   {/* 모드 + 컨트롤 */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3812,7 +3868,7 @@ const App: React.FC = () => {
                   </div>
 
                   <p className="text-[10px] text-[#a0a0b8] leading-relaxed px-1">
-                    * 관계 강도(z)는 공유 채팅 참여자 기준 추정치이며 실제 시청자 유입·낙수 방향을 의미하지 않습니다. 매개 중심성이 높다고 시청자가 해당 채널을 경유해 이동한다는 뜻은 아니며, 네트워크 구조상 연결 경로의 중심에 있다는 의미입니다. 선택한 플랫폼·월간 기간, 시드 스노우볼 범위에서 관측된 관계만 사용했습니다. 커뮤니티/역할은 데이터 기반 추정으로 실제 크루 소속이나 친분을 뜻하지 않습니다.
+                    * 관계 강도(z)는 공유 채팅 참여자 기준 추정치이며 실제 시청자 유입·낙수 방향을 의미하지 않습니다. 매개 중심성이 높다고 시청자가 해당 채널을 경유해 이동한다는 뜻은 아니며, 네트워크 구조상 연결 경로의 중심에 있다는 의미입니다. 관계도(채팅 참여자 overlap)에서 수집한 중심·이웃 채널과 그 이웃 간 관계만 사용했습니다. 커뮤니티/역할은 데이터 기반 추정으로 실제 크루 소속이나 친분을 뜻하지 않습니다.
                   </p>
                 </>
               )}
