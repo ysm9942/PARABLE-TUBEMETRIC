@@ -312,7 +312,7 @@ const App: React.FC = () => {
   const [selectedLiveCreator, setSelectedLiveCreator] = useState<LiveCreatorResult | null>(null);
 
   // 관계도 (채팅 참여자 overlap · softc.one) 상태
-  const [relPeriod, setRelPeriod] = useState<RelPeriod>('week');
+  const [relPeriod] = useState<RelPeriod>('month');   // 월간 고정 (주간 분석 제거)
   const [relView, setRelView] = useState<{ scale: number; tx: number; ty: number }>({ scale: 1, tx: 0, ty: 0 });
   const relDragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const [relDragging, setRelDragging] = useState(false);
@@ -864,16 +864,23 @@ const App: React.FC = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // ── 관계도 (채팅 참여자 overlap) 수집 — softc.one 데이터 그대로 ──
+  // ── 관계도 (채팅 참여자 overlap) 수집 — softc.one 데이터 그대로 (월간 고정) ──
   const handleOverlapRequest = async () => {
     const rawInput = ovInput.trim();
     if (!rawInput) {
-      alert('채널 ID 또는 softc.one URL을 입력하세요.');
+      setOvError('채널 ID 또는 softc.one URL을 입력하세요.');
+      setOvStatus('error');
       return;
     }
-    // 우선순위: SoftC(8002 · undetected_chromedriver) > tubemetric-agent(8001 · Playwright) > 클라우드 백엔드
-    const base = softcLocalRunning ? SOFTC_AGENT_URL : localAgentRunning ? LOCAL_AGENT_URL : undefined;
-    if (!base && !isBackendAvailable()) {
+
+    // 사용 가능한 수집 엔진을 우선순위대로 나열하고, 실패 시 다음으로 폴백한다.
+    //   SoftC(8002 · undetected_chromedriver) > 라이브 지표 에이전트(8001 · Playwright) > 클라우드
+    // (예: 구버전 SoftC 에이전트에 overlap 엔드포인트가 없으면 8001/클라우드로 자동 폴백)
+    const candidates: { base?: string; label: string }[] = [];
+    if (softcLocalRunning) candidates.push({ base: SOFTC_AGENT_URL, label: 'SoftC 에이전트(8002·undetected)' });
+    if (localAgentRunning) candidates.push({ base: LOCAL_AGENT_URL, label: '라이브 지표 에이전트(8001·Playwright)' });
+    if (isBackendAvailable()) candidates.push({ base: undefined, label: '클라우드 백엔드' });
+    if (candidates.length === 0) {
       setOvError('관계도 수집은 SoftC 에이전트(8002) 또는 라이브 지표 에이전트(8001), 혹은 클라우드 백엔드가 필요합니다.');
       setOvStatus('error');
       return;
@@ -893,29 +900,35 @@ const App: React.FC = () => {
       creatorId = c.trim();
     }
 
-    const periodStart = ovPeriodStart || defaultPeriodStart(relPeriod);
+    const periodStart = ovPeriodStart || defaultPeriodStart('month');
     setOvStatus('loading');
     setOvError('');
-    try {
-      const result = await fetchOverlapGraph(platform, creatorId, relPeriod, periodStart, base);
-      setOvResult(result);
-      setRelView({ scale: 1, tx: 0, ty: 0 });
-      setRelPos({}); setRelSelected(null); setRelFocus(null);
-      setRelSort({ key: 'strength', dir: 'desc' });
-      if (result.status === 'error') {
-        setOvError(result.error || '관계도 수집에 실패했습니다.');
-        setOvStatus('error');
-        addSystemLog('error', 'error', `관계도 수집 실패: ${result.error}`, { location: '관계도', creatorId, os: navigator.platform });
-      } else {
+
+    let lastErr = '';
+    for (let i = 0; i < candidates.length; i++) {
+      const { base, label } = candidates[i];
+      try {
+        const result = await fetchOverlapGraph(platform, creatorId, 'month', periodStart, base);
+        if (result.status === 'error') {
+          lastErr = result.error || '관계도 수집에 실패했습니다.';
+          addSystemLog('warn', 'error', `관계도 수집 실패(${label}): ${lastErr}`, { location: '관계도', creatorId, os: navigator.platform });
+          continue; // 다음 엔진으로 폴백
+        }
+        setOvResult(result);
+        setRelView({ scale: 1, tx: 0, ty: 0 });
+        setRelPos({}); setRelSelected(null); setRelFocus(null);
+        setRelSort({ key: 'strength', dir: 'desc' });
         setOvStatus('done');
+        return;
+      } catch (e: any) {
+        lastErr = e?.response?.data?.detail || e?.message || String(e);
+        console.error(`관계도 오류(${label}):`, lastErr);
+        addSystemLog('warn', 'error', `관계도 수집 오류(${label}): ${lastErr}`, { location: '관계도', os: navigator.platform });
+        // 계속 다음 후보로 폴백
       }
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || e?.message || String(e);
-      console.error('관계도 오류:', msg);
-      addSystemLog('error', 'error', `관계도 수집 오류: ${msg}`, { location: '관계도', os: navigator.platform });
-      setOvError(msg);
-      setOvStatus('error');
     }
+    setOvError(`관계도를 수집하지 못했습니다. ${lastErr}`.trim());
+    setOvStatus('error');
   };
 
   const handleAdStart = async () => {
@@ -3108,18 +3121,10 @@ const App: React.FC = () => {
                     <h2 className="text-[22px] font-bold text-[#0f0f23] tracking-tight">관계도</h2>
                     <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> NEW</span>
                   </div>
-                  <p className="text-[13px] text-[#5a5a7a] mt-1">같은 사람이 채팅한 방송끼리 연결한 관계도 · viewership.softc.one</p>
+                  <p className="text-[13px] text-[#5a5a7a] mt-1">같은 사람이 채팅한 방송끼리 연결한 관계도 · 월간 · viewership.softc.one</p>
                 </div>
-                {/* 주간/월간 토글 */}
-                <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-xl">
-                  {([['week', '주간'], ['month', '월간']] as [RelPeriod, string][]).map(([p, lbl]) => (
-                    <button
-                      key={p}
-                      onClick={() => { setRelPeriod(p); setOvPeriodStart(''); }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${relPeriod === p ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}
-                    >{lbl}</button>
-                  ))}
-                </div>
+                {/* 월간 고정 */}
+                <span className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white text-violet-600 shadow-sm border border-[#ececf6]">월간</span>
               </div>
 
               {/* 입력 카드 — 채널 1개만 넣어도 동작 */}
@@ -3144,7 +3149,7 @@ const App: React.FC = () => {
                     <CreatorAutocomplete
                       value={ovInput}
                       onChange={setOvInput}
-                      onCommit={() => { if (canRun) handleOverlapRequest(); }}
+                      onCommit={() => handleOverlapRequest()}
                       creators={creators}
                       field="live"
                       placeholder="예: 시리안_레인  ·  soop:sirianrain  ·  https://viewership.softc.one/channel/afreeca/sirianrain/overlap"
@@ -3153,7 +3158,7 @@ const App: React.FC = () => {
                   </div>
                   {/* periodStart */}
                   <div className="shrink-0">
-                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">{relPeriod === 'week' ? '주 시작일(월)' : '월 시작일(1일)'}</label>
+                    <label className="block text-[11px] font-medium text-[#8888a8] mb-1.5">월 시작일(1일)</label>
                     <input
                       type="date"
                       value={periodStartShown}
