@@ -192,6 +192,8 @@ async def scrape_channel(req: ChannelRequest):
             "thumbnail": entry.get("thumbnail") or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
             "publishedAt": published_at,
             "viewCount": int(entry.get("view_count", 0) or 0),
+            "likeCount": int(entry.get("like_count", 0) or 0),
+            "commentCount": int(entry.get("comment_count", 0) or 0),
             "duration": _format_duration(duration_sec),
             "isShort": is_short,
             "isLiveStream": is_live,
@@ -210,6 +212,16 @@ async def scrape_channel(req: ChannelRequest):
     def avg_views(lst):
         return round(sum(v["viewCount"] for v in lst) / len(lst)) if lst else 0
 
+    def avg_by(lst, key):
+        return round(sum(v.get(key, 0) for v in lst) / len(lst)) if lst else 0
+
+    def median_by(lst, key):
+        if not lst:
+            return 0
+        vals = sorted(v.get(key, 0) for v in lst)
+        mid = len(vals) // 2
+        return vals[mid] if len(vals) % 2 else round((vals[mid - 1] + vals[mid]) / 2)
+
     all_non_live = shorts + longs
     return {
         "channelId": channel_id,
@@ -225,6 +237,14 @@ async def scrape_channel(req: ChannelRequest):
         "avgShortsViews": avg_views(shorts),
         "avgLongViews": avg_views(longs),
         "avgTotalViews": avg_views(all_non_live),
+        "medianShortsViews": median_by(shorts, "viewCount"),
+        "medianLongViews": median_by(longs, "viewCount"),
+        "medianTotalViews": median_by(all_non_live, "viewCount"),
+        # 수집한 전체 영상(쇼츠+롱폼) 기준 좋아요/댓글 평균·중앙값
+        "avgLikes": avg_by(all_non_live, "likeCount"),
+        "medianLikes": median_by(all_non_live, "likeCount"),
+        "avgComments": avg_by(all_non_live, "commentCount"),
+        "medianComments": median_by(all_non_live, "commentCount"),
         "status": "completed",
         "scrapedAt": datetime.utcnow().isoformat() + "Z",
     }

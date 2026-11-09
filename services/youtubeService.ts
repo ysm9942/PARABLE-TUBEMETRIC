@@ -287,15 +287,17 @@ export const fetchChannelStats = async (
     for (const video of videoResponse.data.items) {
       const publishedAt = new Date(video.snippet.publishedAt);
       const isShort = await isYouTubeShort(video.id, parseYtDurationSeconds(video.contentDetails.duration));
-      const info: VideoDetail = { 
-        id: video.id, 
-        title: video.snippet.title, 
-        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url, 
-        publishedAt: video.snippet.publishedAt, 
-        viewCount: parseInt(video.statistics.viewCount || '0', 10), 
-        duration: video.contentDetails.duration, 
-        isShort, 
-        isLiveStream: !!video.liveStreamingDetails 
+      const info: VideoDetail = {
+        id: video.id,
+        title: video.snippet.title,
+        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
+        publishedAt: video.snippet.publishedAt,
+        viewCount: parseInt(video.statistics.viewCount || '0', 10),
+        likeCount: parseInt(video.statistics.likeCount || '0', 10),
+        commentCount: parseInt(video.statistics.commentCount || '0', 10),
+        duration: video.contentDetails.duration,
+        isShort,
+        isLiveStream: !!video.liveStreamingDetails
       };
 
       if (info.isLiveStream) {
@@ -337,13 +339,21 @@ export const fetchChannelStats = async (
     if (!nextPageToken) break;
   }
 
-  const calcAvg = (arr: VideoDetail[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v.viewCount, 0) / arr.length) : 0;
-  const calcMedian = (arr: VideoDetail[]) => {
+  // 값 선택자(selector)로 평균·중앙값을 계산 (조회수/좋아요/댓글 공통)
+  const avgBy = (arr: VideoDetail[], sel: (v: VideoDetail) => number) =>
+    arr.length ? Math.round(arr.reduce((s, v) => s + sel(v), 0) / arr.length) : 0;
+  const medianBy = (arr: VideoDetail[], sel: (v: VideoDetail) => number) => {
     if (!arr.length) return 0;
-    const sorted = arr.map(v => v.viewCount).sort((a, b) => a - b);
+    const sorted = arr.map(sel).sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
   };
+  const views = (v: VideoDetail) => v.viewCount;
+  const likes = (v: VideoDetail) => v.likeCount ?? 0;
+  const comments = (v: VideoDetail) => v.commentCount ?? 0;
+  const calcAvg = (arr: VideoDetail[]) => avgBy(arr, views);
+  const calcMedian = (arr: VideoDetail[]) => medianBy(arr, views);
+  const collected = [...shorts, ...longs];   // 수집한 전체 영상 (라이브 제외)
   return {
     avgShortsViews: calcAvg(shorts),
     medianShortsViews: calcMedian(shorts),
@@ -351,9 +361,14 @@ export const fetchChannelStats = async (
     avgLongViews: calcAvg(longs),
     medianLongViews: calcMedian(longs),
     longCount: longs.length,
-    avgTotalViews: calcAvg([...shorts, ...longs]),
-    medianTotalViews: calcMedian([...shorts, ...longs]),
-    totalCount: shorts.length + longs.length,
+    avgTotalViews: calcAvg(collected),
+    medianTotalViews: calcMedian(collected),
+    totalCount: collected.length,
+    // 수집한 전체 영상 기준 좋아요/댓글 평균·중앙값
+    avgLikes: avgBy(collected, likes),
+    medianLikes: medianBy(collected, likes),
+    avgComments: avgBy(collected, comments),
+    medianComments: medianBy(collected, comments),
     shortsList: shorts,
     longsList: longs,
     liveList: lives
