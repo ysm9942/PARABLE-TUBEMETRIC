@@ -250,6 +250,15 @@ async def scrape_channel(req: ChannelRequest):
         "medianLikes": median_by(all_non_live, "likeCount"),
         "avgComments": avg_by(all_non_live, "commentCount"),
         "medianComments": median_by(all_non_live, "commentCount"),
+        # 쇼츠/롱폼으로 분리한 좋아요·댓글 평균·중앙값
+        "avgShortsLikes": avg_by(shorts, "likeCount"),
+        "medianShortsLikes": median_by(shorts, "likeCount"),
+        "avgLongLikes": avg_by(longs, "likeCount"),
+        "medianLongLikes": median_by(longs, "likeCount"),
+        "avgShortsComments": avg_by(shorts, "commentCount"),
+        "medianShortsComments": median_by(shorts, "commentCount"),
+        "avgLongComments": avg_by(longs, "commentCount"),
+        "medianLongComments": median_by(longs, "commentCount"),
         "status": "completed",
         "scrapedAt": datetime.utcnow().isoformat() + "Z",
     }

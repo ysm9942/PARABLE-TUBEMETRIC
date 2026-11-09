@@ -369,6 +369,15 @@ export const fetchChannelStats = async (
     medianLikes: medianBy(collected, likes),
     avgComments: avgBy(collected, comments),
     medianComments: medianBy(collected, comments),
+    // 쇼츠/롱폼으로 분리한 좋아요·댓글 평균·중앙값
+    avgShortsLikes: avgBy(shorts, likes),
+    medianShortsLikes: medianBy(shorts, likes),
+    avgLongLikes: avgBy(longs, likes),
+    medianLongLikes: medianBy(longs, likes),
+    avgShortsComments: avgBy(shorts, comments),
+    medianShortsComments: medianBy(shorts, comments),
+    avgLongComments: avgBy(longs, comments),
+    medianLongComments: medianBy(longs, comments),
     shortsList: shorts,
     longsList: longs,
     liveList: lives
