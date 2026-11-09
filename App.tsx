@@ -1052,32 +1052,37 @@ const App: React.FC = () => {
     const wb = XLSX.utils.book_new();
 
     if (dashboardSubTab === 'channel') {
+      // 숏폼 → 롱폼 → 통합 순으로, 각 블록은 [개수 · 조회수 · 좋아요 · 댓글]의 평균/중앙값으로 일관되게 정렬
       const summaryData = channelResults.map((r) => ({
-        '채널 링크': `https://www.youtube.com/channel/${r.channelId}`,
         '채널명': r.channelName,
         '채널 ID': r.channelId,
-        '구독자 수': parseInt(r.subscriberCount, 10),
-        '통합 평균 조회수': r.avgTotalViews,
-        '통합 중앙값 조회수': r.medianTotalViews ?? 0,
-        '쇼츠 평균 조회수': r.avgShortsViews,
-        '쇼츠 중앙값 조회수': r.medianShortsViews ?? 0,
-        '쇼츠 분석 개수': r.shortsCountFound,
-        '롱폼 평균 조회수': r.avgLongViews,
-        '롱폼 중앙값 조회수': r.medianLongViews ?? 0,
-        '롱폼 분석 개수': r.longCountFound,
-        '쇼츠 좋아요 평균': r.avgShortsLikes ?? 0,
-        '쇼츠 좋아요 중앙값': r.medianShortsLikes ?? 0,
-        '롱폼 좋아요 평균': r.avgLongLikes ?? 0,
-        '롱폼 좋아요 중앙값': r.medianLongLikes ?? 0,
-        '쇼츠 댓글 평균': r.avgShortsComments ?? 0,
-        '쇼츠 댓글 중앙값': r.medianShortsComments ?? 0,
-        '롱폼 댓글 평균': r.avgLongComments ?? 0,
-        '롱폼 댓글 중앙값': r.medianLongComments ?? 0,
-        '좋아요 평균(통합)': r.avgLikes ?? 0,
-        '좋아요 중앙값(통합)': r.medianLikes ?? 0,
-        '댓글 평균(통합)': r.avgComments ?? 0,
-        '댓글 중앙값(통합)': r.medianComments ?? 0,
+        '채널 링크': `https://www.youtube.com/channel/${r.channelId}`,
+        '구독자 수': parseInt(r.subscriberCount, 10) || 0,
         '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
+
+        '[숏폼] 분석 개수': r.shortsCountFound,
+        '[숏폼] 조회수 평균': r.avgShortsViews,
+        '[숏폼] 조회수 중앙값': r.medianShortsViews ?? 0,
+        '[숏폼] 좋아요 평균': r.avgShortsLikes ?? 0,
+        '[숏폼] 좋아요 중앙값': r.medianShortsLikes ?? 0,
+        '[숏폼] 댓글 평균': r.avgShortsComments ?? 0,
+        '[숏폼] 댓글 중앙값': r.medianShortsComments ?? 0,
+
+        '[롱폼] 분석 개수': r.longCountFound,
+        '[롱폼] 조회수 평균': r.avgLongViews,
+        '[롱폼] 조회수 중앙값': r.medianLongViews ?? 0,
+        '[롱폼] 좋아요 평균': r.avgLongLikes ?? 0,
+        '[롱폼] 좋아요 중앙값': r.medianLongLikes ?? 0,
+        '[롱폼] 댓글 평균': r.avgLongComments ?? 0,
+        '[롱폼] 댓글 중앙값': r.medianLongComments ?? 0,
+
+        '[통합] 분석 개수': r.totalCountFound,
+        '[통합] 조회수 평균': r.avgTotalViews,
+        '[통합] 조회수 중앙값': r.medianTotalViews ?? 0,
+        '[통합] 좋아요 평균': r.avgLikes ?? 0,
+        '[통합] 좋아요 중앙값': r.medianLikes ?? 0,
+        '[통합] 댓글 평균': r.avgComments ?? 0,
+        '[통합] 댓글 중앙값': r.medianComments ?? 0,
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, '채널 요약');
@@ -1090,6 +1095,8 @@ const App: React.FC = () => {
             '영상 ID': v.id,
             '유형': v.isShort ? '쇼츠' : '롱폼',
             '조회수': v.viewCount,
+            '좋아요수': v.likeCount ?? 0,
+            '댓글수': v.commentCount ?? 0,
             '게시일': new Date(v.publishedAt).toLocaleDateString()
           }));
 
