@@ -55,6 +55,11 @@ def _ydl_opts(quiet: bool = True) -> dict:
         "extract_flat": False,
         "skip_download": True,
         "ignoreerrors": True,
+        # YouTube like_count는 web/mweb 클라이언트에서만 내려온다.
+        # 기본 클라이언트(tv/ios 등)는 comment_count·view_count는 주지만
+        # like_count를 None으로 반환하므로, web 클라이언트를 우선 포함한다.
+        # (web이 봇 체크로 막혀도 android가 폴백하여 수치 자체는 계속 수집됨)
+        "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
         # 봇 탐지 우회를 위한 설정
         "http_headers": {
             "User-Agent": (
