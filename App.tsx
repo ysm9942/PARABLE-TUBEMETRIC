@@ -29,6 +29,7 @@ import {
   MessageSquare,
   ThumbsUp,
   Activity,
+  Target,
   Megaphone,
   CalendarDays,
   AlertCircle,
@@ -348,6 +349,7 @@ const App: React.FC = () => {
   const [adDraft, setAdDraft] = useState<string>('');
   const [showChannelResults, setShowChannelResults] = useState<boolean>(false);
   const [channelResultTab, setChannelResultTab] = useState<ResultTab>('table');
+  const [channelChartMetric, setChannelChartMetric] = useState<'views' | 'likes' | 'comments'>('views');
   const [showVideoResults, setShowVideoResults] = useState<boolean>(false);
   const [videoResultTab, setVideoResultTab] = useState<ResultTab>('table');
   const [showAdResults, setShowAdResults] = useState<boolean>(false);
@@ -2155,9 +2157,9 @@ const App: React.FC = () => {
                     <div className="border-t border-[#e0e1ef]">
                       <div className="flex items-center justify-between px-6 py-3 border-b border-[#e0e1ef] bg-[#f2f3f8]/50">
                         <div className="flex gap-1">
-                          {(['table','chart','raw'] as ResultTab[]).map(t => (
+                          {(['table','chart'] as ResultTab[]).map(t => (
                             <button key={t} onClick={() => setChannelResultTab(t)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${channelResultTab === t ? 'bg-violet-600 text-white' : 'text-[#5a5a7a] hover:text-[#5a5a7a] hover:bg-[#f0f0fa]'}`}>
-                              {t === 'table' ? 'TABLE' : t === 'chart' ? 'CHART' : 'RAW DATA'}
+                              {t === 'table' ? 'TABLE' : 'CHART'}
                             </button>
                           ))}
                         </div>
@@ -2208,38 +2210,153 @@ const App: React.FC = () => {
                         </div>
                       )}
                       {channelResultTab === 'chart' && (
-                        <div className="p-6 space-y-6">
+                        <div className="p-6 space-y-10">
                           {(() => {
                             const done = channelResults.filter(r => r.status === 'completed');
                             if (!done.length) return <p className="text-xs text-[#1a1a2e] text-center py-8">완료된 채널이 없습니다.</p>;
-                            const maxShorts = Math.max(...done.map(r => r.avgShortsViews), 1);
-                            const maxLong = Math.max(...done.map(r => r.avgLongViews), 1);
+
+                            const tn = (s: string, n = 16) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '');
+                            const compact = (n: number) => {
+                              const v = Math.round(n || 0);
+                              if (v >= 1e8) return (v / 1e8).toFixed(1).replace(/\.0$/, '') + '억';
+                              if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, '') + '만';
+                              if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+                              return String(v);
+                            };
+                            const subsOf = (r: ChannelResult) => parseInt(r.subscriberCount || '0', 10) || 0;
+
+                            // ── A. 지표 비교: 평균 vs 중앙값 (지표 선택) ──
+                            const metricCfg = ({
+                              views:    { label: '통합 조회수', avg: '#7c3aed', med: '#c4b5fd', selAvg: (r: ChannelResult) => r.avgTotalViews,     selMed: (r: ChannelResult) => r.medianTotalViews ?? 0 },
+                              likes:    { label: '좋아요',      avg: '#f43f5e', med: '#fecdd3', selAvg: (r: ChannelResult) => r.avgLikes ?? 0,     selMed: (r: ChannelResult) => r.medianLikes ?? 0 },
+                              comments: { label: '댓글',        avg: '#d97706', med: '#fcd34d', selAvg: (r: ChannelResult) => r.avgComments ?? 0,  selMed: (r: ChannelResult) => r.medianComments ?? 0 },
+                            } as const)[channelChartMetric];
+                            const barRows = [...done].sort((a, b) => metricCfg.selAvg(b) - metricCfg.selAvg(a));
+                            const barMax = Math.max(...barRows.flatMap(r => [metricCfg.selAvg(r), metricCfg.selMed(r)]), 1);
+                            const BW = 820, padL = 150, padR = 86, padT = 6, padB = 30, areaW = BW - padL - padR, rowH = 40, barH = 13;
+                            const BH = barRows.length * rowH + padT + padB;
+                            const ticks = [0, 0.25, 0.5, 0.75, 1];
+
+                            // ── B. 구독자 대비 평균 조회수 산점도 (log-log, 버블=좋아요) ──
+                            const subsV = done.map(r => Math.max(subsOf(r), 1));
+                            const viewV = done.map(r => Math.max(r.avgTotalViews, 1));
+                            const lminX = Math.log10(Math.min(...subsV)), lmaxX = Math.log10(Math.max(...subsV));
+                            const lminY = Math.log10(Math.min(...viewV)), lmaxY = Math.log10(Math.max(...viewV));
+                            const spanX = (lmaxX - lminX) || 1, spanY = (lmaxY - lminY) || 1;
+                            const maxLike = Math.max(...done.map(r => r.avgLikes ?? 0), 1);
+                            const SW = 820, sL = 60, sR = 20, sT = 16, sB = 46, SH = 380, plotW = SW - sL - sR, plotH = SH - sT - sB;
+                            const sx = (v: number) => sL + ((Math.log10(Math.max(v, 1)) - lminX) / spanX) * plotW;
+                            const sy = (v: number) => sT + (1 - (Math.log10(Math.max(v, 1)) - lminY) / spanY) * plotH;
+                            const rOf = (lk: number) => 6 + Math.sqrt((lk || 0) / maxLike) * 20;
+                            const xTk = [lminX, (lminX + lmaxX) / 2, lmaxX].map(l => Math.pow(10, l));
+                            const yTk = [lminY, (lminY + lmaxY) / 2, lmaxY].map(l => Math.pow(10, l));
+
+                            // ── C. 참여율 (평균 좋아요/댓글 ÷ 평균 조회수) ──
+                            const eng = [...done].map(r => ({
+                              id: r.channelId, name: r.channelName,
+                              like: r.avgTotalViews > 0 ? ((r.avgLikes ?? 0) / r.avgTotalViews) * 100 : 0,
+                              comment: r.avgTotalViews > 0 ? ((r.avgComments ?? 0) / r.avgTotalViews) * 100 : 0,
+                            })).sort((a, b) => b.like - a.like);
+                            const maxLikeR = Math.max(...eng.map(e => e.like), 0.1);
+                            const maxCmtR = Math.max(...eng.map(e => e.comment), 0.1);
+
                             return (
                               <>
+                                {/* A. 지표 비교 (평균 vs 중앙값) */}
                                 <div>
-                                  <p className="text-[12px] font-semibold text-[#3a3a5a] mb-3 flex items-center gap-1.5"><Radio size={12} className="text-violet-600" /> Shorts 평균 조회수</p>
-                                  <div className="space-y-2">
-                                    {done.map(r => (
-                                      <div key={r.channelId} className="flex items-center gap-3">
-                                        <span className="text-xs text-[#5a5a7a] w-28 truncate shrink-0">{r.channelName}</span>
-                                        <div className="flex-1 bg-[#f0f0f8] rounded-full h-1.5 overflow-hidden">
-                                          <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${(r.avgShortsViews / maxShorts) * 100}%` }} />
-                                        </div>
-                                        <span className="text-xs text-[#1a1a2e] w-20 text-right shrink-0 tabular-nums">{r.avgShortsViews.toLocaleString()}</span>
+                                  <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                                    <p className="text-[13px] font-semibold text-[#0f0f23] flex items-center gap-1.5"><BarChart3 size={14} className="text-violet-600" /> 지표 비교 · 평균 vs 중앙값</p>
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-1 p-1 bg-[#f0f0f8] rounded-lg">
+                                        {([['views', '조회수'], ['likes', '좋아요'], ['comments', '댓글']] as [typeof channelChartMetric, string][]).map(([m, l]) => (
+                                          <button key={m} onClick={() => setChannelChartMetric(m)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${channelChartMetric === m ? 'bg-white text-violet-600 shadow-sm' : 'text-[#8888a8] hover:text-[#4a4a6a]'}`}>{l}</button>
+                                        ))}
                                       </div>
-                                    ))}
+                                      <div className="flex items-center gap-3 text-[10px] text-[#8888a8]">
+                                        <span className="flex items-center gap-1"><span className="w-3 h-2.5 rounded-sm" style={{ background: metricCfg.avg }} /> 평균</span>
+                                        <span className="flex items-center gap-1"><span className="w-3 h-2.5 rounded-sm" style={{ background: metricCfg.med }} /> 중앙값</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <svg viewBox={`0 0 ${BW} ${BH}`} className="w-full" style={{ minWidth: 520 }}>
+                                      {ticks.map(t => { const x = padL + t * areaW; return (
+                                        <g key={t}>
+                                          <line x1={x} y1={padT} x2={x} y2={BH - padB} stroke="#eceaf6" strokeWidth="1" />
+                                          <text x={x} y={BH - padB + 15} textAnchor="middle" fontSize="9" fill="#a0a0b8">{compact(barMax * t)}</text>
+                                        </g>
+                                      ); })}
+                                      {barRows.map((r, i) => {
+                                        const cy = padT + i * rowH + rowH / 2;
+                                        const av = metricCfg.selAvg(r), md = metricCfg.selMed(r);
+                                        const avW = Math.max((av / barMax) * areaW, 0), mdW = Math.max((md / barMax) * areaW, 0);
+                                        return (
+                                          <g key={r.channelId}>
+                                            <text x={padL - 10} y={cy} textAnchor="end" dominantBaseline="middle" fontSize="11" fontWeight="500" fill="#3a3a5a">{tn(r.channelName)}</text>
+                                            <rect x={padL} y={cy - barH - 1} width={avW} height={barH} rx="3" fill={metricCfg.avg} />
+                                            <text x={padL + avW + 6} y={cy - barH / 2 - 1} dominantBaseline="middle" fontSize="10" fontWeight="700" fill="#3a3a5a">{compact(av)}</text>
+                                            <rect x={padL} y={cy + 1} width={mdW} height={barH} rx="3" fill={metricCfg.med} />
+                                            <text x={padL + mdW + 6} y={cy + barH / 2 + 1} dominantBaseline="middle" fontSize="10" fill="#9a9ab2">{compact(md)}</text>
+                                          </g>
+                                        );
+                                      })}
+                                    </svg>
+                                  </div>
+                                  <p className="text-[10px] text-[#a0a0b8] mt-1">평균과 중앙값의 차이가 클수록 일부 인기 영상에 수치가 쏠려 있다는 의미입니다({metricCfg.label}).</p>
+                                </div>
+
+                                {/* B. 구독자 대비 평균 조회수 산점도 */}
+                                <div>
+                                  <p className="text-[13px] font-semibold text-[#0f0f23] flex items-center gap-1.5 mb-1"><Activity size={14} className="text-violet-600" /> 구독자 대비 평균 조회수</p>
+                                  <p className="text-[10px] text-[#a0a0b8] mb-3">대각선 위쪽일수록 구독자 규모 대비 조회수가 높은 채널 · 버블 크기 = 평균 좋아요 (양축 로그 스케일)</p>
+                                  <div className="overflow-x-auto">
+                                    <svg viewBox={`0 0 ${SW} ${SH}`} className="w-full" style={{ minWidth: 520 }}>
+                                      <line x1={sL} y1={sT} x2={sL} y2={sT + plotH} stroke="#d8d8e6" strokeWidth="1" />
+                                      <line x1={sL} y1={sT + plotH} x2={sL + plotW} y2={sT + plotH} stroke="#d8d8e6" strokeWidth="1" />
+                                      {yTk.map((v, i) => { const y = sy(v); return (
+                                        <g key={`y${i}`}>
+                                          <line x1={sL} y1={y} x2={sL + plotW} y2={y} stroke="#f0eff8" strokeWidth="1" />
+                                          <text x={sL - 6} y={y} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="#a0a0b8">{compact(v)}</text>
+                                        </g>
+                                      ); })}
+                                      {xTk.map((v, i) => { const x = sx(v); return (
+                                        <text key={`x${i}`} x={x} y={sT + plotH + 16} textAnchor="middle" fontSize="9" fill="#a0a0b8">{compact(v)}</text>
+                                      ); })}
+                                      <text x={sL + plotW} y={sT + plotH + 32} textAnchor="end" fontSize="10" fill="#8888a8">구독자 수 →</text>
+                                      <text x={sL - 44} y={sT + 2} fontSize="10" fill="#8888a8">↑ 평균 조회수</text>
+                                      {done.map(r => {
+                                        const cx = sx(Math.max(subsOf(r), 1)), cyv = sy(Math.max(r.avgTotalViews, 1)), rr = rOf(r.avgLikes ?? 0);
+                                        return (
+                                          <g key={r.channelId}>
+                                            <circle cx={cx} cy={cyv} r={rr} fill="#7c3aed" fillOpacity="0.2" stroke="#7c3aed" strokeWidth="1.5" />
+                                            {done.length <= 14 && <text x={cx} y={cyv - rr - 3} textAnchor="middle" fontSize="9" fontWeight="500" fill="#5a5a7a">{tn(r.channelName, 10)}</text>}
+                                          </g>
+                                        );
+                                      })}
+                                    </svg>
                                   </div>
                                 </div>
+
+                                {/* C. 참여율 */}
                                 <div>
-                                  <p className="text-[12px] font-semibold text-[#3a3a5a] mb-3 flex items-center gap-1.5"><MonitorPlay size={12} className="text-[#1a1a2e]" /> Longform 평균 조회수</p>
-                                  <div className="space-y-2">
-                                    {done.map(r => (
-                                      <div key={r.channelId} className="flex items-center gap-3">
-                                        <span className="text-xs text-[#5a5a7a] w-28 truncate shrink-0">{r.channelName}</span>
-                                        <div className="flex-1 bg-[#f0f0f8] rounded-full h-1.5 overflow-hidden">
-                                          <div className="h-full bg-[#5a5a80] rounded-full transition-all duration-500" style={{ width: `${(r.avgLongViews / maxLong) * 100}%` }} />
+                                  <p className="text-[13px] font-semibold text-[#0f0f23] flex items-center gap-1.5 mb-3"><Target size={14} className="text-violet-600" /> 참여율 (평균 좋아요·댓글 ÷ 평균 조회수)</p>
+                                  <div className="grid md:grid-cols-2 gap-x-10 gap-y-5">
+                                    {([['좋아요율', 'like', '#f43f5e', maxLikeR], ['댓글율', 'comment', '#d97706', maxCmtR]] as [string, 'like' | 'comment', string, number][]).map(([title, key, color, mx]) => (
+                                      <div key={key}>
+                                        <p className="text-[11px] font-medium text-[#5a5a7a] mb-2 flex items-center gap-1.5">
+                                          {key === 'like' ? <ThumbsUp size={11} style={{ color }} /> : <MessageSquare size={11} style={{ color }} />}{title}
+                                        </p>
+                                        <div className="space-y-1.5">
+                                          {eng.map(e => (
+                                            <div key={e.id} className="flex items-center gap-3">
+                                              <span className="text-[11px] text-[#5a5a7a] w-24 truncate shrink-0">{tn(e.name, 12)}</span>
+                                              <div className="flex-1 bg-[#f0f0f8] rounded-full h-1.5 overflow-hidden">
+                                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (e[key] / mx) * 100)}%`, background: color }} />
+                                              </div>
+                                              <span className="text-[11px] text-[#1a1a2e] w-14 text-right shrink-0 tabular-nums">{e[key].toFixed(2)}%</span>
+                                            </div>
+                                          ))}
                                         </div>
-                                        <span className="text-xs text-[#1a1a2e] w-20 text-right shrink-0 tabular-nums">{r.avgLongViews.toLocaleString()}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -2248,9 +2365,6 @@ const App: React.FC = () => {
                             );
                           })()}
                         </div>
-                      )}
-                      {channelResultTab === 'raw' && (
-                        <pre className="p-6 text-[11px] text-[#5a5a7a] overflow-auto max-h-96 font-mono leading-relaxed">{JSON.stringify(channelResults.map(r => ({ channelId: r.channelId, channelName: r.channelName, subscriberCount: r.subscriberCount, avgShortsViews: r.avgShortsViews, avgLongViews: r.avgLongViews, status: r.status })), null, 2)}</pre>
                       )}
                     </div>
                   )}
