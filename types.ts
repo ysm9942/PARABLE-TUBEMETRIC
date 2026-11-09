@@ -58,6 +58,11 @@ export interface ChannelResult {
   avgTotalViews: number;
   medianTotalViews: number;
   totalCountFound: number;
+  // 수집한 전체 영상(쇼츠+롱폼) 기준 좋아요/댓글 평균·중앙값
+  avgLikes: number;
+  medianLikes: number;
+  avgComments: number;
+  medianComments: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
   liveList: VideoDetail[];
@@ -129,6 +134,8 @@ export interface VideoDetail {
   thumbnail: string;
   publishedAt: string;
   viewCount: number;
+  likeCount?: number;
+  commentCount?: number;
   duration: string;
   isShort: boolean;
   isLiveStream?: boolean;

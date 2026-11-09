@@ -492,6 +492,10 @@ const App: React.FC = () => {
       avgTotalViews: 0,
       medianTotalViews: 0,
       totalCountFound: 0,
+      avgLikes: 0,
+      medianLikes: 0,
+      avgComments: 0,
+      medianComments: 0,
       shortsList: [],
       longsList: [],
       liveList: [],
@@ -541,6 +545,10 @@ const App: React.FC = () => {
             avgTotalViews: stats.avgTotalViews,
             medianTotalViews: stats.medianTotalViews,
             totalCountFound: stats.totalCount,
+            avgLikes: stats.avgLikes,
+            medianLikes: stats.medianLikes,
+            avgComments: stats.avgComments,
+            medianComments: stats.medianComments,
             shortsList: stats.shortsList,
             longsList: stats.longsList,
             liveList: stats.liveList,
@@ -1039,6 +1047,10 @@ const App: React.FC = () => {
         '롱폼 평균 조회수': r.avgLongViews,
         '롱폼 중앙값 조회수': r.medianLongViews ?? 0,
         '롱폼 분석 개수': r.longCountFound,
+        '좋아요 평균': r.avgLikes ?? 0,
+        '좋아요 중앙값': r.medianLikes ?? 0,
+        '댓글 평균': r.avgComments ?? 0,
+        '댓글 중앙값': r.medianComments ?? 0,
         '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
@@ -1529,6 +1541,30 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-10">
+              {/* 수집한 영상의 좋아요·댓글 평균/중앙값 */}
+              <div>
+                <h4 className="text-sm font-semibold text-[#0f0f23] flex items-center gap-2 mb-3">
+                  <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
+                  좋아요·댓글 통계 <span className="text-[#5a5a7a] font-normal">(수집 영상 {selectedChannel.totalCountFound.toLocaleString()}개 기준)</span>
+                </h4>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {([
+                    ['좋아요 평균', selectedChannel.avgLikes, 'like'],
+                    ['좋아요 중앙값', selectedChannel.medianLikes, 'like'],
+                    ['댓글 평균', selectedChannel.avgComments, 'comment'],
+                    ['댓글 중앙값', selectedChannel.medianComments, 'comment'],
+                  ] as [string, number, 'like' | 'comment'][]).map(([lbl, val, kind]) => (
+                    <div key={lbl} className="bg-[#f0f0f8] rounded-xl border border-[#e4e5f0] p-4">
+                      <div className="flex items-center gap-1.5 text-xs text-[#5a5a7a] mb-1">
+                        {kind === 'like' ? <ThumbsUp size={12} className="text-violet-600" /> : <MessageSquare size={12} className="text-[#5a5a7a]" />}
+                        {lbl}
+                      </div>
+                      <div className={`text-lg font-semibold tabular-nums ${kind === 'like' ? 'text-violet-600' : 'text-[#1a1a2e]'}`}>{(val ?? 0).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-[#e0e1ef] pb-3">
@@ -2127,7 +2163,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값\t좋아요평균\t좋아요중앙값\t댓글평균\t댓글중앙값'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0, r.avgLikes ?? 0, r.medianLikes ?? 0, r.avgComments ?? 0, r.medianComments ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
@@ -2139,6 +2175,8 @@ const App: React.FC = () => {
                                 <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Subscribers</th>
                                 <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Shorts 평균/중앙값</th>
                                 <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Longform 평균/중앙값</th>
+                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">좋아요 평균/중앙값</th>
+                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">댓글 평균/중앙값</th>
                                 <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Detail</th>
                               </tr>
                             </thead>
@@ -2160,6 +2198,8 @@ const App: React.FC = () => {
                                   <td className="px-6 py-3.5 text-center"><span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
                                   <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianShortsViews ?? 0) > 0 ? `중앙값 ${r.medianShortsViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
                                   <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianLongViews ?? 0) > 0 ? `중앙값 ${r.medianLongViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.status === 'completed' ? (r.avgLikes ?? 0).toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{r.status === 'completed' ? `중앙값 ${(r.medianLikes ?? 0).toLocaleString()}` : ''}</div></td>
+                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.status === 'completed' ? (r.avgComments ?? 0).toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{r.status === 'completed' ? `중앙값 ${(r.medianComments ?? 0).toLocaleString()}` : ''}</div></td>
                                   <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
                                 </tr>
                               ))}
