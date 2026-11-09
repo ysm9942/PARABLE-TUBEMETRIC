@@ -498,6 +498,14 @@ const App: React.FC = () => {
       medianLikes: 0,
       avgComments: 0,
       medianComments: 0,
+      avgShortsLikes: 0,
+      medianShortsLikes: 0,
+      avgLongLikes: 0,
+      medianLongLikes: 0,
+      avgShortsComments: 0,
+      medianShortsComments: 0,
+      avgLongComments: 0,
+      medianLongComments: 0,
       shortsList: [],
       longsList: [],
       liveList: [],
@@ -551,6 +559,14 @@ const App: React.FC = () => {
             medianLikes: stats.medianLikes,
             avgComments: stats.avgComments,
             medianComments: stats.medianComments,
+            avgShortsLikes: stats.avgShortsLikes,
+            medianShortsLikes: stats.medianShortsLikes,
+            avgLongLikes: stats.avgLongLikes,
+            medianLongLikes: stats.medianLongLikes,
+            avgShortsComments: stats.avgShortsComments,
+            medianShortsComments: stats.medianShortsComments,
+            avgLongComments: stats.avgLongComments,
+            medianLongComments: stats.medianLongComments,
             shortsList: stats.shortsList,
             longsList: stats.longsList,
             liveList: stats.liveList,
@@ -1049,10 +1065,18 @@ const App: React.FC = () => {
         '롱폼 평균 조회수': r.avgLongViews,
         '롱폼 중앙값 조회수': r.medianLongViews ?? 0,
         '롱폼 분석 개수': r.longCountFound,
-        '좋아요 평균': r.avgLikes ?? 0,
-        '좋아요 중앙값': r.medianLikes ?? 0,
-        '댓글 평균': r.avgComments ?? 0,
-        '댓글 중앙값': r.medianComments ?? 0,
+        '쇼츠 좋아요 평균': r.avgShortsLikes ?? 0,
+        '쇼츠 좋아요 중앙값': r.medianShortsLikes ?? 0,
+        '롱폼 좋아요 평균': r.avgLongLikes ?? 0,
+        '롱폼 좋아요 중앙값': r.medianLongLikes ?? 0,
+        '쇼츠 댓글 평균': r.avgShortsComments ?? 0,
+        '쇼츠 댓글 중앙값': r.medianShortsComments ?? 0,
+        '롱폼 댓글 평균': r.avgLongComments ?? 0,
+        '롱폼 댓글 중앙값': r.medianLongComments ?? 0,
+        '좋아요 평균(통합)': r.avgLikes ?? 0,
+        '좋아요 중앙값(통합)': r.medianLikes ?? 0,
+        '댓글 평균(통합)': r.avgComments ?? 0,
+        '댓글 중앙값(통합)': r.medianComments ?? 0,
         '상태': r.status === 'completed' ? '완료' : r.status === 'error' ? `오류: ${r.error}` : '대기',
       }));
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
@@ -1543,27 +1567,43 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-10">
-              {/* 수집한 영상의 좋아요·댓글 평균/중앙값 */}
+              {/* 포맷별(숏폼/롱폼) × 지표(조회수·좋아요·댓글) 요약 매트릭스 */}
               <div>
                 <h4 className="text-sm font-semibold text-[#0f0f23] flex items-center gap-2 mb-3">
                   <div className="w-1.5 h-5 bg-violet-500 rounded-full"></div>
-                  좋아요·댓글 통계 <span className="text-[#5a5a7a] font-normal">(수집 영상 {selectedChannel.totalCountFound.toLocaleString()}개 기준)</span>
+                  포맷별 지표 요약 <span className="text-[#5a5a7a] font-normal">(상단 평균 · 하단 중앙값)</span>
                 </h4>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  {([
-                    ['좋아요 평균', selectedChannel.avgLikes, 'like'],
-                    ['좋아요 중앙값', selectedChannel.medianLikes, 'like'],
-                    ['댓글 평균', selectedChannel.avgComments, 'comment'],
-                    ['댓글 중앙값', selectedChannel.medianComments, 'comment'],
-                  ] as [string, number, 'like' | 'comment'][]).map(([lbl, val, kind]) => (
-                    <div key={lbl} className="bg-[#f0f0f8] rounded-xl border border-[#e4e5f0] p-4">
-                      <div className="flex items-center gap-1.5 text-xs text-[#5a5a7a] mb-1">
-                        {kind === 'like' ? <ThumbsUp size={12} className="text-violet-600" /> : <MessageSquare size={12} className="text-[#5a5a7a]" />}
-                        {lbl}
-                      </div>
-                      <div className={`text-lg font-semibold tabular-nums ${kind === 'like' ? 'text-violet-600' : 'text-[#1a1a2e]'}`}>{(val ?? 0).toLocaleString()}</div>
-                    </div>
-                  ))}
+                <div className="overflow-hidden rounded-xl border border-[#e4e5f0]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#f4f5fb] text-[11px] text-[#8888a8]">
+                      <tr>
+                        <th className="text-left px-4 py-2.5 font-semibold uppercase tracking-[0.04em]">지표</th>
+                        <th className="text-right px-4 py-2.5 font-bold text-violet-600 border-l border-[#e4e5f0]">숏폼 <span className="text-[#a0a0b8] font-normal">({selectedChannel.shortsList.length})</span></th>
+                        <th className="text-right px-4 py-2.5 font-bold text-[#3a3a58] border-l border-[#e4e5f0]">롱폼 <span className="text-[#a0a0b8] font-normal">({selectedChannel.longsList.length})</span></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f0f0f6]">
+                      {([
+                        { label: '조회수', Icon: TrendingUp, aS: selectedChannel.avgShortsViews, mS: selectedChannel.medianShortsViews, aL: selectedChannel.avgLongViews, mL: selectedChannel.medianLongViews },
+                        { label: '좋아요', Icon: ThumbsUp, aS: selectedChannel.avgShortsLikes, mS: selectedChannel.medianShortsLikes, aL: selectedChannel.avgLongLikes, mL: selectedChannel.medianLongLikes },
+                        { label: '댓글', Icon: MessageSquare, aS: selectedChannel.avgShortsComments, mS: selectedChannel.medianShortsComments, aL: selectedChannel.avgLongComments, mL: selectedChannel.medianLongComments },
+                      ]).map((row) => (
+                        <tr key={row.label} className="hover:bg-[#fafaff]">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 text-[#5a5a7a] font-medium"><row.Icon size={13} className="text-violet-500" />{row.label}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right border-l border-[#f0f0f6]">
+                            <div className="font-semibold text-[#1a1a2e] tabular-nums">{(row.aS ?? 0).toLocaleString()}</div>
+                            <div className="text-[10px] text-[#9a9ab2] tabular-nums mt-0.5">{(row.mS ?? 0).toLocaleString()}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right border-l border-[#f0f0f6]">
+                            <div className="font-semibold text-[#1a1a2e] tabular-nums">{(row.aL ?? 0).toLocaleString()}</div>
+                            <div className="text-[10px] text-[#9a9ab2] tabular-nums mt-0.5">{(row.mL ?? 0).toLocaleString()}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -2165,21 +2205,28 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex gap-1.5">
                           <button onClick={handleDownloadExcel} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><FileSpreadsheet size={11} /> Excel</button>
-                          <button onClick={() => { const hdr = '채널명\t채널ID\t구독자수\t숏츠평균\t숏츠중앙값\t롱폼평균\t롱폼중앙값\t좋아요평균\t좋아요중앙값\t댓글평균\t댓글중앙값'; const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgLongViews, r.medianLongViews ?? 0, r.avgLikes ?? 0, r.medianLikes ?? 0, r.avgComments ?? 0, r.medianComments ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
+                          <button onClick={() => { const hdr = ['채널명','채널ID','구독자수','숏폼_조회수평균','숏폼_조회수중앙값','숏폼_좋아요평균','숏폼_좋아요중앙값','숏폼_댓글평균','숏폼_댓글중앙값','롱폼_조회수평균','롱폼_조회수중앙값','롱폼_좋아요평균','롱폼_좋아요중앙값','롱폼_댓글평균','롱폼_댓글중앙값'].join('\t'); const rows = channelResults.map(r => [r.channelName, r.channelId, r.subscriberCount, r.avgShortsViews, r.medianShortsViews ?? 0, r.avgShortsLikes ?? 0, r.medianShortsLikes ?? 0, r.avgShortsComments ?? 0, r.medianShortsComments ?? 0, r.avgLongViews, r.medianLongViews ?? 0, r.avgLongLikes ?? 0, r.medianLongLikes ?? 0, r.avgLongComments ?? 0, r.medianLongComments ?? 0].join('\t')); navigator.clipboard.writeText([hdr, ...rows].join('\n')); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#f0f0f8] hover:bg-[#eaeaf4] text-[#1a1a2e] hover:text-[#0f0f23] rounded text-xs transition-all"><Clipboard size={11} /> 복사</button>
                         </div>
                       </div>
                       {channelResultTab === 'table' && (
                         <div className="overflow-x-auto">
+                          <p className="px-6 pt-3 text-[10px] text-[#a0a0b8]">숏폼·롱폼으로 나눈 조회수·좋아요·댓글 — 각 칸 <span className="font-semibold text-[#5a5a7a]">상단=평균</span>, <span className="text-[#9a9ab2]">하단=중앙값</span></p>
                           <table className="w-full text-left border-collapse">
                             <thead className="bg-[#f4f5fb] text-[#5a5a7a] text-[11px]">
                               <tr>
-                                <th className="px-6 py-3.5 font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Channel</th>
-                                <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Subscribers</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Shorts 평균/중앙값</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Longform 평균/중앙값</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">좋아요 평균/중앙값</th>
-                                <th className="px-6 py-3.5 text-right font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">댓글 평균/중앙값</th>
-                                <th className="px-6 py-3.5 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8]">Detail</th>
+                                <th rowSpan={2} className="px-6 py-3 font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8] align-bottom">Channel</th>
+                                <th rowSpan={2} className="px-4 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8] align-bottom">Subscribers</th>
+                                <th colSpan={3} className="px-4 py-2 text-center font-bold text-[11px] text-violet-600 border-l border-[#e4e5f0] bg-violet-50/40">숏폼 (Shorts)</th>
+                                <th colSpan={3} className="px-4 py-2 text-center font-bold text-[11px] text-[#3a3a58] border-l border-[#e4e5f0] bg-[#f0f0f8]/60">롱폼 (Longform)</th>
+                                <th rowSpan={2} className="px-4 py-3 text-center font-semibold text-[11px] uppercase tracking-[0.05em] text-[#8888a8] align-bottom">Detail</th>
+                              </tr>
+                              <tr>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8] border-l border-[#e4e5f0]">조회수</th>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8]">좋아요</th>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8]">댓글</th>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8] border-l border-[#e4e5f0]">조회수</th>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8]">좋아요</th>
+                                <th className="px-4 py-2 text-right font-semibold text-[10px] text-[#8888a8]">댓글</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#ececf5]">
@@ -2197,12 +2244,21 @@ const App: React.FC = () => {
                                       <div className="text-[10px] text-[#1a1a2e] font-mono mt-0.5 truncate max-w-[200px]">{r.status === 'error' ? r.error : r.channelId}</div>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-3.5 text-center"><span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.avgShortsViews > 0 ? r.avgShortsViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianShortsViews ?? 0) > 0 ? `중앙값 ${r.medianShortsViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.shortsCountFound > 0 ? `${r.shortsCountFound} Shorts` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.avgLongViews > 0 ? r.avgLongViews.toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{(r.medianLongViews ?? 0) > 0 ? `중앙값 ${r.medianLongViews.toLocaleString()}` : ''}</div><div className="text-[10px] text-[#1a1a2e] mt-0.5">{r.longCountFound > 0 ? `${r.longCountFound} Videos` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-violet-600">{r.status === 'completed' ? (r.avgLikes ?? 0).toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{r.status === 'completed' ? `중앙값 ${(r.medianLikes ?? 0).toLocaleString()}` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-right"><div className="text-sm font-semibold text-[#1a1a2e]">{r.status === 'completed' ? (r.avgComments ?? 0).toLocaleString() : '—'}</div><div className="text-[10px] text-[#5a5a7a] mt-0.5">{r.status === 'completed' ? `중앙값 ${(r.medianComments ?? 0).toLocaleString()}` : ''}</div></td>
-                                  <td className="px-6 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
+                                  <td className="px-4 py-3.5 text-center"><span className="bg-[#f0f0f8] px-2.5 py-1 rounded text-[#1a1a2e] text-xs border border-[#e0e1ef]">{r.status === 'completed' ? formatNumber(r.subscriberCount) : '—'}</span></td>
+                                  {([
+                                    ['avgShortsViews', 'medianShortsViews', true, 'text-violet-600'],
+                                    ['avgShortsLikes', 'medianShortsLikes', false, 'text-[#1a1a2e]'],
+                                    ['avgShortsComments', 'medianShortsComments', false, 'text-[#1a1a2e]'],
+                                    ['avgLongViews', 'medianLongViews', true, 'text-[#3a3a58]'],
+                                    ['avgLongLikes', 'medianLongLikes', false, 'text-[#1a1a2e]'],
+                                    ['avgLongComments', 'medianLongComments', false, 'text-[#1a1a2e]'],
+                                  ] as [keyof ChannelResult, keyof ChannelResult, boolean, string][]).map(([ak, mk, grp], ci) => (
+                                    <td key={ci} className={`px-4 py-3.5 text-right ${grp ? 'border-l border-[#f0f0f6]' : ''}`}>
+                                      <div className={`text-[13px] font-semibold tabular-nums ${(['avgShortsViews','avgLongViews'] as string[]).includes(ak as string) ? (ak === 'avgShortsViews' ? 'text-violet-600' : 'text-[#3a3a58]') : 'text-[#1a1a2e]'}`}>{r.status === 'completed' ? (((r[ak] as number) ?? 0)).toLocaleString() : '—'}</div>
+                                      <div className="text-[10px] text-[#9a9ab2] tabular-nums mt-0.5">{r.status === 'completed' ? (((r[mk] as number) ?? 0)).toLocaleString() : ''}</div>
+                                    </td>
+                                  ))}
+                                  <td className="px-4 py-3.5 text-center"><button disabled={r.status !== 'completed'} onClick={() => setSelectedChannel(r)} className="p-1.5 bg-[#f0f0f8] hover:bg-violet-600 hover:text-white text-[#1a1a2e] rounded-lg transition-all disabled:opacity-20 active:scale-90"><Eye size={14} /></button></td>
                                 </tr>
                               ))}
                             </tbody>

@@ -63,6 +63,15 @@ export interface ChannelResult {
   medianLikes: number;
   avgComments: number;
   medianComments: number;
+  // 쇼츠/롱폼으로 분리한 좋아요·댓글 평균·중앙값
+  avgShortsLikes: number;
+  medianShortsLikes: number;
+  avgLongLikes: number;
+  medianLongLikes: number;
+  avgShortsComments: number;
+  medianShortsComments: number;
+  avgLongComments: number;
+  medianLongComments: number;
   shortsList: VideoDetail[];
   longsList: VideoDetail[];
   liveList: VideoDetail[];
